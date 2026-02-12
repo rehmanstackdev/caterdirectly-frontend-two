@@ -1,0 +1,299 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Scrollbar for Glass UI */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(var(--brand) / 0.4), hsl(var(--brand) / 0.6));
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsl(var(--brand) / 0.6), hsl(var(--brand) / 0.8));
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--brand) / 0.5) transparent;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 40% 98%;
+
+    /* Brand orange */
+    --brand: 27 88% 50%;
+    --brand-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Glass Morphism - Apple visionOS inspired */
+    --glass-bg: 0 0% 100%;
+    --glass-border: 0 0% 90%;
+    --glass-shadow: 0 0% 0%;
+    
+    /* Financial Metrics Colors */
+    --finance-revenue: 142.1 76.2% 36.3%;
+    --finance-expense: 0 84.2% 60.2%;
+    --finance-pipeline: 27 88% 50%;
+    --finance-neutral: 215.4 16.3% 46.9%;
+    --finance-positive: 142.1 76.2% 36.3%;
+    --finance-negative: 0 84.2% 60.2%;
+    --finance-warning: 45 93% 47%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --success: 142.1 70% 45%;
+    --success-foreground: 210 40% 98%;
+
+    /* Brand orange in dark mode */
+    --brand: 27 88% 50%;
+    --brand-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Glass Morphism - Dark mode */
+    --glass-bg: 222.2 84% 8%;
+    --glass-border: 217.2 32.6% 25%;
+    --glass-shadow: 0 0% 0%;
+    
+    /* Financial Metrics Colors - Dark mode */
+    --finance-revenue: 142.1 70% 45%;
+    --finance-expense: 0 62.8% 50%;
+    --finance-pipeline: 27 88% 60%;
+    --finance-neutral: 215 20.2% 65.1%;
+    --finance-positive: 142.1 70% 45%;
+    --finance-negative: 0 62.8% 50%;
+    --finance-warning: 45 93% 57%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* Custom container styles */
+  .container {
+    @apply mx-auto px-4;
+    max-width: 1800px;
+  }
+
+  /* Responsive text classes */
+  @screen md {
+    h1 {
+      @apply text-5xl;
+    }
+    h2 {
+      @apply text-4xl;
+    }
+    h3 {
+      @apply text-2xl;
+    }
+  }
+
+  /* Mobile text sizes */
+  h1 {
+    @apply text-3xl;
+  }
+  h2 {
+    @apply text-2xl;
+  }
+  h3 {
+    @apply text-xl;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* Hide scrollbar while maintaining functionality */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom animations */
+@keyframes orangePulse {
+  0%, 100% {
+    border-color: rgb(209, 213, 219); /* gray-300 */
+    color: rgb(55, 65, 81); /* gray-700 */
+    background-color: transparent;
+  }
+  50% {
+    border-color: #F07712; /* brand orange */
+    color: #F07712;
+    background-color: rgba(240, 119, 18, 0.1);
+  }
+}
+
+/* Google Places Autocomplete Dropdown */
+.pac-container {
+  z-index: 1000;
+}
+
+/* Custom Time Picker Styling - Orange Gradient */
+input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+input[type="time"]::-webkit-datetime-edit-ampm-field:focus {
+  background: linear-gradient(135deg, #F07712 0%, #FF9142 100%);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(56%) sepia(86%) saturate(1643%) hue-rotate(356deg) brightness(100%) contrast(91%);
+  cursor: pointer;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(56%) sepia(86%) saturate(1643%) hue-rotate(356deg) brightness(110%) contrast(95%);
+}
+
+/* Custom Date Picker Styling - Orange Gradient */
+input[type="date"]::-webkit-datetime-edit-day-field:focus,
+input[type="date"]::-webkit-datetime-edit-month-field:focus,
+input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background: linear-gradient(135deg, #F07712 0%, #FF9142 100%);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(56%) sepia(86%) saturate(1643%) hue-rotate(356deg) brightness(100%) contrast(91%);
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(56%) sepia(86%) saturate(1643%) hue-rotate(356deg) brightness(110%) contrast(95%);
+}
+
+/* Custom Select Dropdown Styling - Orange */
+select option:checked,
+select option:hover {
+  background: linear-gradient(135deg, #F07712 0%, #FF9142 100%) !important;
+  color: white !important;
+}
+
+select:focus option:checked {
+  background: linear-gradient(135deg, #F07712 0%, #FF9142 100%) !important;
+  color: white !important;
+}
+
