@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import Dashboard from "@/components/dashboard/Dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,15 +14,187 @@ import {
 } from "lucide-react";
 import PersonalInfoForm from "@/components/profile/PersonalInfoForm";
 import { useProfile } from "@/hooks/use-profile";
+import HostService from "@/services/api/host/host.Service";
+import { useAuth } from "@/contexts/auth";
+import { useToast } from "@/hooks/use-toast";
+
+interface StripeConnectAccount {
+  id: string;
+  type: "express" | "standard";
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  details_submitted: boolean;
+}
 
 const EventhostAccountinfo = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const { profileData, isLoading } = useProfile();
 
-  const stripeAccount = null;
-  const stripeLoading = false;
-  const creatingStripeAccount = false;
-  const creatingAccountLink = false;
-  const creatingLoginLink = false;
+  const [stripeAccount, setStripeAccount] = useState<StripeConnectAccount | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [creatingStripeAccount, setCreatingStripeAccount] = useState(false);
+  const [creatingAccountLink, setCreatingAccountLink] = useState(false);
+  const [creatingLoginLink, setCreatingLoginLink] = useState(false);
+
+  const hostId = user?.id;
+
+  const hostBusinessName = useMemo(() => {
+    const firstName = profileData?.personal?.firstName || "";
+    const lastName = profileData?.personal?.lastName || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || "Host";
+  }, [profileData?.personal?.firstName, profileData?.personal?.lastName]);
+
+  const mapStripeAccount = (accountData: any): StripeConnectAccount | null => {
+    if (!accountData?.id) return null;
+    return {
+      id: accountData.id,
+      type: accountData.type || "express",
+      charges_enabled: Boolean(accountData.charges_enabled),
+      payouts_enabled: Boolean(accountData.payouts_enabled),
+      details_submitted: Boolean(accountData.details_submitted),
+    };
+  };
+
+  const fetchStripeAccount = async () => {
+    if (!hostId) {
+      setStripeAccount(null);
+      return;
+    }
+
+    setStripeLoading(true);
+    try {
+      const response = await HostService.getStripeConnectAccount(hostId);
+      const accountData =
+        response?.data?.account ||
+        response?.data?.stripeAccount ||
+        response?.account ||
+        response?.stripeAccount;
+      setStripeAccount(mapStripeAccount(accountData));
+    } catch (error: any) {
+      setStripeAccount(null);
+      if (error?.response?.status !== 404 && error?.response?.status !== 400) {
+        toast({
+          title: "Error",
+          description: error?.response?.data?.message || "Failed to fetch Stripe Connect account",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  const createOnboardingLink = async (): Promise<string | null> => {
+    if (!hostId) return null;
+
+    setCreatingAccountLink(true);
+    try {
+      const baseUrl = `${window.location.origin}${window.location.pathname}`;
+      const returnUrl = `${baseUrl}?tab=banking&onboarding=complete`;
+      const refreshUrl = `${baseUrl}?tab=banking&onboarding=refresh`;
+
+      const response = await HostService.createStripeAccountLink(hostId, returnUrl, refreshUrl);
+      return response?.data?.url || response?.url || null;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || "Failed to create onboarding link",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setCreatingAccountLink(false);
+    }
+  };
+
+  const openOnboarding = async () => {
+    const url = await createOnboardingLink();
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const openStripeDashboard = async () => {
+    if (!hostId) return;
+
+    setCreatingLoginLink(true);
+    try {
+      const response = await HostService.createStripeLoginLink(hostId);
+      const url = response?.data?.url || response?.url;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.message || "";
+      const onboardingIncomplete = backendMessage
+        .toLowerCase()
+        .includes("has not completed onboarding");
+
+      if (onboardingIncomplete) {
+        toast({
+          title: "Complete Stripe Onboarding",
+          description: "Please complete onboarding first, then open Stripe Dashboard.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Error",
+        description: backendMessage || "Failed to create login link",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingLoginLink(false);
+    }
+  };
+
+  const createStripeAccount = async () => {
+    if (!hostId) return;
+
+    setCreatingStripeAccount(true);
+    try {
+      const email = profileData?.personal?.email || user?.email || "";
+      await HostService.createStripeConnectAccount(hostId, {
+        email,
+        businessName: hostBusinessName,
+        country: "US",
+        type: "express",
+      });
+
+      await fetchStripeAccount();
+
+      toast({
+        title: "Success",
+        description: "Stripe Connect account created successfully",
+      });
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.message || "";
+      const alreadyExists = backendMessage.toLowerCase().includes("already has a stripe connect account");
+
+      if (alreadyExists) {
+        toast({
+          title: "Stripe Already Connected",
+          description: "Your host account is already connected to Stripe.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Error Creating Account",
+        description: backendMessage || "Failed to create Stripe Connect account",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingStripeAccount(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStripeAccount();
+  }, [hostId]);
 
   return (
     <Dashboard activeTab="settings" userRole="event-host">
@@ -97,9 +270,7 @@ const EventhostAccountinfo = () => {
                   {stripeLoading ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                      <span className="ml-2 text-sm text-purple-700">
-                        Loading account status...
-                      </span>
+                      <span className="ml-2 text-sm text-purple-700">Loading account status...</span>
                     </div>
                   ) : stripeAccount ? (
                     <div className="space-y-3">
@@ -129,9 +300,15 @@ const EventhostAccountinfo = () => {
                       {!stripeAccount.details_submitted && (
                         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <p className="text-sm text-yellow-800 mb-2">
-                            ?? Your Stripe account needs to complete onboarding to receive payouts.
+                            Your Stripe account needs to complete onboarding to receive payouts.
                           </p>
-                          <Button size="sm" variant="outline" disabled className="w-full">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={openOnboarding}
+                            disabled={creatingAccountLink}
+                            className="w-full"
+                          >
                             {creatingAccountLink ? (
                               <>
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -148,7 +325,13 @@ const EventhostAccountinfo = () => {
                       )}
 
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" disabled className="flex-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={openStripeDashboard}
+                          disabled={creatingLoginLink}
+                          className="flex-1"
+                        >
                           {creatingLoginLink ? (
                             <>
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -161,8 +344,8 @@ const EventhostAccountinfo = () => {
                             </>
                           )}
                         </Button>
-                        <Button size="sm" variant="outline" disabled>
-                          Refresh Status
+                        <Button size="sm" variant="outline" onClick={fetchStripeAccount} disabled={stripeLoading}>
+                          {stripeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh Status"}
                         </Button>
                       </div>
                     </div>
@@ -173,7 +356,8 @@ const EventhostAccountinfo = () => {
                         This will allow you to receive payouts directly to your bank account.
                       </p>
                       <Button
-                        disabled
+                        onClick={createStripeAccount}
+                        disabled={creatingStripeAccount || !hostId}
                         className="w-full bg-purple-600 hover:bg-purple-700"
                       >
                         {creatingStripeAccount ? (

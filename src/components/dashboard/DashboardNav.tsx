@@ -127,7 +127,7 @@ export function DashboardNav({
     {
       name: "Settings",
       id: "settings",
-      href: "/host/EventhostAccountinfo",
+      href: "/host/settings",
       icon: <Settings className="h-5 w-5" />,
     },
   ];

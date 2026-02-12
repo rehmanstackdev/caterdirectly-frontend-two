@@ -76,6 +76,7 @@ export function AuthAwareDashboardNav({ activeTab, userRole, onLogout, className
     { name: "Guest List", id: "guests", href: "/host/guests", icon: <Users className="h-5 w-5" />, protected: true },
     { name: "Earnings", id: "earnings", href: "/host/earnings", icon: <Wallet className="h-5 w-5" />, protected: true },
     { name: "Support", id: "support", href: "/host/support", icon: <MessageCircle className="h-5 w-5" />, protected: true },
+    { name: "Settings", id: "settings", href: "/host/settings", icon: <Settings className="h-5 w-5" />, protected: true },
   ];
 
   const adminLinks = [

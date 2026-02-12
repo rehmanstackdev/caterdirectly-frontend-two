@@ -7,6 +7,7 @@ import GuestDatabasePage from '../pages/GuestDatabasePage';
 import HostEarningsPage from '../pages/HostEarningsPage';
 import EventHostSupport from '../pages/EventHostSupport';
 import EventHostProfile from '../pages/EventHostProfile';
+import EventhostAccountinfo from '../pages/EventhostAccountinfo';
 import HostOrdersPage from '../pages/host/HostOrdersPage';
 import OrderDetailsPage from '../pages/host/OrderDetailsPage';
 import NotFound from '../pages/NotFound';
@@ -24,6 +25,8 @@ const HostRoutes = (
         <Route path="earnings" element={<HostEarningsPage />} />
         <Route path="support" element={<EventHostSupport />} />
         <Route path="profile" element={<EventHostProfile />} />
+        <Route path="settings" element={<EventhostAccountinfo />} />
+        <Route path="EventhostAccountinfo" element={<EventhostAccountinfo />} />
         <Route path="orders" element={<Navigate to="/host/analytics?section=orders" replace />} />
         <Route path="orders/:id" element={<OrderDetailsPage />} />
         <Route path="order-summary/:id" element={<HostOrderSummaryPage />} />

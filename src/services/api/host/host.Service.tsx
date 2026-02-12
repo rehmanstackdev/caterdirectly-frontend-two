@@ -46,6 +46,38 @@ class HostService extends BaseRequestService {
       headers: getAuthHeader(),
     });
   }
+
+  createStripeConnectAccount(hostId: string, data: {
+    email: string;
+    businessName: string;
+    country?: string;
+    type?: 'express' | 'standard';
+  }) {
+    return this.post(`${API_URL}users/hosts/${hostId}/stripe-connect/create`, data, {
+      headers: getAuthHeader(),
+    });
+  }
+
+  getStripeConnectAccount(hostId: string) {
+    return this.get(`${API_URL}users/hosts/${hostId}/stripe-connect`, {
+      headers: getAuthHeader(),
+    });
+  }
+
+  createStripeAccountLink(hostId: string, returnUrl: string, refreshUrl: string) {
+    return this.post(`${API_URL}users/hosts/${hostId}/stripe-connect/account-link`, {
+      returnUrl,
+      refreshUrl,
+    }, {
+      headers: getAuthHeader(),
+    });
+  }
+
+  createStripeLoginLink(hostId: string) {
+    return this.post(`${API_URL}users/hosts/${hostId}/stripe-connect/login-link`, {}, {
+      headers: getAuthHeader(),
+    });
+  }
 }
 
 export default new HostService();
