@@ -71,17 +71,16 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="ticketName">Ticket Name</Label>
-            <Input
-              id="ticketName"
-              placeholder="VIP, General Admission, etc."
-              value={ticketName}
-              onChange={(e) => setTicketName(e.target.value)}
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ticketName">Ticket Name</Label>
+              <Input
+                id="ticketName"
+                placeholder="VIP, General Admission, etc."
+                value={ticketName}
+                onChange={(e) => setTicketName(e.target.value)}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="price">Price ($)</Label>
               <Input

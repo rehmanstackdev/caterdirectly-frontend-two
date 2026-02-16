@@ -51,7 +51,7 @@ const GuestDatabasePage = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6">
-            <TabsTrigger value="all-guests">All Contacts</TabsTrigger>
+            <TabsTrigger value="all-guests">All Guests Contacts</TabsTrigger>
             <TabsTrigger value="recent-guests">Recent Event Guests</TabsTrigger>
             <TabsTrigger value="import">Import & Export</TabsTrigger>
           </TabsList>

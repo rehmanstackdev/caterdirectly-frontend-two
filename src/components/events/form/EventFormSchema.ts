@@ -38,14 +38,7 @@ export const eventFormSchema = z.object({
   addressState: z.string().min(2, {
     message: "Please enter a valid state.",
   }),
-  addressZip: z
-    .string()
-    .trim()
-    .min(5, {
-      message: "Please enter a valid zip code.",
-    })
-    .optional()
-    .or(z.literal("")),
+  addressZip: z.string().optional(),
   addressFull: z.string().min(5, {
     message: "Event address is required.",
   }),

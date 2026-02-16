@@ -1,14 +1,48 @@
+import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useGuests } from "@/hooks/use-guests";
+import EventsService from "@/services/api/host/events.Service";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
-import { useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useGuests } from '@/hooks/use-guests';
-import { toast } from 'sonner';
+interface EventTicket {
+  id: string;
+  ticketName: string;
+  price: string;
+}
+
+interface HostEvent {
+  id: string;
+  title: string;
+  tickets?: EventTicket[];
+}
 
 const guestSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -16,7 +50,9 @@ const guestSchema = z.object({
   phone: z.string().optional(),
   company: z.string().optional(),
   jobTitle: z.string().optional(),
-  tags: z.string().optional()
+  eventId: z.string().optional(),
+  ticketId: z.string().optional(),
+  ticketPrice: z.string().optional(),
 });
 
 type GuestFormData = z.infer<typeof guestSchema>;
@@ -24,66 +60,116 @@ type GuestFormData = z.infer<typeof guestSchema>;
 interface GuestEntryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  existingGuest?: any; // Add proper type if editing
+  existingGuest?: any;
 }
 
-const GuestEntryDialog = ({ 
-  open, 
+const GuestEntryDialog = ({
+  open,
   onOpenChange,
-  existingGuest 
+  existingGuest,
 }: GuestEntryDialogProps) => {
   const { addGuest, updateGuest, loading } = useGuests();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!existingGuest;
-  
+  const [hostEvents, setHostEvents] = useState<HostEvent[]>([]);
+  const [tickets, setTickets] = useState<EventTicket[]>([]);
+
   const form = useForm<GuestFormData>({
     resolver: zodResolver(guestSchema),
     defaultValues: existingGuest || {
-      name: '',
-      email: '',
-      phone: '',
-      company: '',
-      jobTitle: '',
-      tags: ''
-    }
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      jobTitle: "",
+      eventId: "",
+      ticketId: "",
+      ticketPrice: "",
+    },
   });
 
-  // Reset form when switching between add/edit and when dialog opens with a guest
+  const selectedEventId = form.watch("eventId");
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadEvents = async () => {
+      try {
+        const response = await EventsService.getHostEvents();
+        const events = Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response)
+            ? response
+            : [];
+        setHostEvents(events);
+      } catch (error) {
+        console.error("Failed to load host events:", error);
+        toast.error("Failed to load events for guest creation");
+      }
+    };
+
+    loadEvents();
+  }, [open]);
+
   useEffect(() => {
     if (open) {
       form.reset(
         existingGuest
           ? {
-              name: existingGuest.name || '',
-              email: existingGuest.email || '',
-              phone: existingGuest.phone || '',
-              company: existingGuest.company || '',
-              jobTitle: existingGuest.jobTitle || '',
-              tags: existingGuest.tags?.join(', ') || '',
+              name: existingGuest.name || "",
+              email: existingGuest.email || "",
+              phone: existingGuest.phone || "",
+              company: existingGuest.company || "",
+              jobTitle: existingGuest.jobTitle || "",
+              eventId: existingGuest.eventId || "",
+              ticketId: existingGuest.ticketId || "",
+              ticketPrice: "",
             }
           : {
-              name: '',
-              email: '',
-              phone: '',
-              company: '',
-              jobTitle: '',
-              tags: '',
-            }
+              name: "",
+              email: "",
+              phone: "",
+              company: "",
+              jobTitle: "",
+              eventId: "",
+              ticketId: "",
+              ticketPrice: "",
+            },
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existingGuest?.id]);
 
+  useEffect(() => {
+    if (!selectedEventId) {
+      setTickets([]);
+      return;
+    }
+
+    const selectedEvent = hostEvents.find(
+      (event) => event.id === selectedEventId,
+    );
+    setTickets(selectedEvent?.tickets || []);
+  }, [hostEvents, selectedEventId]);
+
   const onSubmit = async (data: GuestFormData) => {
+    setIsSubmitting(true);
+
     try {
+      if (!isEditing && (!data.eventId || !data.ticketId)) {
+        throw new Error("Please select both event and ticket");
+      }
+
       const processedData = {
         name: data.name,
         email: data.email,
         phone: data.phone,
         company: data.company,
         jobTitle: data.jobTitle,
-        tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []
+        eventId: data.eventId || existingGuest?.eventId,
+        ticketId: data.ticketId || existingGuest?.ticketId,
       };
-      
+
       if (isEditing) {
         await updateGuest(existingGuest.id, processedData);
         toast.success("Contact updated successfully");
@@ -91,27 +177,32 @@ const GuestEntryDialog = ({
         await addGuest(processedData);
         toast.success("New contact added successfully");
       }
-      
+
       onOpenChange(false);
       form.reset();
     } catch (error: any) {
       console.error("Error saving guest:", error);
-      toast.error(error?.message || (isEditing ? "Failed to update contact" : "Failed to add contact"));
+      toast.error(
+        error?.message ||
+          (isEditing ? "Failed to update contact" : "Failed to add contact"),
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Contact' : 'Add New Contact'}</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Guest" : "Add New Guest"}</DialogTitle>
           <DialogDescription>
-            {isEditing 
-              ? "Update the contact information below" 
+            {isEditing
+              ? "Update the contact information below"
               : "Fill in the details to add a new contact to your database"}
           </DialogDescription>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -128,7 +219,7 @@ const GuestEntryDialog = ({
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -142,21 +233,7 @@ const GuestEntryDialog = ({
                   </FormItem>
                 )}
               />
-              
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input placeholder="(123) 456-7890" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
+
               <FormField
                 control={form.control}
                 name="company"
@@ -170,7 +247,21 @@ const GuestEntryDialog = ({
                   </FormItem>
                 )}
               />
-              
+
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="(123) 456-7890" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="jobTitle"
@@ -184,28 +275,111 @@ const GuestEntryDialog = ({
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
-                name="tags"
+                name="eventId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tags</FormLabel>
+                    <FormLabel>Event</FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        form.setValue("ticketId", "", { shouldValidate: true });
+                        form.setValue("ticketPrice", "", { shouldValidate: true });
+                        const selectedEvent = hostEvents.find(
+                          (event) => event.id === value,
+                        );
+                        setTickets(selectedEvent?.tickets || []);
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select event" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {hostEvents.map((event) => (
+                          <SelectItem key={event.id} value={event.id}>
+                            {event.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="ticketId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ticket</FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        const selected = tickets.find((ticket) => ticket.id === value);
+                        form.setValue("ticketPrice", selected?.price || "", {
+                          shouldValidate: true,
+                        });
+                      }}
+                      disabled={!selectedEventId || tickets.length === 0}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select ticket" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {tickets.map((ticket) => (
+                          <SelectItem key={ticket.id} value={ticket.id}>
+                            {ticket.ticketName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="ticketPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price</FormLabel>
                     <FormControl>
-                      <Input placeholder="VIP, Friend, Client (comma separated)" {...field} />
+                      <Input
+                        value={field.value ? `$${field.value}` : ""}
+                        readOnly
+                        placeholder="Ticket price"
+                        className="border"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            
+
+            {isSubmitting && (
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isEditing ? "Updating guest..." : "Adding guest..."}
+              </div>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {isEditing ? 'Update' : 'Add'} Contact
+              <Button type="submit" disabled={loading || isSubmitting}>
+                {isSubmitting ? (isEditing ? "Updating..." : "Adding...") : `${isEditing ? "Update" : "Add"} Guest`}
               </Button>
             </DialogFooter>
           </form>

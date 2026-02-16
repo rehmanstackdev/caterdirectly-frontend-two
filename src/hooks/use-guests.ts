@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import AddGuestService from '@/services/api/host/guest/addguest.service';
+import { useAuth } from '@/contexts/auth';
+
+const GUESTS_UPDATED_EVENT = 'guests:updated';
 
 export interface Guest {
   id: string;
@@ -15,67 +19,182 @@ export interface Guest {
   addedDate: Date;
 }
 
+interface AddGuestInput {
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  jobTitle?: string;
+  eventId?: string;
+  ticketId?: string;
+}
+
+interface UpdateGuestInput {
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  jobTitle?: string;
+  eventId?: string;
+  ticketId?: string;
+}
+
+const mapApiGuestToGuest = (raw: any): Guest => ({
+  id: raw?.id || `api-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  name: raw?.name || '',
+  email: raw?.email || '',
+  phone: raw?.phone || raw?.phoneNumber || raw?.phone_number || undefined,
+  company: raw?.companyName || raw?.company || undefined,
+  jobTitle: raw?.jobTitle || undefined,
+  tags: Array.isArray(raw?.tags) ? raw.tags : [],
+  eventCount:
+    typeof raw?.eventCount === 'number'
+      ? raw.eventCount
+      : Array.isArray(raw?.events)
+        ? raw.events.length
+        : 0,
+  recentEvent: Boolean(raw?.recentEvent),
+  lastContactedDate: raw?.lastContactedDate ? new Date(raw.lastContactedDate) : undefined,
+  addedDate: raw?.createdAt ? new Date(raw.createdAt) : new Date(),
+});
+
 export const useGuests = () => {
+  const { user } = useAuth();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastSearch, setLastSearch] = useState<string | undefined>(undefined);
+  const [lastRecentGuest, setLastRecentGuest] = useState<boolean | undefined>(undefined);
 
-  const loadGuests = useCallback(async () => {
+  const loadGuests = useCallback(async (search?: string, recentGuest?: boolean) => {
     setLoading(true);
     try {
-      // Supabase removed: guest list is in-memory for now
-      setGuests([]);
-    } catch (err) {
-      console.error('Error loading guests:', err);
-      toast.error('Failed to load contact database');
-      setGuests([]);
+      setLastSearch(search);
+      setLastRecentGuest(recentGuest);
+
+      if (!user?.id) {
+        setGuests([]);
+        return;
+      }
+
+      const result = await AddGuestService.getHostGuests(search, recentGuest);
+      const guestRows = Array.isArray(result?.data?.data)
+        ? result.data.data
+        : Array.isArray(result?.data)
+          ? result.data
+          : Array.isArray(result)
+            ? result
+            : [];
+
+      const mapped = guestRows
+        .map(mapApiGuestToGuest)
+        .filter((g) => g.name && g.email)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setGuests(mapped);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message;
+
+      // Backend may return 404 when the host has no guest records yet.
+      if (status === 404 && message === 'Host guest not found') {
+        setGuests([]);
+      } else {
+        console.error('Error loading guests:', err);
+        toast.error(message || 'Failed to load contact database');
+        setGuests([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     loadGuests();
   }, [loadGuests]);
 
-  // Add a new contact (in-memory)
-  const addGuest = async (
-    guestData: Omit<
-      Guest,
-      'id' | 'addedDate' | 'recentEvent' | 'eventCount' | 'lastContactedDate'
-    >,
-  ) => {
-    const tempGuest: Guest = {
-      id: `temp-${Date.now()}`,
-      name: guestData.name,
-      email: guestData.email,
-      phone: guestData.phone ?? undefined,
-      company: guestData.company ?? undefined,
-      jobTitle: guestData.jobTitle ?? undefined,
-      tags: guestData.tags ?? [],
-      eventCount: undefined,
-      recentEvent: false,
-      lastContactedDate: undefined,
-      addedDate: new Date(),
+  useEffect(() => {
+    const handleGuestsUpdated = () => {
+      loadGuests(lastSearch, lastRecentGuest);
     };
 
+    window.addEventListener(GUESTS_UPDATED_EVENT, handleGuestsUpdated);
+    return () => {
+      window.removeEventListener(GUESTS_UPDATED_EVENT, handleGuestsUpdated);
+    };
+  }, [loadGuests, lastSearch, lastRecentGuest]);
+
+  // Add a new contact via backend API
+  const addGuest = async (guestData: AddGuestInput) => {
+    if (!guestData.eventId || !guestData.ticketId) {
+      throw new Error('Event and ticket are required to add a guest');
+    }
+
+    const response = await AddGuestService.addHostGuest({
+      name: guestData.name,
+      email: guestData.email,
+      phone: guestData.phone,
+      companyName: guestData.company,
+      jobTitle: guestData.jobTitle,
+      eventId: guestData.eventId,
+      ticketId: guestData.ticketId,
+    });
+
+    const apiGuest = response?.data || response;
+    const createdGuest = mapApiGuestToGuest({
+      ...apiGuest,
+      phone: guestData.phone,
+      companyName: apiGuest?.companyName || guestData.company,
+      jobTitle: apiGuest?.jobTitle || guestData.jobTitle,
+    });
+
     setGuests((prev) =>
-      [tempGuest, ...prev].sort((a, b) => a.name.localeCompare(b.name)),
+      [createdGuest, ...prev].sort((a, b) => a.name.localeCompare(b.name)),
     );
-    return tempGuest;
+
+    window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
+    return createdGuest;
   };
 
-  // Update contact (in-memory)
-  const updateGuest = async (guestId: string, updates: Partial<Guest>) => {
+  // Update contact via backend API
+  const updateGuest = async (guestId: string, updates: UpdateGuestInput) => {
+    const response = await AddGuestService.updateHostGuest(guestId, {
+      name: updates.name,
+      email: updates.email,
+      phone: updates.phone,
+      companyName: updates.company,
+      jobTitle: updates.jobTitle,
+      eventId: updates.eventId,
+      ticketId: updates.ticketId,
+    });
+
+    const apiGuest = response?.data || response;
+    const updatedGuest = mapApiGuestToGuest({
+      ...apiGuest,
+      id: apiGuest?.id || guestId,
+      name: apiGuest?.name || updates.name,
+      email: apiGuest?.email || updates.email,
+      phone: apiGuest?.phone || updates.phone,
+      companyName: apiGuest?.companyName || updates.company,
+      jobTitle: apiGuest?.jobTitle || updates.jobTitle,
+    });
+
     setGuests((prev) =>
       prev
-        .map((g) => (g.id === guestId ? { ...g, ...updates } : g))
+        .map((g) => (g.id === guestId ? { ...g, ...updatedGuest } : g))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
+
+    window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
   };
 
-  // Remove contact (in-memory)
+  // Remove contact via backend API
   const removeGuest = async (guestId: string) => {
+    await AddGuestService.deleteHostGuest(guestId);
     setGuests((prev) => prev.filter((g) => g.id !== guestId));
+    window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
+  };
+  const sendGuestPaymentIntent = async (guestId: string) => {
+    return AddGuestService.sendGuestPaymentIntent(guestId);
   };
 
   // CSV Import (in-memory)
@@ -229,6 +348,7 @@ export const useGuests = () => {
     addGuest,
     updateGuest,
     removeGuest,
+    sendGuestPaymentIntent,
     importGuests,
     exportGuests,
     reload: loadGuests,
