@@ -5,9 +5,8 @@ import { useAuth } from "@/contexts/auth";
 import Dashboard from "@/components/dashboard/Dashboard";
 import { Separator } from "@/components/ui/separator";
 import EventForm from "@/components/events/EventForm";
-import { Button } from "@/components/ui/button";
-import { Loader } from "lucide-react";
 import HostService from "@/services/api/host/host.Service";
+import { Loader } from "lucide-react";
 
 const CreateEventPage = () => {
   const navigate = useNavigate();
@@ -26,14 +25,12 @@ const CreateEventPage = () => {
     });
 
     try {
-      // Check authentication first
       if (!user || !user.id) {
         console.error("CreateEventPage: User not authenticated", { user });
         toast.error("You must be logged in to create an event");
         return;
       }
 
-      // Validate required fields
       if (!eventData.title || !eventData.startDate || !eventData.endDate) {
         console.error("CreateEventPage: Missing required fields", {
           title: eventData.title,
@@ -46,7 +43,6 @@ const CreateEventPage = () => {
         return;
       }
 
-      // Validate date/time format
       if (!eventData.startTime && !eventData.startDate.includes("T")) {
         console.error("CreateEventPage: Missing start time", {
           startDate: eventData.startDate,
@@ -65,19 +61,16 @@ const CreateEventPage = () => {
         return;
       }
 
-      // Log the image URL for debugging
       console.log("CreateEventPage: Processing event data", {
         title: eventData.title,
         hasImage: !!eventData.image,
         imageUrl: eventData.image,
       });
 
-      // Validate address data before processing
       validateAddressData(eventData);
 
       setIsCreatingEvent(true);
 
-      // Build full address string
       const venueAddress = [
         eventData.addressStreet,
         eventData.addressCity,
@@ -87,13 +80,10 @@ const CreateEventPage = () => {
         .filter(Boolean)
         .join(", ");
 
-      // Format dates to ISO string
-      // Check if startDate already contains time (from EventForm formatting)
       let startDateTime: string;
       let endDateTime: string;
 
       if (eventData.startDate && eventData.startDate.includes("T")) {
-        // Already combined format from EventForm
         const startDateObj = new Date(eventData.startDate);
         if (isNaN(startDateObj.getTime())) {
           throw new Error("Invalid start date/time format");
@@ -111,7 +101,6 @@ const CreateEventPage = () => {
       }
 
       if (eventData.endDate && eventData.endDate.includes("T")) {
-        // Already combined format from EventForm
         const endDateObj = new Date(eventData.endDate);
         if (isNaN(endDateObj.getTime())) {
           throw new Error("Invalid end date/time format");
@@ -128,7 +117,6 @@ const CreateEventPage = () => {
         endDateTime = endDateObj.toISOString();
       }
 
-      // Process the form data according to the new API structure
       const formattedData = {
         title: eventData.title,
         description: eventData.description || "Event description",
@@ -215,7 +203,6 @@ const CreateEventPage = () => {
         },
       });
 
-      // Parse API error response
       let errorMessages: string[] = [];
       let errorTitle = "Error creating event";
 
@@ -223,7 +210,6 @@ const CreateEventPage = () => {
         const apiError = error as any;
         const errorData = apiError.response?.data || apiError.data;
 
-        // Handle array of validation messages
         if (errorData?.message) {
           if (Array.isArray(errorData.message)) {
             errorMessages = errorData.message;
@@ -235,7 +221,6 @@ const CreateEventPage = () => {
           errorMessages = [errorData.error];
         }
 
-        // If status code is 400, it's a validation error
         if (apiError.response?.status === 400 && errorMessages.length === 0) {
           errorMessages = ["Invalid event data. Please check all fields."];
           errorTitle = "Validation Error";
@@ -266,23 +251,19 @@ const CreateEventPage = () => {
         }
       }
 
-      // If no error messages found, use default
       if (errorMessages.length === 0) {
         errorMessages = ["Something went wrong. Please try again."];
       }
 
-      // Show toast with error messages
       if (errorMessages.length === 1) {
         toast.error(errorTitle, {
           description: errorMessages[0],
         });
       } else {
-        // Show first error as main toast, then show others
         toast.error(errorTitle, {
           description: errorMessages[0],
         });
 
-        // Show additional errors after a short delay
         errorMessages.slice(1).forEach((msg, index) => {
           setTimeout(
             () => {
@@ -321,6 +302,18 @@ const CreateEventPage = () => {
     return eventData;
   };
 
+  if (isCreatingEvent) {
+    return (
+      <Dashboard activeTab="analytics" userRole="event-host">
+        <div className="h-[70vh] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader className="h-8 w-8 animate-spin text-[#F07712]" />
+            <p className="text-gray-600">Creating event...</p>
+          </div>
+        </div>
+      </Dashboard>
+    );
+  }
   return (
     <Dashboard activeTab="analytics" userRole="event-host">
       <div className="space-y-6">
@@ -333,16 +326,11 @@ const CreateEventPage = () => {
 
         <Separator />
 
-        {isCreatingEvent && (
-          <div className="flex justify-center py-4">
-            <Button disabled variant="outline" className="gap-2">
-              <Loader className="h-4 w-4 animate-spin" />
-              Creating Event...
-            </Button>
-          </div>
-        )}
-
-        <EventForm onSubmit={handleCreateEvent} isEditing={false} />
+        <EventForm
+          onSubmit={handleCreateEvent}
+          isEditing={false}
+          isSubmitting={isCreatingEvent}
+        />
       </div>
     </Dashboard>
   );

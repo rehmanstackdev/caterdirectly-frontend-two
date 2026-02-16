@@ -18,7 +18,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, Mail, Pencil, Trash2 } from "lucide-react";
+import {
+  Search,
+  MoreVertical,
+  Mail,
+  Pencil,
+  Trash2,
+  Loader2,
+  Loader,
+} from "lucide-react";
 import { useGuests } from "@/hooks/use-guests";
 import GuestEntryDialog from "./GuestEntryDialog";
 import { toast } from "sonner";
@@ -77,7 +85,8 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
     return (
       <Card>
         <CardContent className="pt-6">
-          <div className="text-center py-12">
+          <div className="flex flex-col justify-center items-center py-12 space-y-2">
+            <Loader className="h-8 w-8 animate-spin text-[#F07712]" />
             <p className="text-gray-500">Loading guest database...</p>
           </div>
         </CardContent>
@@ -112,7 +121,9 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
               <p className="text-gray-500">
                 {searchQuery
                   ? `No contacts found matching "${searchQuery}"`
-                  : "You don't have any contacts yet."}
+                  : filterRecent
+                    ? "No recent event guests found."
+                    : "You don't have any contacts yet."}
               </p>
             </div>
           </CardContent>

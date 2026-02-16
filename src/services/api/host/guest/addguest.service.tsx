@@ -61,9 +61,13 @@ class AddGuestService extends BaseRequestService {
     });
   }
   sendGuestPaymentIntent(guestId: string) {
-    return this.post(`${API_URL}guests/host-guests/${guestId}/payment-intent`, {}, {
-      headers: getAuthHeader(),
-    });
+    return this.post(
+      `${API_URL}guests/host-guests/${guestId}/payment-intent`,
+      {},
+      {
+        headers: getAuthHeader(),
+      },
+    );
   }
   updateHostGuest(guestId: string, data: UpdateHostGuestPayload) {
     return this.patch(`${API_URL}guests/host-guests/${guestId}`, data, {
@@ -79,4 +83,3 @@ class AddGuestService extends BaseRequestService {
 }
 
 export default new AddGuestService();
-
