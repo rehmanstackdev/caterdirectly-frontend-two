@@ -17,9 +17,9 @@ export const HostTableHeader = ({
     <>
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Host Management</h1>
-        <Button onClick={createNewHost} className="bg-green-600 hover:bg-green-700">
+        {/* <Button onClick={createNewHost} className="bg-green-600 hover:bg-green-700">
           <Plus className="mr-2 h-4 w-4" /> Create Host
-        </Button>
+        </Button> */}
       </div>
 
       <div className="relative flex-1 max-w-sm">

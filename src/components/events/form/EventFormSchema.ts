@@ -3,10 +3,10 @@ import * as z from 'zod';
 
 // Define schema for social media links
 export const socialMediaSchema = z.object({
-  facebook: z.string().min(1, { message: "Facebook link is required." }),
-  twitter: z.string().min(1, { message: "Twitter link is required." }),
-  instagram: z.string().min(1, { message: "Instagram link is required." }),
-  linkedin: z.string().min(1, { message: "LinkedIn link is required." })
+  facebook: z.string().optional().or(z.literal('')),
+  twitter: z.string().optional().or(z.literal('')),
+  instagram: z.string().optional().or(z.literal('')),
+  linkedin: z.string().optional().or(z.literal(''))
 });
 
 // Define a schema for the TicketType
