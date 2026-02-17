@@ -230,8 +230,15 @@ const GuestTicketPaymentPage = () => {
                     </CardHeader>
                     <CardContent>
                       {isPaid ? (
-                        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                          Payment is already completed for this ticket.
+                        <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                          <img
+                            src="/images/gallery/paid.png"
+                            alt="Payment completed"
+                            className="mx-auto mb-3 h-24 w-24 object-contain"
+                          />
+                          <p className="text-center">
+                            Payment is already completed for this ticket.
+                          </p>
                         </div>
                       ) : paymentDetails.clientSecret ? (
                         <StripeProvider
@@ -272,3 +279,5 @@ const GuestTicketPaymentPage = () => {
 };
 
 export default GuestTicketPaymentPage;
+
+
