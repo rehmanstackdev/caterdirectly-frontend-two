@@ -91,7 +91,7 @@ const GuestEntryDialog = ({
   const selectedEventId = form.watch("eventId");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isEditing) return;
 
     const loadEvents = async () => {
       try {
@@ -172,10 +172,10 @@ const GuestEntryDialog = ({
 
       if (isEditing) {
         await updateGuest(existingGuest.id, processedData);
-        toast.success("Contact updated successfully");
+        toast.success("Guest detail updated successfully");
       } else {
         await addGuest(processedData);
-        toast.success("New contact added successfully");
+        toast.success("New guest added successfully");
       }
 
       onOpenChange(false);
@@ -276,109 +276,107 @@ const GuestEntryDialog = ({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="eventId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Event</FormLabel>
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        form.setValue("ticketId", "", { shouldValidate: true });
-                        form.setValue("ticketPrice", "", { shouldValidate: true });
-                        const selectedEvent = hostEvents.find(
-                          (event) => event.id === value,
-                        );
-                        setTickets(selectedEvent?.tickets || []);
-                      }}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select event" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {hostEvents.map((event) => (
-                          <SelectItem key={event.id} value={event.id}>
-                            {event.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!isEditing && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="eventId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Event</FormLabel>
+                        <Select
+                          value={field.value || undefined}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            form.setValue("ticketId", "", { shouldValidate: true });
+                            form.setValue("ticketPrice", "", { shouldValidate: true });
+                            const selectedEvent = hostEvents.find(
+                              (event) => event.id === value,
+                            );
+                            setTickets(selectedEvent?.tickets || []);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select event" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {hostEvents.map((event) => (
+                              <SelectItem key={event.id} value={event.id}>
+                                {event.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="ticketId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ticket</FormLabel>
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        const selected = tickets.find((ticket) => ticket.id === value);
-                        form.setValue("ticketPrice", selected?.price || "", {
-                          shouldValidate: true,
-                        });
-                      }}
-                      disabled={!selectedEventId || tickets.length === 0}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select ticket" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {tickets.map((ticket) => (
-                          <SelectItem key={ticket.id} value={ticket.id}>
-                            {ticket.ticketName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={form.control}
+                    name="ticketId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ticket</FormLabel>
+                        <Select
+                          value={field.value || undefined}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            const selected = tickets.find((ticket) => ticket.id === value);
+                            form.setValue("ticketPrice", selected?.price || "", {
+                              shouldValidate: true,
+                            });
+                          }}
+                          disabled={!selectedEventId || tickets.length === 0}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select ticket" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {tickets.map((ticket) => (
+                              <SelectItem key={ticket.id} value={ticket.id}>
+                                {ticket.ticketName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="ticketPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price</FormLabel>
-                    <FormControl>
-                      <Input
-                        value={field.value ? `$${field.value}` : ""}
-                        readOnly
-                        placeholder="Ticket price"
-                        className="border"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={form.control}
+                    name="ticketPrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price</FormLabel>
+                        <FormControl>
+                          <Input
+                            value={field.value ? `$${field.value}` : ""}
+                            readOnly
+                            placeholder="Ticket price"
+                            className="border"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
             </div>
-
-            {isSubmitting && (
-              <div className="flex items-center text-sm text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isEditing ? "Updating guest..." : "Adding guest..."}
-              </div>
-            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading || isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? (isEditing ? "Updating..." : "Adding...") : `${isEditing ? "Update" : "Add"} Guest`}
               </Button>
             </DialogFooter>

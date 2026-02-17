@@ -43,20 +43,18 @@ class AddGuestService extends BaseRequestService {
     });
   }
 
-  getHostGuests(search?: string, recentGuest?: boolean) {
+  getHostGuests(search?: string, recentGuest?: boolean, page = 1, limit = 10) {
     const params = new URLSearchParams();
 
     if (search && search.trim()) {
       params.set("search", search.trim());
     }
 
-    if (typeof recentGuest === "boolean") {
-      params.set("recentGuest", String(recentGuest));
-    }
+    params.set("filter", recentGuest === true ? "recent" : "all");
+    params.set("page", String(page));
+    params.set("limit", String(limit));
 
-    const query = params.toString();
-
-    return this.get(`${API_URL}guests/host-guests${query ? `?${query}` : ""}`, {
+    return this.get(`${API_URL}guests/host-guests?${params.toString()}`, {
       headers: getAuthHeader(),
     });
   }

@@ -1,12 +1,18 @@
 
 import * as z from 'zod';
 
+const optionalUrl = z
+  .string()
+  .refine((val) => val === '' || z.string().url().safeParse(val).success, {
+    message: 'Please enter a valid URL (e.g. https://...)',
+  });
+
 // Define schema for social media links
 export const socialMediaSchema = z.object({
-  facebook: z.string().optional().or(z.literal('')),
-  twitter: z.string().optional().or(z.literal('')),
-  instagram: z.string().optional().or(z.literal('')),
-  linkedin: z.string().optional().or(z.literal(''))
+  facebook: optionalUrl,
+  twitter: optionalUrl,
+  instagram: optionalUrl,
+  linkedin: optionalUrl,
 });
 
 // Define a schema for the TicketType
@@ -53,8 +59,8 @@ export const eventFormSchema = z.object({
   isPublic: z.boolean().default(true),
   isTicketed: z.boolean().default(false),
   eventUrl: z.string().url().optional().or(z.literal('')),
-  parking: z.string().optional(),
-  specialInstructions: z.string().optional(),
+  parking: z.string().min(1, { message: 'Parking information is required.' }),
+  specialInstructions: z.string().min(1, { message: 'Special instructions are required.' }),
   socialMedia: socialMediaSchema,
   ticketTypes: z.array(ticketTypeSchema),
 });

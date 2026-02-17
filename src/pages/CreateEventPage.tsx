@@ -6,7 +6,6 @@ import Dashboard from "@/components/dashboard/Dashboard";
 import { Separator } from "@/components/ui/separator";
 import EventForm from "@/components/events/EventForm";
 import HostService from "@/services/api/host/host.Service";
-import { Loader } from "lucide-react";
 
 const CreateEventPage = () => {
   const navigate = useNavigate();
@@ -302,18 +301,6 @@ const CreateEventPage = () => {
     return eventData;
   };
 
-  if (isCreatingEvent) {
-    return (
-      <Dashboard activeTab="analytics" userRole="event-host">
-        <div className="h-[70vh] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader className="h-8 w-8 animate-spin text-[#F07712]" />
-            <p className="text-gray-600">Creating event...</p>
-          </div>
-        </div>
-      </Dashboard>
-    );
-  }
   return (
     <Dashboard activeTab="analytics" userRole="event-host">
       <div className="space-y-6">

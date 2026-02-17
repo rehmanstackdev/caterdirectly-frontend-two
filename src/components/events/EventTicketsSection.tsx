@@ -11,6 +11,7 @@ interface EventTicketsSectionProps {
   onAddTicket: (ticket: Omit<TicketType, 'id' | 'sold'>) => void;
   onEditTicket: (index: number, ticket: Partial<TicketType>) => void;
   onRemoveTicket: (index: number) => void;
+  showRequiredError?: boolean;
 }
 
 const EventTicketsSection = ({
@@ -18,6 +19,7 @@ const EventTicketsSection = ({
   onAddTicket,
   onEditTicket,
   onRemoveTicket,
+  showRequiredError = false,
 }: EventTicketsSectionProps) => {
   const [editingTicketIndex, setEditingTicketIndex] = useState<number | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -47,7 +49,7 @@ const EventTicketsSection = ({
       </div>
       
       {!ticketTypes || ticketTypes.length === 0 ? (
-        <EmptyTicketState />
+        <EmptyTicketState showRequiredError={showRequiredError} />
       ) : (
         <div className="space-y-4">
           {ticketTypes.map((ticket, index) => (

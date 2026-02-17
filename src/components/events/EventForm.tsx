@@ -71,6 +71,7 @@ const EventForm = ({
   const isTicketed = form.watch("isTicketed");
   const imageValue = form.watch("image");
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
+  const [showTicketError, setShowTicketError] = useState(false);
 
   useEffect(() => {
     if (imageValue) {
@@ -84,6 +85,12 @@ const EventForm = ({
     handleEditTicketType,
     handleRemoveTicketType,
   } = useTicketTypeHandler(form);
+
+  useEffect(() => {
+    if (ticketTypes && ticketTypes.length > 0) {
+      setShowTicketError(false);
+    }
+  }, [ticketTypes]);
 
   // Submit handler that passes data in the format expected by the parent component
   const handleFormSubmit = async (values: EventFormValues) => {
@@ -111,6 +118,12 @@ const EventForm = ({
           endTime: values.endTime,
         });
         throw new Error("End date and time are required");
+      }
+
+      if (values.isTicketed && (!values.ticketTypes || values.ticketTypes.length === 0)) {
+        setShowTicketError(true);
+        toast.error("Please add at least one ticket type");
+        return;
       }
 
       // Combine date and time for start and end dates
@@ -155,6 +168,7 @@ const EventForm = ({
             onAddTicket={handleAddTicketType}
             onEditTicket={handleEditTicketType}
             onRemoveTicket={handleRemoveTicketType}
+            showTicketError={showTicketError && isTicketed}
           />
         </Tabs>
 

@@ -17,6 +17,10 @@ export interface Guest {
   recentEvent?: boolean;
   lastContactedDate?: Date;
   addedDate: Date;
+  eventTitle?: string;
+  eventVenueAddress?: string;
+  ticketName?: string;
+  ticketPrice?: string;
 }
 
 interface AddGuestInput {
@@ -56,41 +60,56 @@ const mapApiGuestToGuest = (raw: any): Guest => ({
   recentEvent: Boolean(raw?.recentEvent),
   lastContactedDate: raw?.lastContactedDate ? new Date(raw.lastContactedDate) : undefined,
   addedDate: raw?.createdAt ? new Date(raw.createdAt) : new Date(),
+  eventTitle: raw?.event?.title || undefined,
+  eventVenueAddress: raw?.event?.venueAddress || undefined,
+  ticketName: raw?.ticket?.ticketName || undefined,
+  ticketPrice: raw?.ticket?.price || undefined,
 });
 
-export const useGuests = () => {
+const PAGE_SIZE = 10;
+
+export const useGuests = (initialRecent?: boolean) => {
   const { user } = useAuth();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
   const [lastSearch, setLastSearch] = useState<string | undefined>(undefined);
   const [lastRecentGuest, setLastRecentGuest] = useState<boolean | undefined>(undefined);
+  const [lastPage, setLastPage] = useState(1);
 
-  const loadGuests = useCallback(async (search?: string, recentGuest?: boolean) => {
+  const loadGuests = useCallback(async (search?: string, recentGuest?: boolean, page = 1) => {
     setLoading(true);
     try {
       setLastSearch(search);
       setLastRecentGuest(recentGuest);
+      setLastPage(page);
 
       if (!user?.id) {
         setGuests([]);
         return;
       }
 
-      const result = await AddGuestService.getHostGuests(search, recentGuest);
-      const guestRows = Array.isArray(result?.data?.data)
-        ? result.data.data
-        : Array.isArray(result?.data)
-          ? result.data
-          : Array.isArray(result)
-            ? result
-            : [];
+      const result = await AddGuestService.getHostGuests(search, recentGuest, page, PAGE_SIZE);
+      const payload = result?.data ?? result;
+      const guestRows = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+
+      const totalCount =
+        typeof payload?.total === 'number'
+          ? payload.total
+          : typeof payload?.meta?.total === 'number'
+            ? payload.meta.total
+            : guestRows.length;
 
       const mapped = guestRows
         .map(mapApiGuestToGuest)
-        .filter((g) => g.name && g.email)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .filter((g: Guest) => g.name && g.email);
 
       setGuests(mapped);
+      setTotal(totalCount);
     } catch (err: any) {
       const status = err?.response?.status;
       const message = err?.response?.data?.message;
@@ -98,10 +117,12 @@ export const useGuests = () => {
       // Backend may return 404 when the host has no guest records yet.
       if (status === 404 && message === 'Host guest not found') {
         setGuests([]);
+        setTotal(0);
       } else {
         console.error('Error loading guests:', err);
         toast.error(message || 'Failed to load contact database');
         setGuests([]);
+        setTotal(0);
       }
     } finally {
       setLoading(false);
@@ -109,19 +130,19 @@ export const useGuests = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    loadGuests();
+    loadGuests(undefined, initialRecent);
   }, [loadGuests]);
 
   useEffect(() => {
     const handleGuestsUpdated = () => {
-      loadGuests(lastSearch, lastRecentGuest);
+      loadGuests(lastSearch, lastRecentGuest, lastPage);
     };
 
     window.addEventListener(GUESTS_UPDATED_EVENT, handleGuestsUpdated);
     return () => {
       window.removeEventListener(GUESTS_UPDATED_EVENT, handleGuestsUpdated);
     };
-  }, [loadGuests, lastSearch, lastRecentGuest]);
+  }, [loadGuests, lastSearch, lastRecentGuest, lastPage]);
 
   // Add a new contact via backend API
   const addGuest = async (guestData: AddGuestInput) => {
@@ -345,6 +366,8 @@ export const useGuests = () => {
   return {
     guests,
     loading,
+    total,
+    pageSize: PAGE_SIZE,
     addGuest,
     updateGuest,
     removeGuest,

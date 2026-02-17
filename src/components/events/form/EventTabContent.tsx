@@ -14,6 +14,7 @@ interface EventTabContentProps {
   onAddTicket: (ticket: Omit<TicketType, 'id' | 'sold'>) => void;
   onEditTicket: (index: number, ticket: Partial<TicketType>) => void;
   onRemoveTicket: (index: number) => void;
+  showTicketError?: boolean;
 }
 
 const EventTabContent = ({
@@ -22,7 +23,8 @@ const EventTabContent = ({
   ticketTypes,
   onAddTicket,
   onEditTicket,
-  onRemoveTicket
+  onRemoveTicket,
+  showTicketError = false,
 }: EventTabContentProps) => {
   return (
     <>
@@ -41,6 +43,7 @@ const EventTabContent = ({
             onAddTicket={onAddTicket}
             onEditTicket={onEditTicket}
             onRemoveTicket={onRemoveTicket}
+            showRequiredError={showTicketError}
           />
         </TabsContent>
       )}
