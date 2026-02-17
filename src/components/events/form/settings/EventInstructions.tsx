@@ -21,7 +21,7 @@ const EventInstructions = ({ form }: EventInstructionsProps) => {
         name="parking"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Parking Information</FormLabel>
+            <FormLabel>Parking Information <span className="text-red-500">*</span></FormLabel>
             <FormControl>
               <Textarea 
                 placeholder="Details about parking availability, cost, etc." 
@@ -39,7 +39,7 @@ const EventInstructions = ({ form }: EventInstructionsProps) => {
         name="specialInstructions"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Special Instructions</FormLabel>
+            <FormLabel>Special Instructions <span className="text-red-500">*</span></FormLabel>
             <FormControl>
               <Textarea 
                 placeholder="Any additional details or instructions for attendees" 

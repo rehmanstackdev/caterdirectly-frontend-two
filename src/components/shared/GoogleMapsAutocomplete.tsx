@@ -110,6 +110,12 @@ const GoogleMapsAutocomplete = ({
     setInputValue(e.target.value);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  };
+
   if (loadError) {
     console.error("Error loading Google Maps:", loadError);
     return (
@@ -122,6 +128,7 @@ const GoogleMapsAutocomplete = ({
         required={required}
         value={inputValue}
         onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         disabled
         title="Google Maps failed to load"
       />
@@ -163,6 +170,7 @@ const GoogleMapsAutocomplete = ({
         required={required}
         value={inputValue}
         onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         autoComplete="off"
       />
     </Autocomplete>

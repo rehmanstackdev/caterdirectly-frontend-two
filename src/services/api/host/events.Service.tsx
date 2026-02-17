@@ -10,6 +10,12 @@ class EventsService extends BaseRequestService {
       headers: getAuthHeader(),
     });
   }
+
+  getHostEvents() {
+    return this.get(`${API_URL}events/host`, {
+      headers: getAuthHeader(),
+    });
+  }
 }
 
 export default new EventsService();

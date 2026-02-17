@@ -1,4 +1,3 @@
-
 import { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -19,16 +18,18 @@ const Dashboard = ({ children, activeTab, userRole }: DashboardProps) => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { signOut } = useAuth();
-  
+
   // Determine active tab based on current path
   const getCurrentTab = () => {
     const path = location.pathname;
     const searchParams = new URLSearchParams(location.search);
-    
+
     // Enhanced invoice mode detection with sessionStorage fallback
-    const isInvoiceMode = searchParams.get('mode') === 'invoice' || 
-                           (typeof window !== 'undefined' && sessionStorage.getItem('invoiceData') !== null);
-    
+    const isInvoiceMode =
+      searchParams.get("mode") === "invoice" ||
+      (typeof window !== "undefined" &&
+        sessionStorage.getItem("invoiceData") !== null);
+
     if (userRole === "vendor") {
       if (path.includes("/vendor/dashboard")) return "dashboard";
       if (path.includes("/vendor/marketplace")) return "marketplace";
@@ -59,11 +60,12 @@ const Dashboard = ({ children, activeTab, userRole }: DashboardProps) => {
       if (path.includes("/admin/profile")) return "profile";
       if (path.includes("/order-summary") && isInvoiceMode) return "invoices";
       if (path.includes("/order-summary")) return "orders";
+      if (path.includes("/admin/hosts")) return "hosts";
     }
-    
+
     return activeTab || "dashboard";
   };
-  
+
   const currentTab = getCurrentTab();
 
   useEffect(() => {
@@ -77,54 +79,89 @@ const Dashboard = ({ children, activeTab, userRole }: DashboardProps) => {
       await signOut();
       // No need for navigate - useSignOut handles it with window.location
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out:", error);
       // Force navigation on error
-      window.location.href = '/host/login';
+      window.location.href = "/host/login";
     }
   };
 
   const getPageTitle = () => {
     if (userRole === "vendor") {
       switch (currentTab) {
-        case "dashboard": return "Dashboard";
-        case "marketplace": return "Marketplace";
-        case "services": return "My Services";
-        case "orders": return "Orders & Bookings";
-        case "invoices": return "My Invoices";
-        case "calendar": return "Calendar";
-        case "messages": return "Messages";
-        case "settings": return "Account Settings";
-        default: return "Dashboard";
+        case "dashboard":
+          return "Dashboard";
+        case "marketplace":
+          return "Marketplace";
+        case "services":
+          return "My Services";
+        case "orders":
+          return "Orders & Bookings";
+        case "invoices":
+          return "My Invoices";
+        case "calendar":
+          return "Calendar";
+        case "messages":
+          return "Messages";
+        case "settings":
+          return "Account Settings";
+        default:
+          return "Dashboard";
       }
     } else if (userRole === "admin" || userRole === "super-admin") {
       switch (currentTab) {
-        case "dashboard": return "Admin Dashboard";
-        case "marketplace": return "Marketplace";
-        case "invoices": return "Invoice Management";
-        case "users": return "User Management";
-        case "vendors": return "Vendor Management";
-        case "services": return "Service Management";
-        case "pending-services": return "Pending Services";
-        case "orders": return "Order Management";
-        case "messaging": return "Messages";
-        case "finances": return "Financial Management";
-        case "reports": return "Reports & Analytics";
-        case "support": return "Support Tools";
-        case "config": return "System Configuration";
-        case "security": return "Security Settings";
-        case "profile": return "Admin Profile";
-        default: return "Admin Dashboard";
+        case "dashboard":
+          return "Admin Dashboard";
+        case "marketplace":
+          return "Marketplace";
+        case "invoices":
+          return "Invoice Management";
+        case "users":
+          return "User Management";
+        case "vendors":
+          return "Vendor Management";
+        case "Hosts Management":
+          return "";
+        case "services":
+          return "Service Management";
+        case "pending-services":
+          return "Pending Services";
+        case "orders":
+          return "Order Management";
+        case "messaging":
+          return "Messages";
+        case "finances":
+          return "Financial Management";
+        case "reports":
+          return "Reports & Analytics";
+        case "support":
+          return "Support Tools";
+        case "config":
+          return "System Configuration";
+        case "security":
+          return "Security Settings";
+        case "profile":
+          return "Admin Profile";
+        default:
+          return "Admin Dashboard";
       }
     } else {
-      return currentTab === "dashboard" ? "Dashboard" 
-        : currentTab === "vendors" ? "Vendors"
-        : currentTab === "orders" ? "Orders"
-        : currentTab === "reviews" ? "Your Reviews"
-        : currentTab === "analytics" ? "Orders & Reviews"
-        : currentTab === "guests" ? "Guest Database"
-        : currentTab === "earnings" ? "Earnings"
-        : currentTab === "support" ? "Support & Messaging"
-        : "Dashboard";
+      return currentTab === "dashboard"
+        ? "Dashboard"
+        : currentTab === "vendors"
+          ? "Vendors"
+          : currentTab === "orders"
+            ? "Orders"
+            : currentTab === "reviews"
+              ? "Your Reviews"
+              : currentTab === "analytics"
+                ? "Orders & Reviews"
+                : currentTab === "guests"
+                  ? "Guest Database"
+                  : currentTab === "earnings"
+                    ? "Earnings"
+                    : currentTab === "support"
+                      ? "Support & Messaging"
+                      : "Dashboard";
     }
   };
 
@@ -146,7 +183,7 @@ const Dashboard = ({ children, activeTab, userRole }: DashboardProps) => {
           userRole={userRole}
           onLogout={handleLogout}
         />
-        
+
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 w-full max-w-full box-border overflow-x-hidden">
           {children}
         </main>

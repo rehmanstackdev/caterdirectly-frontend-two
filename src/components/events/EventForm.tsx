@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -12,14 +12,16 @@ import { useTicketTypeHandler } from "./form/useTicketTypeHandler";
 
 interface EventFormProps {
   initialData?: Partial<EventFormValues>;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<void> | void;
   isEditing?: boolean;
+  isSubmitting?: boolean;
 }
 
 const EventForm = ({
   initialData,
   onSubmit,
   isEditing = false,
+  isSubmitting = false,
 }: EventFormProps) => {
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
@@ -68,6 +70,8 @@ const EventForm = ({
 
   const isTicketed = form.watch("isTicketed");
   const imageValue = form.watch("image");
+  const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
+  const [showTicketError, setShowTicketError] = useState(false);
 
   useEffect(() => {
     if (imageValue) {
@@ -82,8 +86,14 @@ const EventForm = ({
     handleRemoveTicketType,
   } = useTicketTypeHandler(form);
 
+  useEffect(() => {
+    if (ticketTypes && ticketTypes.length > 0) {
+      setShowTicketError(false);
+    }
+  }, [ticketTypes]);
+
   // Submit handler that passes data in the format expected by the parent component
-  const handleFormSubmit = (values: EventFormValues) => {
+  const handleFormSubmit = async (values: EventFormValues) => {
     console.log("EventForm: Form submission started", values);
     console.log("EventForm: Form errors:", form.formState.errors);
 
@@ -110,6 +120,12 @@ const EventForm = ({
         throw new Error("End date and time are required");
       }
 
+      if (values.isTicketed && (!values.ticketTypes || values.ticketTypes.length === 0)) {
+        setShowTicketError(true);
+        toast.error("Please add at least one ticket type");
+        return;
+      }
+
       // Combine date and time for start and end dates
       const formattedData = {
         ...values,
@@ -123,32 +139,18 @@ const EventForm = ({
       });
 
       // Pass the form values to parent component
-      onSubmit(formattedData);
+      setIsSubmittingLocal(true);
+      await onSubmit(formattedData);
     } catch (error) {
       console.error("EventForm: Form submission error:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Form validation failed",
-      );
+      toast.error("Fill All Required Fields");
+    } finally {
+      setIsSubmittingLocal(false);
     }
   };
 
-  const handleFormInvalid = (errors: FieldErrors<EventFormValues>) => {
-    const messages: string[] = [];
-    const walk = (errObj: any) => {
-      if (!errObj || typeof errObj !== 'object') return;
-      for (const key of Object.keys(errObj)) {
-        const value = errObj[key];
-        if (!value) continue;
-        if (value.message) {
-          messages.push(String(value.message));
-        } else if (typeof value === 'object') {
-          walk(value);
-        }
-      }
-    };
-    walk(errors);
-    const message = messages.length > 0 ? messages.join(' | ') : 'Please fix the highlighted fields.';
-    toast.error(message);
+  const handleFormInvalid = (_errors: FieldErrors<EventFormValues>) => {
+    toast.error("Fill All Required Fields");
   };
 
   return (
@@ -166,19 +168,20 @@ const EventForm = ({
             onAddTicket={handleAddTicketType}
             onEditTicket={handleEditTicketType}
             onRemoveTicket={handleRemoveTicketType}
+            showTicketError={showTicketError && isTicketed}
           />
         </Tabs>
 
-        <EventFormActions isEditing={isEditing} />
+        <EventFormActions
+          isEditing={isEditing}
+          isSubmitting={isSubmitting || isSubmittingLocal}
+        />
       </form>
     </Form>
   );
 };
 
 export default EventForm;
-
-
-
 
 
 

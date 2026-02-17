@@ -25,14 +25,27 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
   const [ticketPrice, setTicketPrice] = useState("");
   const [ticketQuantity, setTicketQuantity] = useState("");
   const [ticketDescription, setTicketDescription] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [priceError, setPriceError] = useState("");
 
   const handleAddTicket = () => {
-    if (!ticketName || !ticketPrice) return;
+    setNameError("");
+    setPriceError("");
+    let hasError = false;
+    if (!ticketName.trim()) {
+      setNameError("Ticket name is required");
+      hasError = true;
+    }
+    if (!ticketPrice || isNaN(parseFloat(ticketPrice)) || parseFloat(ticketPrice) < 0) {
+      setPriceError("Valid price is required");
+      hasError = true;
+    }
+    if (hasError) return;
 
     // Create a ticket object with required properties
     const newTicket: Omit<TicketType, "id" | "sold"> = {
       name: ticketName,
-      price: parseFloat(ticketPrice) * 100, // Store in cents
+      price: parseFloat(ticketPrice),
     };
 
     // Only add optional properties if they have valid values
@@ -51,11 +64,21 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
     setTicketPrice("");
     setTicketQuantity("");
     setTicketDescription("");
+    setNameError("");
+    setPriceError("");
     setIsOpen(false);
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setNameError("");
+      setPriceError("");
+    }
+    setIsOpen(open);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -71,19 +94,24 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="ticketName">Ticket Name</Label>
-            <Input
-              id="ticketName"
-              placeholder="VIP, General Admission, etc."
-              value={ticketName}
-              onChange={(e) => setTicketName(e.target.value)}
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price ($)</Label>
+              <Label htmlFor="ticketName">
+                Ticket Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="ticketName"
+                placeholder="VIP, General Admission, etc."
+                value={ticketName}
+                onChange={(e) => { setTicketName(e.target.value); if (nameError) setNameError(""); }}
+                className={nameError ? "border-red-500" : ""}
+              />
+              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="price">
+                Price ($) <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="price"
                 type="number"
@@ -91,8 +119,10 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
                 step="0.01"
                 placeholder="0.00"
                 value={ticketPrice}
-                onChange={(e) => setTicketPrice(e.target.value)}
+                onChange={(e) => { setTicketPrice(e.target.value); if (priceError) setPriceError(""); }}
+                className={priceError ? "border-red-500" : ""}
               />
+              {priceError && <p className="text-xs text-red-500">{priceError}</p>}
             </div>
           </div>
 

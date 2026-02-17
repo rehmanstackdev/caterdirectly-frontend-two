@@ -1,12 +1,18 @@
 
 import * as z from 'zod';
 
+const optionalUrl = z
+  .string()
+  .refine((val) => val === '' || z.string().url().safeParse(val).success, {
+    message: 'Please enter a valid URL (e.g. https://...)',
+  });
+
 // Define schema for social media links
 export const socialMediaSchema = z.object({
-  facebook: z.string().min(1, { message: "Facebook link is required." }),
-  twitter: z.string().min(1, { message: "Twitter link is required." }),
-  instagram: z.string().min(1, { message: "Instagram link is required." }),
-  linkedin: z.string().min(1, { message: "LinkedIn link is required." })
+  facebook: optionalUrl,
+  twitter: optionalUrl,
+  instagram: optionalUrl,
+  linkedin: optionalUrl,
 });
 
 // Define a schema for the TicketType
@@ -38,14 +44,7 @@ export const eventFormSchema = z.object({
   addressState: z.string().min(2, {
     message: "Please enter a valid state.",
   }),
-  addressZip: z
-    .string()
-    .trim()
-    .min(5, {
-      message: "Please enter a valid zip code.",
-    })
-    .optional()
-    .or(z.literal("")),
+  addressZip: z.string().optional(),
   addressFull: z.string().min(5, {
     message: "Event address is required.",
   }),
@@ -60,8 +59,8 @@ export const eventFormSchema = z.object({
   isPublic: z.boolean().default(true),
   isTicketed: z.boolean().default(false),
   eventUrl: z.string().url().optional().or(z.literal('')),
-  parking: z.string().optional(),
-  specialInstructions: z.string().optional(),
+  parking: z.string().min(1, { message: 'Parking information is required.' }),
+  specialInstructions: z.string().min(1, { message: 'Special instructions are required.' }),
   socialMedia: socialMediaSchema,
   ticketTypes: z.array(ticketTypeSchema),
 });
