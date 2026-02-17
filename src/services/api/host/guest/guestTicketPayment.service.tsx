@@ -10,7 +10,7 @@ export interface GuestPaymentDetails {
   name: string;
   clientSecret: string;
   email: string;
-  ticketPrice: string;
+  ticketPrice: number;
   paymentStatus?: string;
   stripePaymentIntentId?: string;
   event?: {

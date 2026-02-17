@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import QRCode from "qrcode";
 import { APP_LOGO } from "@/constants/app-assets";
 
 export interface TicketPdfData {
@@ -19,22 +20,38 @@ const PRIMARY_DARK: [number, number, number] = [15, 23, 42];
 const TEXT_GRAY: [number, number, number] = [100, 116, 139];
 const BORDER_GRAY: [number, number, number] = [226, 232, 240];
 const SURFACE_GRAY: [number, number, number] = [248, 250, 252];
+const ALT_ROW: [number, number, number] = [245, 247, 250];
+const GREEN: [number, number, number] = [22, 163, 74];
+const GREEN_BG: [number, number, number] = [220, 252, 231];
+const AMBER: [number, number, number] = [161, 84, 10];
+const AMBER_BG: [number, number, number] = [254, 243, 199];
 
-const loadImage = (url: string): Promise<HTMLImageElement> => {
-  return new Promise((resolve, reject) => {
+const toStatusMeta = (status?: string) => {
+  if (String(status || "").toLowerCase() === "paid")
+    return { label: "Payment: Paid", fg: GREEN, bg: GREEN_BG };
+  return { label: "Payment: Pending", fg: AMBER, bg: AMBER_BG };
+};
+
+const loadImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "Anonymous";
     img.src = url;
     img.onload = () => resolve(img);
     img.onerror = reject;
   });
-};
+
+const generateQRDataUrl = (text: string): Promise<string> =>
+  QRCode.toDataURL(text, {
+    width: 200,
+    margin: 1,
+    color: { dark: "#0F172A", light: "#FFFFFF" },
+  });
 
 const formatDateTime = (value?: string) => {
   if (!value) return "N/A";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "N/A";
-
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
@@ -44,189 +61,218 @@ const formatDateTime = (value?: string) => {
   }).format(date);
 };
 
-const formatAmount = (amount: number) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(amount);
-};
-
-const toStatusLabel = (status?: string) => {
-  if (!status) return "PENDING";
-  const normalized = status.toLowerCase();
-  if (normalized === "paid") return "PAID";
-  if (normalized === "payment_intent_created") return "AWAITING PAYMENT";
-  return normalized.replace(/_/g, " ").toUpperCase();
-};
+const formatAmount = (amount: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
 
 const safeText = (value?: string) => value?.trim() || "N/A";
 
 export const generateTicketPDF = async (ticket: TicketPdfData) => {
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: [210, 220],
-  });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  const contentWidth = pageWidth - margin * 2;
+  // ── Layout constants ───────────────────────────────────────────────
+  const PAGE_W   = 210;
+  const margin   = 13;
+  const cardX    = margin;
+  const cardY    = 55;
+  const cardW    = PAGE_W - margin * 2;
+  const leftBarW = 6;
+  const innerX   = cardX + leftBarW + 6;  // content left edge
+  const innerR   = cardX + cardW - 6;     // content right edge
+  const labelColW = 26;                    // fixed label column width
+  const valueX   = innerX + labelColW;    // fixed value start
+  const valueMaxW = innerR - valueX - 2;
+  const rowInnerW = innerR - innerX;
+  const amountBoxH = 22;
+  const stubH     = 0;
+  const footerArea = 24; // gap below card bottom for footer
 
-  let logoImg: HTMLImageElement | null = null;
-  try {
-    logoImg = await loadImage(APP_LOGO.url);
-  } catch {
-    logoImg = null;
+  const rows = [
+    { label: "Name",   value: safeText(ticket.guestName) },
+    { label: "Email",  value: safeText(ticket.guestEmail) },
+    { label: "Event",  value: safeText(ticket.eventTitle) },
+    { label: "Ticket", value: safeText(ticket.ticketName) },
+    { label: "Starts", value: formatDateTime(ticket.eventStart) },
+    { label: "Ends",   value: formatDateTime(ticket.eventEnd) },
+    { label: "Venue",  value: safeText(ticket.venueAddress) },
+  ];
+
+  // ── Pre-measure text to compute card height ────────────────────────
+  const m = new jsPDF({ unit: "mm", format: [PAGE_W, 400] });
+  m.setFontSize(9.5);
+  let totalRowH = 0;
+  for (const row of rows) {
+    const lines = m.splitTextToSize(row.value, valueMaxW);
+    totalRowH += Math.max(8, lines.length * 5.5 + 4);
   }
+  //   9  = top padding inside card
+  //  10  = "EVENT TICKET" header block
+  //  10  = ATTENDEE section header
+  //   2  = gap after rows
+  //   6  = dashed separator
+  //   7  = gap after amount box
+  //   4  = bottom padding
+  const cardH = 9 + 10 + 10 + totalRowH + 2 + 6 + amountBoxH + 7 + stubH + 4;
+  const PAGE_H = cardY + cardH + footerArea;
 
-  // Top brand area
+  // ── Create real doc with correct page height ───────────────────────
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: [PAGE_W, PAGE_H] });
+  const pageWidth  = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Load assets
+  let logoImg: HTMLImageElement | null = null;
+  try { logoImg = await loadImage(APP_LOGO.url); } catch { logoImg = null; }
+
+  const safeId = (ticket.id || "").slice(0, 8).toUpperCase() || "TICKET";
+  let qrDataUrl: string | null = null;
+  const qrUrl = `${window.location.origin}/guest-ticket-payment/${ticket.id || safeId}`;
+  try { qrDataUrl = await generateQRDataUrl(qrUrl); } catch { qrDataUrl = null; }
+
+  // ── HEADER ─────────────────────────────────────────────────────────
   doc.setFillColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
-  doc.rect(0, 0, pageWidth, 66, "F");
-  doc.setFillColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
-  doc.rect(0, 60, pageWidth, 6, "F");
+  doc.rect(0, 0, pageWidth, 47, "F");
 
   if (logoImg) {
-    const logoWidth = 42;
-    const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
-    doc.addImage(logoImg, "PNG", margin, 10, logoWidth, logoHeight);
+    const logoW = 38;
+    const logoH = (logoImg.height / logoImg.width) * logoW;
+    doc.addImage(logoImg, "PNG", margin, 8, logoW, logoH);
   } else {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(15);
     doc.setTextColor(255, 255, 255);
-    doc.text("CATER DIRECTLY", margin, 24);
+    doc.text("CATER DIRECTLY", margin, 20);
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(30);
-  doc.setTextColor(255, 255, 255);
-  doc.text(safeText(ticket.eventTitle), pageWidth - margin, 24, { align: "right" });
+  // QR code — header, right-aligned
+  const qrSize = 20;
+  const qrX = pageWidth - margin - qrSize;
+  const qrY = 10;
+  if (qrDataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, "F");
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+  }
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(226, 232, 240);
+  // Orange stripe
+  doc.setFillColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+  doc.rect(0, 42, pageWidth, 5, "F");
 
-  const statusLabel = toStatusLabel(ticket.paymentStatus);
-  const statusWidth = doc.getTextWidth(statusLabel) + 12;
+  // ── CARD ───────────────────────────────────────────────────────────
+  // White background
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(pageWidth - margin - statusWidth, 32, statusWidth, 10, 3, 3, "F");
+  doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, "F");
+  // Orange left bar
+  doc.setFillColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+  doc.roundedRect(cardX, cardY, leftBarW, cardH, 4, 4, "F");
+  doc.rect(cardX + 3, cardY, leftBarW - 3, cardH, "F");
+  // Card border
+  doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 4, 4, "S");
+
+  // ── "EVENT TICKET" header row ──────────────────────────────────────
+  let curY = cardY + 9;
+  const statusMeta = toStatusMeta(ticket.paymentStatus);
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
-  doc.text(statusLabel, pageWidth - margin - statusWidth / 2, 38.5, { align: "center" });
+  doc.text("EVENT TICKET", innerX, curY);
 
-  // Main container card (dynamic border for short custom pages)
-  const mainY = 74;
+  // Payment status badge — card top-right
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  const badgePadX = 4;
+  const badgeH    = 7;
+  const badgeW    = doc.getTextWidth(statusMeta.label) + badgePadX * 2;
+  const badgeX    = innerR - badgeW;
+  const badgeY    = curY - 5;
+  doc.setFillColor(statusMeta.bg[0], statusMeta.bg[1], statusMeta.bg[2]);
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, "F");
+  doc.setTextColor(statusMeta.fg[0], statusMeta.fg[1], statusMeta.fg[2]);
+  doc.text(statusMeta.label, badgeX + badgePadX, badgeY + 4.8);
 
-  // Left and right info blocks
-  const columnGap = 8;
-  const colWidth = (contentWidth - columnGap) / 2;
-  const leftX = margin + 6;
-  const detailsWidth = contentWidth - 12;
-  const blockTop = mainY + 10;
+  curY += 4;
+  doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+  doc.setLineWidth(0.3);
+  doc.line(innerX, curY, innerR, curY);
+  curY += 5;
 
-  const drawSection = (x: number, y: number, width: number, title: string) => {
-    doc.setFillColor(SURFACE_GRAY[0], SURFACE_GRAY[1], SURFACE_GRAY[2]);
-    doc.roundedRect(x, y, width, 10, 2, 2, "F");
+  // ── ATTENDEE section header ───────────────────────────────────────
+  doc.setFillColor(SURFACE_GRAY[0], SURFACE_GRAY[1], SURFACE_GRAY[2]);
+  doc.roundedRect(innerX, curY, rowInnerW, 7, 2, 2, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+  doc.text("ATTENDEE", innerX + 3, curY + 4.8);
+  curY += 10;
+
+  // ── Rows ──────────────────────────────────────────────────────────
+  rows.forEach((row, i) => {
+    doc.setFontSize(9.5);
+    const lines  = doc.splitTextToSize(row.value, valueMaxW);
+    const rH     = Math.max(8, lines.length * 5.5 + 4);
+    const rowTop = curY;                 // top of background rect
+    const textY  = rowTop + rH / 2 + 1.5; // baseline centered in row
+
+    if (i % 2 !== 0) {
+      doc.setFillColor(ALT_ROW[0], ALT_ROW[1], ALT_ROW[2]);
+      doc.rect(innerX, rowTop, rowInnerW, rH, "F");
+    }
+
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
-    doc.text(title, x + 3, y + 6.8);
-  };
-
-  drawSection(leftX, blockTop, detailsWidth, "ATTENDEE");
-  let leftY = blockTop + 16;
-
-  const drawRow = (x: number, y: number, label: string, value: string, width: number) => {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(9.5);
     doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
-    doc.text(label, x, y);
+    doc.text(row.label, innerX + 2, textY);
 
     doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
     doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
-    const lines = doc.splitTextToSize(value, width - 30);
-    doc.setFontSize(11);
-    doc.text(lines, x + 26, y);
-    return Math.max(8, lines.length * 5.5 + 1.5);
-  };
+    doc.text(lines, valueX, textY);
 
-  leftY += drawRow(leftX, leftY, "Name", safeText(ticket.guestName), detailsWidth);
-  leftY += drawRow(leftX, leftY, "Email", safeText(ticket.guestEmail), detailsWidth);
-  leftY += drawRow(leftX, leftY, "Ticket", safeText(ticket.ticketName), detailsWidth);
-  leftY += drawRow(leftX, leftY, "Starts", formatDateTime(ticket.eventStart), detailsWidth);
-  leftY += drawRow(leftX, leftY, "Ends", formatDateTime(ticket.eventEnd), detailsWidth);
+    curY += rH;
+  });
 
-  // Venue strip
-  const venueY = leftY + 4;
+  // ── Dashed separator ──────────────────────────────────────────────
   doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
-  doc.line(margin + 8, venueY - 4, margin + contentWidth - 8, venueY - 4);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
-  doc.setFontSize(11);
-  doc.text("Venue", margin + 10, venueY + 3);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.setLineWidth(0.35);
+  doc.line(innerX, curY, innerR, curY);
+  doc.setLineDashPattern([], 0);
+  curY += 5;
 
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
-  const venueLines = doc.splitTextToSize(safeText(ticket.venueAddress), contentWidth - 30);
-  doc.text(venueLines, margin + 28, venueY + 3);
-
-  // Amount callout
-  const amountBoxY = venueY + Math.max(8, venueLines.length * 6 + 4) + 6;
+  // ── Amount box ────────────────────────────────────────────────────
   doc.setFillColor(239, 246, 255);
-  doc.roundedRect(margin + 8, amountBoxY, contentWidth - 16, 26, 3, 3, "F");
+  doc.roundedRect(innerX, curY, rowInnerW, amountBoxH, 3, 3, "F");
+  doc.setDrawColor(191, 219, 254);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(innerX, curY, rowInnerW, amountBoxH, 3, 3, "S");
+
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
   doc.setTextColor(29, 78, 216);
-  doc.setFontSize(13);
-  doc.text("Ticket Price", margin + 12, amountBoxY + 15);
-  doc.setFontSize(22);
-  doc.text(formatAmount(ticket.amount), margin + contentWidth - 12, amountBoxY + 15, { align: "right" });
+  const amountLabel = String(ticket.paymentStatus || "").toLowerCase() === "paid" ? "Total Paid" : "Total Due";
+  doc.text(amountLabel, innerX + 6, curY + 13.5);
 
-  const detailsBottom = Math.min(pageHeight - 18, amountBoxY + 34);
-  doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
-  doc.roundedRect(margin, mainY, contentWidth, detailsBottom - mainY, 4, 4, "S");
+  doc.setFontSize(20);
+  doc.text(formatAmount(ticket.amount), innerR - 4, curY + 13.5, { align: "right" });
+  curY += amountBoxH + 7;
 
-  // Bottom brand footer
-  const footerY = pageHeight - 14;
+  // ── FOOTER — always outside the card ──────────────────────────────
+  const footerY = pageHeight - 8;
   doc.setDrawColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
-  doc.setLineWidth(0.6);
-  doc.line(margin, footerY - 7, pageWidth - margin, footerY - 7);
+  doc.setLineWidth(0.5);
+  doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
   doc.text("Thank you for choosing Cater Directly.", margin, footerY);
 
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
   doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
   doc.text("Cater Directly - Premium Catering Services", pageWidth - margin, footerY, {
     align: "right",
   });
 
-  const safeId = ticket.id ? ticket.id.slice(0, 8) : "ticket";
   doc.save(`Ticket-${safeId}.pdf`);
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
