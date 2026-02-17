@@ -23,6 +23,7 @@ export interface Guest {
   eventVenueAddress?: string;
   ticketName?: string;
   ticketPrice?: string;
+  paymentStatus?: string;
 }
 
 interface AddGuestInput {
@@ -71,6 +72,7 @@ const mapApiGuestToGuest = (raw: any): Guest => ({
   eventVenueAddress: raw?.event?.venueAddress || undefined,
   ticketName: raw?.ticket?.ticketName || undefined,
   ticketPrice: raw?.ticket?.price || undefined,
+  paymentStatus: raw?.paymentStatus || raw?.payment?.status || undefined,
 });
 
 const PAGE_SIZE = 10;
@@ -465,5 +467,7 @@ export const useGuests = (initialRecent?: boolean) => {
     reload: loadGuests,
   };
 };
+
+
 
 
