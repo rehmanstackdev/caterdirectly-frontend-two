@@ -105,8 +105,8 @@ const GuestImport = () => {
     <div className="space-y-6">
       <Tabs value={importTab} onValueChange={setImportTab}>
         <TabsList className="mb-6">
-          <TabsTrigger value="upload">Import Contacts</TabsTrigger>
-          <TabsTrigger value="export">Export Contacts</TabsTrigger>
+          <TabsTrigger value="upload">Import Guest Contacts</TabsTrigger>
+          <TabsTrigger value="export">Export Guest Contacts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upload">
@@ -126,7 +126,8 @@ const GuestImport = () => {
                         <Upload className="h-10 w-10 text-gray-400" />
                       </div>
                       <p className="text-sm text-gray-500 mb-2">
-                        Drag and drop your CSV/XLSX file here, or click to browse
+                        Drag and drop your CSV/XLSX file here, or click to
+                        browse
                       </p>
                       <Input
                         type="file"
@@ -154,7 +155,9 @@ const GuestImport = () => {
                     )}
 
                     <div className="text-sm text-gray-500">
-                      <p className="font-medium">CSV/XLSX Format Requirements:</p>
+                      <p className="font-medium">
+                        CSV/XLSX Format Requirements:
+                      </p>
                       <ul className="list-disc pl-5 mt-2">
                         <li>File must be in CSV or XLSX format</li>
                         <li>First row should contain column headers</li>
@@ -288,7 +291,7 @@ const GuestImport = () => {
               </p>
               <Button onClick={handleExport} disabled={loading}>
                 <Download className="mr-2 h-4 w-4" />
-                Export All Contacts
+                Export All Guest Contacts
               </Button>
             </CardContent>
           </Card>
@@ -299,7 +302,3 @@ const GuestImport = () => {
 };
 
 export default GuestImport;
-
-
-
-
