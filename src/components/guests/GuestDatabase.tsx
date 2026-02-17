@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -21,7 +22,6 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
-  Loader2,
   Loader,
   ChevronLeft,
   ChevronRight,
@@ -34,8 +34,39 @@ interface GuestDatabaseProps {
   filterRecent?: boolean;
 }
 
+const getPaymentStatusMeta = (status?: string) => {
+  const normalized = String(status || "").toLowerCase();
+
+  if (normalized === "paid") {
+    return {
+      label: "Paid",
+      className: "bg-green-100 text-green-800 border-green-200",
+    };
+  }
+
+  if (normalized === "payment_intent_created") {
+    return {
+      label: "Pending",
+      className: "bg-amber-100 text-amber-800 border-amber-200",
+    };
+  }
+
+  if (!normalized) {
+    return {
+      label: "-",
+      className: "bg-slate-100 text-slate-600 border-slate-200",
+    };
+  }
+
+  return {
+    label: normalized.replace(/_/g, " "),
+    className: "bg-slate-100 text-slate-700 border-slate-200",
+  };
+};
+
 const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
-  const { guests, loading, total, pageSize, removeGuest, reload } = useGuests(filterRecent);
+  const { guests, loading, total, pageSize, removeGuest, reload } =
+    useGuests(filterRecent);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddGuestDialogOpen, setIsAddGuestDialogOpen] = useState(false);
@@ -70,6 +101,7 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
       toast.error("Failed to remove contact");
     }
   };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -94,9 +126,9 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
               <TableHead>Company</TableHead>
               <TableHead>Job Title</TableHead>
               <TableHead>Event</TableHead>
-  
               <TableHead>Ticket</TableHead>
               <TableHead>Price</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="w-[100px]">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -112,7 +144,10 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
               </TableRow>
             ) : guests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-12 text-center text-gray-500">
+                <TableCell
+                  colSpan={10}
+                  className="py-12 text-center text-gray-500"
+                >
                   {searchQuery
                     ? `No contacts found matching "${searchQuery}"`
                     : filterRecent
@@ -121,54 +156,71 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
                 </TableCell>
               </TableRow>
             ) : (
-              guests.map((guest) => (
-                <TableRow key={guest.id}>
-                  <TableCell className="font-medium">{guest.name}</TableCell>
-                  <TableCell>
-                    <a
-                      href={`mailto:${guest.email}`}
-                      className="hover:underline"
-                    >
-                      {guest.email}
-                    </a>
-                  </TableCell>
-                  <TableCell>{guest.phone || "-"}</TableCell>
-                  <TableCell>{guest.company || "-"}</TableCell>
-                  <TableCell>{guest.jobTitle || "-"}</TableCell>
-                  <TableCell>{guest.eventTitle || "-"}</TableCell>
-                  <TableCell>{guest.ticketName || "-"}</TableCell>
-                  <TableCell>{guest.ticketPrice ? `$${guest.ticketPrice}` : "-"}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Contact actions"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleEditGuest(guest)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => handleRemoveGuest(guest.id)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+              guests.map((guest) => {
+                const statusMeta = getPaymentStatusMeta(guest.paymentStatus);
+                const isPaid =
+                  String(guest.paymentStatus || "").toLowerCase() === "paid";
+
+                return (
+                  <TableRow key={guest.id}>
+                    <TableCell className="font-medium">{guest.name}</TableCell>
+                    <TableCell>
+                      <a
+                        href={`mailto:${guest.email}`}
+                        className="hover:underline"
+                      >
+                        {guest.email}
+                      </a>
+                    </TableCell>
+                    <TableCell>{guest.phone || "-"}</TableCell>
+                    <TableCell>{guest.company || "-"}</TableCell>
+                    <TableCell>{guest.jobTitle || "-"}</TableCell>
+                    <TableCell>{guest.eventTitle || "-"}</TableCell>
+                    <TableCell>{guest.ticketName || "-"}</TableCell>
+                    <TableCell>
+                      {guest.ticketPrice ? `$${guest.ticketPrice}` : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusMeta.className}>
+                        {statusMeta.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Contact actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleEditGuest(guest)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          {!isPaid && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => handleRemoveGuest(guest.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -189,15 +241,21 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-              .reduce<(number | "…")[]>((acc, p, idx, arr) => {
-                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+              .filter(
+                (p) =>
+                  p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1,
+              )
+              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1)
+                  acc.push("...");
                 acc.push(p);
                 return acc;
               }, [])
               .map((p, idx) =>
-                p === "…" ? (
-                  <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">…</span>
+                p === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                    ...
+                  </span>
                 ) : (
                   <Button
                     key={p}
@@ -207,7 +265,7 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
                   >
                     {p}
                   </Button>
-                )
+                ),
               )}
             <Button
               variant="outline"
@@ -231,3 +289,4 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
 };
 
 export default GuestDatabase;
+

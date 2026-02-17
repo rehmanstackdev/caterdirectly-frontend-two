@@ -1,11 +1,10 @@
-
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import Dashboard from '@/components/dashboard/Dashboard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Calendar, DollarSign, AlertCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Dashboard from "@/components/dashboard/Dashboard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -13,244 +12,356 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { usePayouts } from '@/hooks/usePayouts';
-import { useStripeConnect } from '@/hooks/useStripeConnect';
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+import AddGuestService from "@/services/api/host/guest/addguest.service";
+
+type HostEarningsTransaction = {
+  id: string;
+  guestName: string;
+  guestEmail: string;
+  eventTitle: string;
+  ticketName: string;
+  ticketPrice: string;
+  commissionAmount: string;
+  afterCommissionAmount: string;
+  paymentStatus: string;
+  hostEarningTransferred: boolean;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+type HostEarningsPayload = {
+  totalEarningsGross: number;
+  totalEarningsNet: number;
+  availableForPayoutGross: number;
+  availableForPayoutNet: number;
+  pendingEarningsGross: number;
+  pendingEarningsNet: number;
+  transactions: HostEarningsTransaction[];
+  hostCommissionRate: number;
+};
 
 const HostEarningsPage = () => {
   const navigate = useNavigate();
-  const { payouts, loading } = usePayouts();
-  const { status, loading: connectLoading, onboardingLoading, startOnboarding, refreshStatus } = useStripeConnect();
-  
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<HostEarningsPayload | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadEarnings = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await AddGuestService.getHostEarnings();
+        const payload = result?.data || result;
+        if (mounted) {
+          setData(payload || null);
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(
+            err?.response?.data?.message || "Failed to load host earnings",
+          );
+          setData(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEarnings();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const formatCurrency = (amount?: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(Number(amount || 0));
   };
-  
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
+
+  const formatAmountString = (value?: string) => {
+    return formatCurrency(Number(value || 0));
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return "N/A";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "N/A";
+    return d.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   };
 
-  const now = new Date();
-  const totalCents = payouts.reduce((sum, p) => sum + (p.amount_net || 0), 0);
-  const pendingCents = payouts
-    .filter(p => ['scheduled', 'processing', 'on_hold'].includes(p.status))
-    .reduce((sum, p) => sum + (p.amount_net || 0), 0);
-  const availableCents = payouts
-    .filter(p => p.status === 'scheduled' && p.scheduled_for && new Date(p.scheduled_for) <= now)
-    .reduce((sum, p) => sum + (p.amount_net || 0), 0);
-  const feeCents = payouts.reduce((sum, p) => sum + (p.amount_fee || 0), 0);
+  const statusMeta = (status?: string) => {
+    const normalized = String(status || "").toLowerCase();
 
-  const earningsData = {
-    totalEarnings: totalCents / 100,
-    pendingPayouts: pendingCents / 100,
-    availableForPayout: availableCents / 100,
-    platformFees: feeCents / 100,
-    transactions: payouts.map(p => ({
-      id: p.id,
-      source: p.source_type === 'ticket_sale' ? 'Ticket Sale' : 'Order',
-      date: p.paid_at || p.scheduled_for,
-      amount: (p.amount_net || 0) / 100,
-      status: p.status,
-    })),
-    payouts: payouts,
+    if (normalized === "paid") {
+      return {
+        label: "Paid",
+        className: "bg-green-100 text-green-800 border-green-200",
+      };
+    }
+
+    if (normalized === "payment_intent_created") {
+      return {
+        label: "Pending",
+        className: "bg-amber-100 text-amber-800 border-amber-200",
+      };
+    }
+
+    return {
+      label: status || "Unknown",
+      className: "bg-slate-100 text-slate-700 border-slate-200",
+    };
   };
-  
+
+  const cards = useMemo(() => {
+    return [
+      {
+        title: "Total Earnings",
+        gross: data?.totalEarningsGross ?? 0,
+        net: data?.totalEarningsNet ?? 0,
+      },
+      {
+        title: "Available For Payout",
+        gross: data?.availableForPayoutGross ?? 0,
+        net: data?.availableForPayoutNet ?? 0,
+      },
+      {
+        title: "Pending Earnings",
+        gross: data?.pendingEarningsGross ?? 0,
+        net: data?.pendingEarningsNet ?? 0,
+      },
+    ];
+  }, [data]);
+  const filteredTransactions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const rows = data?.transactions || [];
+
+    if (!query) return rows;
+
+    return rows.filter((t) => {
+      const haystack = [
+        t.guestName,
+        t.guestEmail,
+        t.eventTitle,
+        t.ticketName,
+        t.paymentStatus,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [data?.transactions, searchQuery]);
+
   return (
     <Dashboard activeTab="earnings" userRole="event-host">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Earnings & Payouts</h1>
-          <Button 
-            onClick={() => navigate('/events/create')}
+          <div>
+            <h1 className="text-3xl font-bold">Host Earnings</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Amounts are shown before commission and after commission.
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate("/events/create")}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             Create New Event
           </Button>
         </div>
 
-        {payouts.length === 0 && (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              No payout records yet. Payouts are scheduled automatically after ticket sales settle.
-            </AlertDescription>
-          </Alert>
+        {typeof data?.hostCommissionRate === "number" && (
+          <div className="text-sm text-slate-600">
+            Host Commission Rate:{" "}
+            <span className="font-semibold">
+              {(data.hostCommissionRate * 100).toFixed(2)}%
+            </span>
+          </div>
         )}
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-500">
-                Total Earnings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(earningsData.totalEarnings)}</div>
-              <p className="text-sm text-gray-500 mt-2">
-                Lifetime earnings from all events
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-500">
-                Available for Payout
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(earningsData.availableForPayout)}</div>
-              <Button className="mt-4 w-full" size="sm" onClick={startOnboarding} disabled={onboardingLoading}>
-                {onboardingLoading ? 'Opening...' : 'Request Payout'}
-              </Button>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-500">
-                Pending Earnings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(earningsData.pendingPayouts)}</div>
-              <p className="text-sm text-gray-500 mt-2">
-                Will be available after events complete
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <Tabs defaultValue="transactions" className="w-full">
-          <TabsList>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="payouts">Payouts</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="transactions" className="pt-4">
+
+        {loading ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <Card key={`earnings-skeleton-${idx}`}>
+                  <CardHeader className="pb-2">
+                    <Skeleton className="h-4 w-40" />
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-8 w-36" />
+                    <Skeleton className="h-3 w-28" />
+                    <Skeleton className="h-7 w-32" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
             <Card>
-              <CardHeader>
-                <CardTitle>Transaction History</CardTitle>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-10 w-full sm:w-80" />
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {earningsData.transactions.map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium">
-                          {t.source}
-                        </TableCell>
-                        <TableCell>{formatDate(t.date)}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={t.status === 'paid' ? 'default' : t.status === 'on_hold' ? 'outline' : 'outline'}
-                            className={t.status === 'paid' ? 'bg-green-500' : ''}
-                          >
-                            {t.status === 'paid' ? 'Paid' : t.status === 'on_hold' ? 'On Hold' : 'Scheduled'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(t.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, idx) => (
+                    <Skeleton
+                      key={`tx-skeleton-${idx}`}
+                      className="h-12 w-full"
+                    />
+                  ))}
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-          
-          <TabsContent value="payouts" className="pt-4">
+          </>
+        ) : error ? (
+          <Card>
+            <CardContent className="py-6 text-red-600">{error}</CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {cards.map((card) => (
+                <Card key={card.title}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-500">
+                      {card.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div>
+                      <div className="text-xs  tracking-wide text-gray-500">
+                        Before Commission
+                      </div>
+                      <div className="text-2xl font-bold text-slate-900">
+                        {formatCurrency(card.gross)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs  tracking-wide text-gray-500">
+                        After Commission
+                      </div>
+                      <div className="text-xl font-semibold text-green-700">
+                        {formatCurrency(card.net)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
             <Card>
-              <CardHeader>
-                <CardTitle>Payout History</CardTitle>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>Transactions</CardTitle>
+                <Input
+                  placeholder="Search transactions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:max-w-sm"
+                />
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payouts.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>{formatDate(p.paid_at || p.scheduled_for)}</TableCell>
-                        <TableCell>{p.source_type === 'ticket_sale' ? 'Ticket Sale' : 'Order'}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={p.status === 'paid' ? 'default' : p.status === 'on_hold' ? 'outline' : 'outline'}
-                            className={p.status === 'paid' ? 'bg-green-500' : ''}
-                          >
-                            {p.status === 'paid' ? 'Paid' : p.status === 'on_hold' ? 'On Hold' : 'Scheduled'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency((p.amount_net || 0) / 100)}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[1100px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Guest</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>Ticket</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Paid At</TableHead>
+                        <TableHead className="text-center">
+                          <span className="block">Ticket Price</span>
+                          <span className="block text-center text-[11px] text-slate-500">
+                            (Before Commission)
+                          </span>
+                        </TableHead>
+                        <TableHead className="text-center">
+                          Commission
+                        </TableHead>
+                        <TableHead className="text-center">
+                          <span className="block">Host Earning</span>
+                          <span className="block text-center text-[11px] text-slate-500">
+                            (After Commission)
+                          </span>
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTransactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={8}
+                            className="text-center text-slate-500 py-8"
+                          >
+                            No transactions found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredTransactions.map((t) => {
+                          const meta = statusMeta(t.paymentStatus);
+                          return (
+                            <TableRow key={t.id}>
+                              <TableCell>
+                                <div className="font-medium">
+                                  {t.guestName || "N/A"}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  {t.guestEmail || "N/A"}
+                                </div>
+                              </TableCell>
+                              <TableCell>{t.eventTitle || "N/A"}</TableCell>
+                              <TableCell>{t.ticketName || "N/A"}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant="outline"
+                                  className={meta.className}
+                                >
+                                  {meta.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {formatDate(t.paidAt || t.createdAt)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {formatAmountString(t.ticketPrice)}
+                              </TableCell>
+                              <TableCell className="text-center text-red-600">
+                                {formatAmountString(t.commissionAmount)}
+                              </TableCell>
+                              <TableCell className="text-center font-semibold text-green-700">
+                                {formatAmountString(t.afterCommissionAmount)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Payout Settings</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-sm text-gray-500">
-              Connect your payout account to receive funds automatically after Eventbrite-style schedules.
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">
-                {connectLoading ? 'Checking status...' : (status?.payouts_enabled ? 'Payouts Enabled' : 'Payouts Not Enabled')}
-              </Badge>
-              <Badge variant="outline">
-                {connectLoading ? 'Loading...' : (status?.details_submitted ? 'Onboarding Complete' : 'Onboarding Required')}
-              </Badge>
-              {status?.requirements_disabled_reason && (
-                <Badge variant="outline">
-                  Needs Attention
-                </Badge>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={startOnboarding} disabled={onboardingLoading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                {onboardingLoading ? 'Opening...' : (status?.details_submitted ? 'Update Payout Details' : 'Set Up Payouts')}
-              </Button>
-              <Button variant="outline" onClick={refreshStatus} disabled={connectLoading}>
-                Refresh Status
-              </Button>
-            </div>
-            <p className="text-sm text-gray-500">
-              We’ll add Stripe Connect onboarding next; for now, amounts shown are net of platform fees and follow the 5 business days schedule.
-            </p>
-          </CardContent>
-        </Card>
+          </>
+        )}
       </div>
     </Dashboard>
   );

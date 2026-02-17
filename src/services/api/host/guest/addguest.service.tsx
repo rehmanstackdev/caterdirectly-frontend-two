@@ -58,6 +58,11 @@ class AddGuestService extends BaseRequestService {
       headers: getAuthHeader(),
     });
   }
+  getHostEarnings() {
+    return this.get(`${API_URL}guests/host-earnings`, {
+      headers: getAuthHeader(),
+    });
+  }
   sendGuestPaymentIntent(guestId: string) {
     return this.post(
       `${API_URL}guests/host-guests/${guestId}/payment-intent`,
@@ -81,3 +86,5 @@ class AddGuestService extends BaseRequestService {
 }
 
 export default new AddGuestService();
+
+
