@@ -18,22 +18,22 @@ const HostsManagment = () => {
 
   if (permLoading) {
     return (
-      <Dashboard userRole="admin" activeTab="users">
+      <Dashboard userRole="admin" activeTab="hosts">
         <div>Loading permissions...</div>
       </Dashboard>
     );
   }
 
-  if (!hasPageAccess("users")) {
+  if (!hasPageAccess("hosts")) {
     return (
-      <Dashboard userRole="admin" activeTab="users">
+      <Dashboard userRole="admin" activeTab="hosts">
         <AccessDenied />
       </Dashboard>
     );
   }
 
   return (
-    <Dashboard userRole="admin" activeTab="users">
+    <Dashboard userRole="admin" activeTab="hosts">
       <div className="space-y-6">
         <HostTableHeader
           searchQuery={searchQuery}

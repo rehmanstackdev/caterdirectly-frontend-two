@@ -9,6 +9,7 @@ export const ADMIN_PAGES = [
   { id: 'services', name: 'Services', category: 'Operations' },
   { id: 'vendors', name: 'Vendors', category: 'Operations' },
   { id: 'orders', name: 'Orders', category: 'Operations' },
+  { id: 'hosts', name: 'Hosts', category: 'Operations' },
   { id: 'proposals', name: 'Messages', category: 'Operations' },
   { id: 'users', name: 'Users', category: 'Support' },
   { id: 'support', name: 'Support', category: 'Support' },

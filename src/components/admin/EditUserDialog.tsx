@@ -84,6 +84,7 @@ export function EditUserDialog({ isOpen, onClose, user, onUserUpdated, isSuperAd
         'services': 'services',
         'vendors': 'vendors',
         'orders': 'orders',
+        'hosts': 'hosts',
         'users': 'users',
         'support': 'support',
         'finances': 'finances',

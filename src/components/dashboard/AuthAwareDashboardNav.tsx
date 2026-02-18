@@ -212,7 +212,7 @@ export function AuthAwareDashboardNav({
       href: "/admin/hosts",
       icon: <Users className="h-5 w-5" />,
       protected: true,
-      pageId: "users",
+      pageId: "hosts",
     },
     {
       name: "Leads",
