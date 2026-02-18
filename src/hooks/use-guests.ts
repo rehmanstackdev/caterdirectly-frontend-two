@@ -75,6 +75,17 @@ const mapApiGuestToGuest = (raw: any): Guest => ({
 
 const PAGE_SIZE = 10;
 
+const getPaymentStatusLabel = (status?: string) => {
+  const normalized = String(status || "").toLowerCase();
+
+  if (normalized === "paid") return "Paid";
+  if (normalized === "earning_transferred") return "Transferred";
+  if (normalized === "payment_intent_created") return "Pending";
+  if (!normalized) return "";
+
+  return normalized.replace(/_/g, " ");
+};
+
 const getResponseMessage = (payload: any) => {
   const candidates = [payload?.message, payload?.data?.message, payload?.meta?.message];
 
@@ -423,7 +434,7 @@ export const useGuests = (initialRecent?: boolean) => {
   };
 
   const exportGuests = async () => {
-    const headers = ['Name', 'Email', 'Phone', 'Company', 'Job Title','Event Title','Ticket', 'Price'];
+    const headers = ['Name', 'Email', 'Phone', 'Company', 'Job Title','Event Title','Ticket', 'Price','Status'];
 
     const rows = guests.map((guest) => [
       guest.name,
@@ -434,6 +445,7 @@ export const useGuests = (initialRecent?: boolean) => {
       guest.eventTitle || '',
        guest.ticketName || '',
        guest.ticketPrice || '',
+       getPaymentStatusLabel(guest.paymentStatus) || '',
     ]);
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -448,6 +460,7 @@ export const useGuests = (initialRecent?: boolean) => {
       { wch: 26 },
       { wch: 14 },
       { wch: 10 },
+      { wch: 12 },
     ];
 
     const workbook = XLSX.utils.book_new();
