@@ -27,7 +27,7 @@ const EditTicketDialog = ({
   onSave,
 }: EditTicketDialogProps) => {
   const [ticketName, setTicketName] = useState(ticket.name);
-  const [ticketPrice, setTicketPrice] = useState(String(ticket.price / 100)); // Convert cents to dollars for display
+  const [ticketPrice, setTicketPrice] = useState(String(ticket.price));
   const [ticketQuantity, setTicketQuantity] = useState(
     ticket.quantity ? String(ticket.quantity) : "",
   );
@@ -38,7 +38,7 @@ const EditTicketDialog = ({
   // Update form values when the ticket prop changes
   useEffect(() => {
     setTicketName(ticket.name);
-    setTicketPrice(String(ticket.price / 100));
+    setTicketPrice(String(ticket.price));
     setTicketQuantity(ticket.quantity ? String(ticket.quantity) : "");
     setTicketDescription(ticket.description || "");
   }, [ticket]);
@@ -49,7 +49,7 @@ const EditTicketDialog = ({
     // Create the updated ticket object
     const updatedTicket: Partial<TicketType> = {
       name: ticketName,
-      price: parseFloat(ticketPrice) * 100, // Convert dollars to cents for storage
+      price: parseFloat(ticketPrice),
     };
 
     // Only add optional fields if they have values

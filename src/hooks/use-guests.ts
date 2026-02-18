@@ -42,8 +42,6 @@ interface UpdateGuestInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
-  eventId?: string;
-  ticketId?: string;
 }
 
 const mapApiGuestToGuest = (raw: any): Guest => ({
@@ -76,6 +74,17 @@ const mapApiGuestToGuest = (raw: any): Guest => ({
 });
 
 const PAGE_SIZE = 10;
+
+const getResponseMessage = (payload: any) => {
+  const candidates = [payload?.message, payload?.data?.message, payload?.meta?.message];
+
+  for (const message of candidates) {
+    if (Array.isArray(message)) return message.join(", ");
+    if (typeof message === "string" && message.trim()) return message;
+  }
+
+  return "";
+};
 
 export const useGuests = (initialRecent?: boolean) => {
   const { user } = useAuth();
@@ -169,7 +178,9 @@ export const useGuests = (initialRecent?: boolean) => {
       ticketId: guestData.ticketId,
     });
 
-    const apiGuest = response?.data || response;
+    const payload = response;
+    const successMessage = getResponseMessage(payload);
+    const apiGuest = payload?.data ?? payload;
     const createdGuest = mapApiGuestToGuest({
       ...apiGuest,
       phone: guestData.phone,
@@ -182,7 +193,7 @@ export const useGuests = (initialRecent?: boolean) => {
     );
 
     window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
-    return createdGuest;
+    return { guest: createdGuest, message: successMessage };
   };
 
   // Update contact via backend API
@@ -193,11 +204,11 @@ export const useGuests = (initialRecent?: boolean) => {
       phone: updates.phone,
       companyName: updates.company,
       jobTitle: updates.jobTitle,
-      eventId: updates.eventId,
-      ticketId: updates.ticketId,
     });
 
-    const apiGuest = response?.data || response;
+    const payload = response;
+    const successMessage = getResponseMessage(payload);
+    const apiGuest = payload?.data ?? payload;
     const updatedGuest = mapApiGuestToGuest({
       ...apiGuest,
       id: apiGuest?.id || guestId,
@@ -215,13 +226,17 @@ export const useGuests = (initialRecent?: boolean) => {
     );
 
     window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
+    return { guest: updatedGuest, message: successMessage };
   };
 
   // Remove contact via backend API
   const removeGuest = async (guestId: string) => {
-    await AddGuestService.deleteHostGuest(guestId);
+    const response = await AddGuestService.deleteHostGuest(guestId);
+    const payload = response;
+    const successMessage = getResponseMessage(payload);
     setGuests((prev) => prev.filter((g) => g.id !== guestId));
     window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
+    return { message: successMessage };
   };
   const sendGuestPaymentIntent = async (guestId: string) => {
     return AddGuestService.sendGuestPaymentIntent(guestId);
