@@ -17,6 +17,9 @@ const TicketCard = ({ ticket, onEdit, onRemove }: TicketCardProps) => {
     }).format(price);
   };
 
+  const quantity = Number(ticket.quantity ?? 0);
+  const showQuantity = Number.isFinite(quantity) && quantity > 0;
+
   return (
     <Card>
       <CardContent className="p-4 flex justify-between items-center">
@@ -26,10 +29,8 @@ const TicketCard = ({ ticket, onEdit, onRemove }: TicketCardProps) => {
           {ticket.description && (
             <div className="text-sm text-gray-500">{ticket.description}</div>
           )}
-          {ticket.quantity && (
-            <div className="text-sm text-gray-500">
-              {ticket.quantity} available
-            </div>
+          {showQuantity && (
+            <div className="text-sm text-gray-500">{quantity} available</div>
           )}
           {ticket.sold > 0 && (
             <div className="text-sm text-blue-600 font-medium">
@@ -39,10 +40,10 @@ const TicketCard = ({ ticket, onEdit, onRemove }: TicketCardProps) => {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={onEdit}>
+          <Button type="button" variant="ghost" size="icon" onClick={onEdit}>
             <Edit className="h-4 w-4 text-blue-500" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onRemove}>
+          <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
             <Trash2 className="h-4 w-4 text-red-500" />
           </Button>
         </div>

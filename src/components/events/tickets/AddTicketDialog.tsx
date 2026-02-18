@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { TicketType } from "@/types/order";
+import { toast } from "sonner";
 
 interface AddTicketDialogProps {
   onAddTicket: (ticket: Omit<TicketType, "id" | "sold">) => void;
@@ -31,24 +32,29 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
   const handleAddTicket = () => {
     setNameError("");
     setPriceError("");
+
     let hasError = false;
+
     if (!ticketName.trim()) {
       setNameError("Ticket name is required");
       hasError = true;
     }
+
     if (!ticketPrice || isNaN(parseFloat(ticketPrice)) || parseFloat(ticketPrice) < 0) {
       setPriceError("Valid price is required");
       hasError = true;
     }
-    if (hasError) return;
 
-    // Create a ticket object with required properties
+    if (hasError) {
+      toast.error("Please fix ticket name and price before continuing");
+      return;
+    }
+
     const newTicket: Omit<TicketType, "id" | "sold"> = {
       name: ticketName,
       price: parseFloat(ticketPrice),
     };
 
-    // Only add optional properties if they have valid values
     if (ticketDescription.trim()) {
       newTicket.description = ticketDescription;
     }
@@ -59,7 +65,6 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
 
     onAddTicket(newTicket);
 
-    // Reset form
     setTicketName("");
     setTicketPrice("");
     setTicketQuantity("");
@@ -80,7 +85,7 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button>
+        <Button type="button">
           <PlusCircle className="mr-2 h-4 w-4" />
           Add Ticket Type
         </Button>
@@ -103,7 +108,10 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
                 id="ticketName"
                 placeholder="VIP, General Admission, etc."
                 value={ticketName}
-                onChange={(e) => { setTicketName(e.target.value); if (nameError) setNameError(""); }}
+                onChange={(e) => {
+                  setTicketName(e.target.value);
+                  if (nameError) setNameError("");
+                }}
                 className={nameError ? "border-red-500" : ""}
               />
               {nameError && <p className="text-xs text-red-500">{nameError}</p>}
@@ -119,7 +127,10 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
                 step="0.01"
                 placeholder="0.00"
                 value={ticketPrice}
-                onChange={(e) => { setTicketPrice(e.target.value); if (priceError) setPriceError(""); }}
+                onChange={(e) => {
+                  setTicketPrice(e.target.value);
+                  if (priceError) setPriceError("");
+                }}
                 className={priceError ? "border-red-500" : ""}
               />
               {priceError && <p className="text-xs text-red-500">{priceError}</p>}
@@ -138,10 +149,12 @@ const AddTicketDialog = ({ onAddTicket }: AddTicketDialogProps) => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
+          <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleAddTicket}>Add Ticket</Button>
+          <Button type="button" onClick={handleAddTicket}>
+            Add Ticket
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
