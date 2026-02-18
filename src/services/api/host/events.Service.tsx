@@ -16,6 +16,18 @@ class EventsService extends BaseRequestService {
       headers: getAuthHeader(),
     });
   }
+
+  updateEvent(eventId: string, data: any) {
+    return this.patch(`${API_URL}events/${eventId}`, data, {
+      headers: getAuthHeader(),
+    });
+  }
+
+  deleteEvent(eventId: string) {
+    return this.delete(`${API_URL}events/${eventId}`, {
+      headers: getAuthHeader(),
+    });
+  }
 }
 
 export default new EventsService();

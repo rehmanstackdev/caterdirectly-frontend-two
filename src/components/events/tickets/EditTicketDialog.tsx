@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface EditTicketDialogProps {
   ticket: TicketType;
@@ -35,7 +36,6 @@ const EditTicketDialog = ({
     ticket.description || "",
   );
 
-  // Update form values when the ticket prop changes
   useEffect(() => {
     setTicketName(ticket.name);
     setTicketPrice(String(ticket.price));
@@ -44,15 +44,21 @@ const EditTicketDialog = ({
   }, [ticket]);
 
   const handleSaveTicket = () => {
-    if (!ticketName || !ticketPrice) return;
+    if (!ticketName.trim()) {
+      toast.error("Ticket name is required");
+      return;
+    }
 
-    // Create the updated ticket object
+    if (!ticketPrice || isNaN(parseFloat(ticketPrice)) || parseFloat(ticketPrice) < 0) {
+      toast.error("Valid ticket price is required");
+      return;
+    }
+
     const updatedTicket: Partial<TicketType> = {
       name: ticketName,
       price: parseFloat(ticketPrice),
     };
 
-    // Only add optional fields if they have values
     if (ticketDescription.trim()) {
       updatedTicket.description = ticketDescription;
     }
@@ -122,10 +128,12 @@ const EditTicketDialog = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSaveTicket}>Save Changes</Button>
+          <Button type="button" onClick={handleSaveTicket}>
+            Save Changes
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

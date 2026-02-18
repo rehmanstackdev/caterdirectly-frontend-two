@@ -41,6 +41,7 @@ const EventForm = ({
       endDate: initialData?.endDate || "",
       endTime: initialData?.endTime || "",
       image: initialData?.image || "",
+      capacity: initialData?.capacity,
       isPublic: initialData?.isPublic ?? true,
       isTicketed: initialData?.isTicketed ?? false,
       eventUrl: initialData?.eventUrl || "",
@@ -54,7 +55,6 @@ const EventForm = ({
       },
       ticketTypes: Array.isArray(initialData?.ticketTypes)
         ? initialData.ticketTypes.map((ticket) => ({
-            // Ensure each ticket has all required properties from TicketType interface
             id:
               ticket.id ||
               `ticket-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -92,31 +92,38 @@ const EventForm = ({
     }
   }, [ticketTypes]);
 
-  // Submit handler that passes data in the format expected by the parent component
+  const getErrorMessage = (error: any): string => {
+    const message = error?.response?.data?.message;
+
+    if (Array.isArray(message)) {
+      return message.join(", ");
+    }
+
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+
+    if (typeof error?.message === "string" && error.message.trim()) {
+      return error.message;
+    }
+
+    return "Please fill all required fields";
+  };
+
   const handleFormSubmit = async (values: EventFormValues) => {
     console.log("EventForm: Form submission started", values);
     console.log("EventForm: Form errors:", form.formState.errors);
 
     try {
-      // Validate form data
       if (!values.title?.trim()) {
-        console.error("EventForm: Missing title");
         throw new Error("Event title is required");
       }
 
       if (!values.startDate || !values.startTime) {
-        console.error("EventForm: Missing start date/time", {
-          startDate: values.startDate,
-          startTime: values.startTime,
-        });
         throw new Error("Start date and time are required");
       }
 
       if (!values.endDate || !values.endTime) {
-        console.error("EventForm: Missing end date/time", {
-          endDate: values.endDate,
-          endTime: values.endTime,
-        });
         throw new Error("End date and time are required");
       }
 
@@ -126,31 +133,31 @@ const EventForm = ({
         return;
       }
 
-      // Combine date and time for start and end dates
       const formattedData = {
         ...values,
         startDate: `${values.startDate}T${values.startTime}`,
         endDate: `${values.endDate}T${values.endTime}`,
       };
 
-      console.log("EventForm: Form data formatted successfully", {
-        formattedStartDate: formattedData.startDate,
-        formattedEndDate: formattedData.endDate,
-      });
-
-      // Pass the form values to parent component
       setIsSubmittingLocal(true);
       await onSubmit(formattedData);
     } catch (error) {
       console.error("EventForm: Form submission error:", error);
-      toast.error("Fill All Required Fields");
+      toast.error(getErrorMessage(error));
     } finally {
       setIsSubmittingLocal(false);
     }
   };
 
-  const handleFormInvalid = (_errors: FieldErrors<EventFormValues>) => {
-    toast.error("Fill All Required Fields");
+  const handleFormInvalid = (errors: FieldErrors<EventFormValues>) => {
+    const firstError = Object.values(errors)[0] as any;
+    const validationMessage =
+      firstError?.message ||
+      firstError?.startDate?.message ||
+      firstError?.endDate?.message ||
+      "Please fill all required fields";
+
+    toast.error(validationMessage);
   };
 
   return (
@@ -182,6 +189,3 @@ const EventForm = ({
 };
 
 export default EventForm;
-
-
-
