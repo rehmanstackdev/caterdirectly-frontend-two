@@ -152,6 +152,15 @@ const GuestEntryDialog = ({
     setTickets(selectedEvent?.tickets || []);
   }, [hostEvents, selectedEventId]);
 
+  const getApiErrorMessage = (error: any) => {
+    const message = error?.response?.data?.message;
+    if (Array.isArray(message)) return message.join(", ");
+    if (typeof message === "string" && message.trim()) return message;
+    if (typeof error?.message === "string" && error.message.trim())
+      return error.message;
+    return "";
+  };
+
   const onSubmit = async (data: GuestFormData) => {
     setIsSubmitting(true);
 
@@ -166,16 +175,18 @@ const GuestEntryDialog = ({
         phone: data.phone,
         company: data.company,
         jobTitle: data.jobTitle,
-        eventId: data.eventId || existingGuest?.eventId,
-        ticketId: data.ticketId || existingGuest?.ticketId,
       };
 
       if (isEditing) {
-        await updateGuest(existingGuest.id, processedData);
-        toast.success("Guest detail updated successfully");
+        const result = await updateGuest(existingGuest.id, processedData);
+        toast.success(result?.message || "Guest detail updated successfully");
       } else {
-        await addGuest(processedData);
-        toast.success("New guest added successfully");
+        const result = await addGuest({
+          ...processedData,
+          eventId: data.eventId,
+          ticketId: data.ticketId,
+        });
+        toast.success(result?.message || "New guest added successfully");
       }
 
       onOpenChange(false);
@@ -183,7 +194,7 @@ const GuestEntryDialog = ({
     } catch (error: any) {
       console.error("Error saving guest:", error);
       toast.error(
-        error?.message ||
+        getApiErrorMessage(error) ||
           (isEditing ? "Failed to update contact" : "Failed to add contact"),
       );
     } finally {
@@ -195,7 +206,9 @@ const GuestEntryDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Guest" : "Add New Guest"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Edit Guest" : "Add New Guest"}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
               ? "Update the contact information below"
@@ -288,8 +301,12 @@ const GuestEntryDialog = ({
                           value={field.value || undefined}
                           onValueChange={(value) => {
                             field.onChange(value);
-                            form.setValue("ticketId", "", { shouldValidate: true });
-                            form.setValue("ticketPrice", "", { shouldValidate: true });
+                            form.setValue("ticketId", "", {
+                              shouldValidate: true,
+                            });
+                            form.setValue("ticketPrice", "", {
+                              shouldValidate: true,
+                            });
                             const selectedEvent = hostEvents.find(
                               (event) => event.id === value,
                             );
@@ -324,10 +341,16 @@ const GuestEntryDialog = ({
                           value={field.value || undefined}
                           onValueChange={(value) => {
                             field.onChange(value);
-                            const selected = tickets.find((ticket) => ticket.id === value);
-                            form.setValue("ticketPrice", selected?.price || "", {
-                              shouldValidate: true,
-                            });
+                            const selected = tickets.find(
+                              (ticket) => ticket.id === value,
+                            );
+                            form.setValue(
+                              "ticketPrice",
+                              selected?.price || "",
+                              {
+                                shouldValidate: true,
+                              },
+                            );
                           }}
                           disabled={!selectedEventId || tickets.length === 0}
                         >
@@ -372,12 +395,23 @@ const GuestEntryDialog = ({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={loading || isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isSubmitting ? (isEditing ? "Updating..." : "Adding...") : `${isEditing ? "Update" : "Add"} Guest`}
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {isSubmitting
+                  ? isEditing
+                    ? "Updating..."
+                    : "Adding..."
+                  : `${isEditing ? "Update" : "Add"} Guest`}
               </Button>
             </DialogFooter>
           </form>

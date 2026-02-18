@@ -34,6 +34,15 @@ interface GuestDatabaseProps {
   filterRecent?: boolean;
 }
 
+const getApiErrorMessage = (err: any) => {
+  const message = err?.response?.data?.message;
+  if (Array.isArray(message)) return message.join(", ");
+  if (typeof message === "string" && message.trim()) return message;
+  if (typeof err?.message === "string" && err.message.trim())
+    return err.message;
+  return "";
+};
+
 const getPaymentStatusMeta = (status?: string) => {
   const normalized = String(status || "").toLowerCase();
 
@@ -41,6 +50,13 @@ const getPaymentStatusMeta = (status?: string) => {
     return {
       label: "Paid",
       className: "bg-green-100 text-green-800 border-green-200",
+    };
+  }
+
+  if (normalized === "earning_transferred") {
+    return {
+      label: "Transferred",
+      className: "bg-blue-100 text-blue-800 border-blue-200",
     };
   }
 
@@ -94,11 +110,11 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
 
   const handleRemoveGuest = async (guestId: string) => {
     try {
-      await removeGuest(guestId);
-      toast.success("Contact removed");
+      const result = await removeGuest(guestId);
+      toast.success(result?.message || "Contact removed");
     } catch (err) {
       console.error("Failed to remove contact:", err);
-      toast.error("Failed to remove contact");
+      toast.error(getApiErrorMessage(err) || "Failed to remove contact");
     }
   };
 
@@ -158,8 +174,12 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
             ) : (
               guests.map((guest) => {
                 const statusMeta = getPaymentStatusMeta(guest.paymentStatus);
+                const normalizedStatus = String(
+                  guest.paymentStatus || "",
+                ).toLowerCase();
                 const isPaid =
-                  String(guest.paymentStatus || "").toLowerCase() === "paid";
+                  normalizedStatus === "paid" ||
+                  normalizedStatus === "earning_transferred";
 
                 return (
                   <TableRow key={guest.id}>
@@ -289,4 +309,3 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
 };
 
 export default GuestDatabase;
-

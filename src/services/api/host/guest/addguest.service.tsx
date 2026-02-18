@@ -20,8 +20,6 @@ export interface UpdateHostGuestPayload {
   phone?: string;
   companyName?: string;
   jobTitle?: string;
-  eventId?: string;
-  ticketId?: string;
 }
 
 export interface HostGuestResponse {
@@ -31,8 +29,6 @@ export interface HostGuestResponse {
   phone?: string;
   companyName?: string;
   jobTitle?: string;
-  eventId?: string;
-  ticketId?: string;
   createdAt?: string;
 }
 
@@ -86,5 +82,3 @@ class AddGuestService extends BaseRequestService {
 }
 
 export default new AddGuestService();
-
-

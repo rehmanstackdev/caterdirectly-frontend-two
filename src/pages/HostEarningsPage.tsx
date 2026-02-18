@@ -107,8 +107,15 @@ const HostEarningsPage = () => {
     });
   };
 
-  const statusMeta = (status?: string) => {
+  const statusMeta = (status?: string, hostEarningTransferred?: boolean) => {
     const normalized = String(status || "").toLowerCase();
+
+    if (normalized === "earning_transferred" || hostEarningTransferred) {
+      return {
+        label: "Transferred",
+        className: "bg-blue-100 text-blue-800 border-blue-200",
+      };
+    }
 
     if (normalized === "paid") {
       return {
@@ -318,7 +325,10 @@ const HostEarningsPage = () => {
                         </TableRow>
                       ) : (
                         filteredTransactions.map((t) => {
-                          const meta = statusMeta(t.paymentStatus);
+                          const meta = statusMeta(
+                            t.paymentStatus,
+                            t.hostEarningTransferred,
+                          );
                           return (
                             <TableRow key={t.id}>
                               <TableCell>
