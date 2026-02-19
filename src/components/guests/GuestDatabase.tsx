@@ -249,7 +249,7 @@ const GuestDatabase = ({ filterRecent = false }: GuestDatabaseProps) => {
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between px-1">
           <p className="text-sm text-gray-500">
-            Page {currentPage} of {totalPages} &middot; {total} total
+            Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, total)} of {total} guests
           </p>
           <div className="flex items-center gap-1">
             <Button

@@ -20,6 +20,28 @@ export interface UpdateHostGuestPayload {
   phone?: string;
   companyName?: string;
   jobTitle?: string;
+  eventId?: string;
+  ticketId?: string;
+}
+
+export interface BulkImportGuestsPayload {
+  guests: Array<{
+    name: string;
+    email: string;
+    phone?: string;
+    companyName?: string;
+    jobTitle?: string;
+    eventId: string;
+    ticketId: string;
+  }>;
+}
+
+export interface BulkImportResult {
+  total: number;
+  successful: number;
+  duplicates: number;
+  failed: number;
+  failedDetails?: Array<{ email: string; reason: string }>;
 }
 
 export interface HostGuestResponse {
@@ -76,6 +98,12 @@ class AddGuestService extends BaseRequestService {
 
   deleteHostGuest(guestId: string) {
     return this.delete(`${API_URL}guests/host-guests/${guestId}`, {
+      headers: getAuthHeader(),
+    });
+  }
+
+  bulkImportGuests(data: BulkImportGuestsPayload) {
+    return this.post(`${API_URL}guests/host-guests/bulk`, data, {
       headers: getAuthHeader(),
     });
   }

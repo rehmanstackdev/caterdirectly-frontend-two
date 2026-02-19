@@ -30,7 +30,21 @@ import {
 import { useGuests } from "@/hooks/use-guests";
 import EventsService from "@/services/api/host/events.Service";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronsUpDown, Check } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface EventTicket {
   id: string;
@@ -91,7 +105,7 @@ const GuestEntryDialog = ({
   const selectedEventId = form.watch("eventId");
 
   useEffect(() => {
-    if (!open || isEditing) return;
+    if (!open) return;
 
     const loadEvents = async () => {
       try {
@@ -104,7 +118,7 @@ const GuestEntryDialog = ({
         setHostEvents(events);
       } catch (error) {
         console.error("Failed to load host events:", error);
-        toast.error("Failed to load events for guest creation");
+        toast.error("Failed to load events");
       }
     };
 
@@ -175,17 +189,15 @@ const GuestEntryDialog = ({
         phone: data.phone,
         company: data.company,
         jobTitle: data.jobTitle,
+        eventId: data.eventId,
+        ticketId: data.ticketId,
       };
 
       if (isEditing) {
         const result = await updateGuest(existingGuest.id, processedData);
         toast.success(result?.message || "Guest detail updated successfully");
       } else {
-        const result = await addGuest({
-          ...processedData,
-          eventId: data.eventId,
-          ticketId: data.ticketId,
-        });
+        const result = await addGuest(processedData);
         toast.success(result?.message || "New guest added successfully");
       }
 
@@ -289,109 +301,142 @@ const GuestEntryDialog = ({
                 )}
               />
 
-              {!isEditing && (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="eventId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Event</FormLabel>
-                        <Select
-                          value={field.value || undefined}
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            form.setValue("ticketId", "", {
-                              shouldValidate: true,
-                            });
-                            form.setValue("ticketPrice", "", {
-                              shouldValidate: true,
-                            });
-                            const selectedEvent = hostEvents.find(
-                              (event) => event.id === value,
-                            );
-                            setTickets(selectedEvent?.tickets || []);
-                          }}
-                        >
+              <FormField
+                control={form.control}
+                name="eventId"
+                render={({ field }) => {
+                  const selectedEvent = hostEvents.find(
+                    (e) => e.id === field.value,
+                  );
+                  return (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Event</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select event" />
-                            </SelectTrigger>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between font-normal",
+                                !field.value && "text-muted-foreground",
+                              )}
+                            >
+                              <span className="truncate">
+                                {selectedEvent
+                                  ? selectedEvent.title
+                                  : "Select event"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
                           </FormControl>
-                          <SelectContent>
-                            {hostEvents.map((event) => (
-                              <SelectItem key={event.id} value={event.id}>
-                                {event.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ticketId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ticket</FormLabel>
-                        <Select
-                          value={field.value || undefined}
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            const selected = tickets.find(
-                              (ticket) => ticket.id === value,
-                            );
-                            form.setValue(
-                              "ticketPrice",
-                              selected?.price || "",
-                              {
-                                shouldValidate: true,
-                              },
-                            );
-                          }}
-                          disabled={!selectedEventId || tickets.length === 0}
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[--radix-popover-trigger-width] p-0"
+                          align="start"
                         >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select ticket" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tickets.map((ticket) => (
-                              <SelectItem key={ticket.id} value={ticket.id}>
-                                {ticket.ticketName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <Command>
+                            <CommandInput placeholder="Search events..." />
+                            <CommandList className="max-h-[176px]">
+                              <CommandEmpty>No events found.</CommandEmpty>
+                              <CommandGroup>
+                                {hostEvents.map((event) => (
+                                  <CommandItem
+                                    key={event.id}
+                                    value={event.title}
+                                    onSelect={() => {
+                                      field.onChange(event.id);
+                                      form.setValue("ticketId", "", {
+                                        shouldValidate: true,
+                                      });
+                                      form.setValue("ticketPrice", "", {
+                                        shouldValidate: true,
+                                      });
+                                      setTickets(event.tickets || []);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === event.id
+                                          ? "opacity-100"
+                                          : "opacity-0",
+                                      )}
+                                    />
+                                    {event.title}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
 
-                  <FormField
-                    control={form.control}
-                    name="ticketPrice"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price</FormLabel>
-                        <FormControl>
-                          <Input
-                            value={field.value ? `$${field.value}` : ""}
-                            readOnly
-                            placeholder="Ticket price"
-                            className="border"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
+              <FormField
+                control={form.control}
+                name="ticketId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ticket</FormLabel>
+                    <Select
+                      key={`ticket-${selectedEventId}-${field.value}`}
+                      value={field.value || undefined}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        const selected = tickets.find(
+                          (ticket) => ticket.id === value,
+                        );
+                        form.setValue(
+                          "ticketPrice",
+                          selected?.price || "",
+                          {
+                            shouldValidate: true,
+                          },
+                        );
+                      }}
+                      disabled={!selectedEventId || tickets.length === 0}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select ticket" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {tickets.map((ticket) => (
+                          <SelectItem key={ticket.id} value={ticket.id}>
+                            {ticket.ticketName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="ticketPrice"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={field.value ? `$${field.value}` : ""}
+                        readOnly
+                        placeholder="Ticket price"
+                        className="border"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <DialogFooter>

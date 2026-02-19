@@ -42,6 +42,8 @@ interface UpdateGuestInput {
   phone?: string;
   company?: string;
   jobTitle?: string;
+  eventId?: string;
+  ticketId?: string;
 }
 
 const mapApiGuestToGuest = (raw: any): Guest => ({
@@ -209,17 +211,21 @@ export const useGuests = (initialRecent?: boolean) => {
 
   // Update contact via backend API
   const updateGuest = async (guestId: string, updates: UpdateGuestInput) => {
-    const response = await AddGuestService.updateHostGuest(guestId, {
+    const updatePayload: Record<string, any> = {
       name: updates.name,
       email: updates.email,
       phone: updates.phone,
       companyName: updates.company,
       jobTitle: updates.jobTitle,
-    });
+    };
+    if (updates.eventId) updatePayload.eventId = updates.eventId;
+    if (updates.ticketId) updatePayload.ticketId = updates.ticketId;
 
-    const payload = response;
-    const successMessage = getResponseMessage(payload);
-    const apiGuest = payload?.data ?? payload;
+    const response = await AddGuestService.updateHostGuest(guestId, updatePayload);
+
+    const resPayload = response;
+    const successMessage = getResponseMessage(resPayload);
+    const apiGuest = resPayload?.data ?? resPayload;
     const updatedGuest = mapApiGuestToGuest({
       ...apiGuest,
       id: apiGuest?.id || guestId,
@@ -253,8 +259,14 @@ export const useGuests = (initialRecent?: boolean) => {
     return AddGuestService.sendGuestPaymentIntent(guestId);
   };
 
-  // CSV/XLSX Import (in-memory)
-  const importGuests = async (importFile: File) => {
+  // Parse CSV/XLSX file into guest rows
+  const parseGuestFile = (importFile: File): Promise<Array<{
+    name: string;
+    email: string;
+    phone?: string;
+    companyName?: string;
+    jobTitle?: string;
+  }>> => {
     const fileName = importFile.name.toLowerCase();
     const isCsv = importFile.type === 'text/csv' || fileName.endsWith('.csv');
     const isXlsx =
@@ -266,171 +278,142 @@ export const useGuests = (initialRecent?: boolean) => {
       throw new Error('Unsupported file type. Please upload CSV or XLSX.');
     }
 
-    return new Promise<{ total: number; successful: number; failed: number; duplicates: number }>(
-      (resolve, reject) => {
-        const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
 
-        reader.onload = async (e) => {
-          try {
-            const rawRows: Array<{
-              name: string;
-              email: string;
-              phone?: string;
-              company?: string;
-              job_title?: string;
-              tags?: string[];
-            }> = [];
+      reader.onload = (e) => {
+        try {
+          const rawRows: Array<{
+            name: string;
+            email: string;
+            phone?: string;
+            companyName?: string;
+            jobTitle?: string;
+          }> = [];
 
-            if (isCsv) {
-              const csv = (e.target?.result as string) || '';
-              const lines = csv.split('\n').map((l) => l.replace(/\r$/, ''));
-              if (lines.length <= 1) {
-                return resolve({ total: 0, successful: 0, failed: 0, duplicates: 0 });
-              }
-              const headers = lines[0].split(',').map((h) => h.trim());
+          if (isCsv) {
+            const csv = (e.target?.result as string) || '';
+            const lines = csv.split('\n').map((l) => l.replace(/\r$/, ''));
+            if (lines.length <= 1) {
+              return resolve([]);
+            }
+            const headers = lines[0].split(',').map((h) => h.trim());
 
-              if (!headers.includes('Name') || !headers.includes('Email')) {
-                reject(new Error("CSV file must include 'Name' and 'Email' columns"));
-                return;
-              }
-
-              const nameIndex = headers.indexOf('Name');
-              const emailIndex = headers.indexOf('Email');
-              const phoneIndex = headers.indexOf('Phone');
-              const companyIndex = headers.indexOf('Company');
-              const jobTitleIndex =
-                headers.indexOf('JobTitle') >= 0
-                  ? headers.indexOf('JobTitle')
-                  : headers.indexOf('Job Title');
-              const tagsIndex = headers.indexOf('Tags');
-
-              for (let i = 1; i < lines.length; i++) {
-                const row = lines[i];
-                if (!row || !row.trim()) continue;
-                const values = row.split(',').map((v) => v.trim());
-                const name = values[nameIndex]?.replace(/^"|"$/g, '');
-                const email = values[emailIndex]?.replace(/^"|"$/g, '').toLowerCase();
-                if (!name || !email) continue;
-                rawRows.push({
-                  name,
-                  email,
-                  phone: phoneIndex >= 0 ? values[phoneIndex]?.replace(/^"|"$/g, '') : '',
-                  company: companyIndex >= 0 ? values[companyIndex]?.replace(/^"|"$/g, '') : '',
-                  job_title: jobTitleIndex >= 0 ? values[jobTitleIndex]?.replace(/^"|"$/g, '') : '',
-                  tags:
-                    tagsIndex >= 0 && values[tagsIndex]
-                      ? values[tagsIndex]
-                          .replace(/^"|"$/g, '')
-                          .split(';')
-                          .map((t) => t.trim())
-                          .filter(Boolean)
-                      : [],
-                });
-              }
-            } else {
-              const data = e.target?.result as ArrayBuffer;
-              const workbook = XLSX.read(data, { type: 'array' });
-              const firstSheetName = workbook.SheetNames[0];
-
-              if (!firstSheetName) {
-                return resolve({ total: 0, successful: 0, failed: 0, duplicates: 0 });
-              }
-
-              const worksheet = workbook.Sheets[firstSheetName];
-              const sheetRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-                defval: '',
-              });
-
-              const getValue = (row: Record<string, unknown>, keys: string[]) => {
-                for (const key of keys) {
-                  const value = row[key];
-                  if (value !== undefined && value !== null && String(value).trim() !== '') {
-                    return String(value).trim();
-                  }
-                }
-                return '';
-              };
-
-              for (const row of sheetRows) {
-                const name = getValue(row, ['Name', 'name']);
-                const email = getValue(row, ['Email', 'email']).toLowerCase();
-                if (!name || !email) continue;
-
-                const tagsRaw = getValue(row, ['Tags', 'tags']);
-                rawRows.push({
-                  name,
-                  email,
-                  phone: getValue(row, ['Phone', 'phone']),
-                  company: getValue(row, ['Company', 'company']),
-                  job_title: getValue(row, ['JobTitle', 'Job Title', 'jobTitle', 'job title']),
-                  tags: tagsRaw
-                    ? tagsRaw
-                        .split(';')
-                        .map((t) => t.trim())
-                        .filter(Boolean)
-                    : [],
-                });
-              }
+            if (!headers.includes('Name') || !headers.includes('Email')) {
+              reject(new Error("CSV file must include 'Name' and 'Email' columns"));
+              return;
             }
 
-            const total = rawRows.length;
-            const existingEmails = new Set(guests.map((g) => g.email.toLowerCase()));
-            const seenInFile = new Set<string>();
+            const nameIndex = headers.indexOf('Name');
+            const emailIndex = headers.indexOf('Email');
+            const phoneIndex = headers.indexOf('Phone');
+            const companyIndex = headers.indexOf('Company');
+            const jobTitleIndex =
+              headers.indexOf('JobTitle') >= 0
+                ? headers.indexOf('JobTitle')
+                : headers.indexOf('Job Title');
 
-            const newRows: Guest[] = [];
-            let duplicates = 0;
-
-            for (const r of rawRows) {
-              const emailLower = r.email.toLowerCase();
-              if (existingEmails.has(emailLower) || seenInFile.has(emailLower)) {
-                duplicates++;
-                continue;
-              }
-              seenInFile.add(emailLower);
-
-              newRows.push({
-                id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                name: r.name,
-                email: emailLower,
-                phone: r.phone || undefined,
-                company: r.company || undefined,
-                jobTitle: r.job_title || undefined,
-                tags: r.tags || [],
-                eventCount: undefined,
-                recentEvent: false,
-                lastContactedDate: undefined,
-                addedDate: new Date(),
+            for (let i = 1; i < lines.length; i++) {
+              const row = lines[i];
+              if (!row || !row.trim()) continue;
+              const values = row.split(',').map((v) => v.trim());
+              const name = values[nameIndex]?.replace(/^"|"$/g, '');
+              const email = values[emailIndex]?.replace(/^"|"$/g, '').toLowerCase();
+              if (!name || !email) continue;
+              rawRows.push({
+                name,
+                email,
+                phone: phoneIndex >= 0 ? values[phoneIndex]?.replace(/^"|"$/g, '') || undefined : undefined,
+                companyName: companyIndex >= 0 ? values[companyIndex]?.replace(/^"|"$/g, '') || undefined : undefined,
+                jobTitle: jobTitleIndex >= 0 ? values[jobTitleIndex]?.replace(/^"|"$/g, '') || undefined : undefined,
               });
             }
+          } else {
+            const data = e.target?.result as ArrayBuffer;
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
 
-            if (newRows.length > 0) {
-              setGuests((prev) =>
-                [...newRows, ...prev].sort((a, b) => a.name.localeCompare(b.name)),
-              );
+            if (!firstSheetName) {
+              return resolve([]);
             }
 
-            resolve({
-              total,
-              successful: newRows.length,
-              failed: 0,
-              duplicates,
+            const worksheet = workbook.Sheets[firstSheetName];
+            const sheetRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+              defval: '',
             });
-          } catch (err) {
-            reject(err);
+
+            const getValue = (row: Record<string, unknown>, keys: string[]) => {
+              for (const key of keys) {
+                const value = row[key];
+                if (value !== undefined && value !== null && String(value).trim() !== '') {
+                  return String(value).trim();
+                }
+              }
+              return '';
+            };
+
+            for (const row of sheetRows) {
+              const name = getValue(row, ['Name', 'name']);
+              const email = getValue(row, ['Email', 'email']).toLowerCase();
+              if (!name || !email) continue;
+
+              rawRows.push({
+                name,
+                email,
+                phone: getValue(row, ['Phone', 'phone']) || undefined,
+                companyName: getValue(row, ['Company', 'company']) || undefined,
+                jobTitle: getValue(row, ['JobTitle', 'Job Title', 'jobTitle', 'job title']) || undefined,
+              });
+            }
           }
-        };
 
-        reader.onerror = () => {
-          reject(new Error('Failed to read file'));
-        };
-
-        if (isXlsx) {
-          reader.readAsArrayBuffer(importFile);
-        } else {
-          reader.readAsText(importFile);
+          resolve(rawRows);
+        } catch (err) {
+          reject(err);
         }
-      },
-    );
+      };
+
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+
+      if (isXlsx) {
+        reader.readAsArrayBuffer(importFile);
+      } else {
+        reader.readAsText(importFile);
+      }
+    });
+  };
+
+  // Bulk import guests via backend API (each guest has its own eventId+ticketId)
+  const importGuests = async (
+    guests: Array<{
+      name: string;
+      email: string;
+      phone?: string;
+      companyName?: string;
+      jobTitle?: string;
+      eventId: string;
+      ticketId: string;
+    }>,
+  ): Promise<{ total: number; successful: number; failed: number; duplicates: number }> => {
+    if (guests.length === 0) {
+      return { total: 0, successful: 0, failed: 0, duplicates: 0 };
+    }
+
+    const response = await AddGuestService.bulkImportGuests({ guests });
+
+    const result = response?.data ?? response;
+
+    // Refresh the guest list from backend
+    window.dispatchEvent(new CustomEvent(GUESTS_UPDATED_EVENT));
+
+    return {
+      total: result.total ?? guests.length,
+      successful: result.successful ?? 0,
+      failed: result.failed ?? 0,
+      duplicates: result.duplicates ?? 0,
+    };
   };
 
   const exportGuests = async () => {

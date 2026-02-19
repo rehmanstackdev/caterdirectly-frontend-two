@@ -18,6 +18,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Mail, MoreVertical, Download, UserPlus, Search } from 'lucide-react';
@@ -39,14 +47,22 @@ const EventGuestList = ({
   const { updateGuestRsvp } = useEvents();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGuests, setSelectedGuests] = useState<string[]>([]);
-  
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
+
   const filteredGuests = searchQuery
-    ? guests.filter(guest => 
+    ? guests.filter(guest =>
         guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         guest.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (guest.company || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     : guests;
+
+  const totalPages = Math.max(1, Math.ceil(filteredGuests.length / PAGE_SIZE));
+  const paginatedGuests = filteredGuests.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
   
   const exportGuestList = () => {
     try {
@@ -133,7 +149,7 @@ const EventGuestList = ({
             placeholder="Search guests..."
             className="pl-10 w-full md:w-[300px]"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
           />
         </div>
         
@@ -186,7 +202,7 @@ const EventGuestList = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredGuests.map((guest) => (
+              {paginatedGuests.map((guest) => (
                 <TableRow key={guest.id}>
                   <TableCell>
                     <Checkbox 
@@ -234,6 +250,57 @@ const EventGuestList = ({
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {filteredGuests.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-sm text-gray-500">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filteredGuests.length)} of {filteredGuests.length} guests
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                />
+              </PaginationItem>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(
+                  (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1,
+                )
+                .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, idx) =>
+                  p === '...' ? (
+                    <PaginationItem key={`ellipsis-${idx}`} disabled>
+                      <span className="px-2 text-gray-400">...</span>
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(p as number)}
+                        isActive={currentPage === p}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ),
+                )}
+
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       )}
     </div>
