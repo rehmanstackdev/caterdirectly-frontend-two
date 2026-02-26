@@ -2,7 +2,6 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "@/components/dashboard/Dashboard";
-import OrderTypeHeader from "@/components/group-order/OrderTypeHeader";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import BookingForm from "@/components/booking/BookingForm";
 import { Button } from "@/components/ui/button";
@@ -30,6 +29,7 @@ import {
   calculateCateringPrice,
   extractCateringItems,
 } from "@/utils/catering-price-calculation";
+import { createEventDetailFormSchema } from "@/validations/eventDetailFormValidation";
 
 function VendorBookingFlow() {
   const navigate = useNavigate();
@@ -39,6 +39,7 @@ function VendorBookingFlow() {
   const [searchParams] = useSearchParams();
   const draftId = searchParams.get("draft");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   // Store delivery fees per service (serviceId -> { range: string, fee: number })
   // Initialize from localStorage to persist across navigation
   const [serviceDeliveryFees, setServiceDeliveryFees] = useState<
@@ -405,6 +406,83 @@ function VendorBookingFlow() {
     },
     [setSelectedServices, handleItemQuantityChange],
   );
+
+  // Reconstruct comboSelectionsList from selectedItems when missing after navigation
+  const comboReconstructedRef = useRef(false);
+  useEffect(() => {
+    if (comboReconstructedRef.current) return;
+    comboReconstructedRef.current = true;
+
+    const needsReconstruction = selectedServices.some((service) => {
+      const serviceType = (service.serviceType || service.type || "").toLowerCase();
+      if (serviceType !== "catering") return false;
+      if (Array.isArray(service.comboSelectionsList) && service.comboSelectionsList.length > 0) return false;
+      // Check if there are combo category items in selectedItems
+      const combos = service.service_details?.catering?.combos || [];
+      const comboIds = new Set(combos.map((c: any) => String(c?.id || c?.itemId || "")));
+      return Object.keys(selectedItems).some((key) => {
+        if (!key.includes("_") || key.startsWith("meta_")) return false;
+        const firstSeg = key.split("_")[0];
+        return comboIds.has(firstSeg) && selectedItems[key] > 0;
+      });
+    });
+
+    if (!needsReconstruction) return;
+
+    setSelectedServices((prev) =>
+      prev.map((service) => {
+        const serviceType = (service.serviceType || service.type || "").toLowerCase();
+        if (serviceType !== "catering") return service;
+        if (Array.isArray(service.comboSelectionsList) && service.comboSelectionsList.length > 0) return service;
+
+        const combos = service.service_details?.catering?.combos || [];
+        const reconstructed: any[] = [];
+
+        combos.forEach((combo: any) => {
+          const comboId = String(combo?.id || combo?.itemId || "");
+          if (!comboId) return;
+
+          // Check if any items from this combo are selected
+          const comboItems: any[] = [];
+          (combo.comboCategories || []).forEach((cat: any) => {
+            (cat.items || []).forEach((item: any) => {
+              const key = item.selectionKey || `${comboId}_${cat.id}_${item.id}`;
+              const qty = selectedItems[key] || 0;
+              if (qty > 0) {
+                comboItems.push({ itemId: item.id, itemName: item.name || item.itemName || item.id, quantity: qty, price: item.price, additionalPrice: item.additionalCharge });
+              }
+            });
+          });
+
+          if (comboItems.length === 0) return;
+
+          const metaHeadcount = selectedItems[`meta_${comboId}_headcount`];
+          const metaBasePrice = selectedItems[`meta_${comboId}_basePrice`];
+          const basePrice = metaBasePrice ? metaBasePrice / 100 : parseFloat(String(combo.pricePerPerson || combo.price || 0)) || 0;
+          const headcount = metaHeadcount && metaHeadcount > 0 ? metaHeadcount : (formData?.headcount || 5);
+
+          reconstructed.push({
+            comboItemId: comboId,
+            comboName: combo.name || combo.itemName || comboId,
+            basePrice,
+            selections: (combo.comboCategories || []).map((cat: any) => ({
+              categoryId: cat.id,
+              categoryName: cat.name || cat.categoryName || cat.id,
+              selectedItems: comboItems.filter((ci: any) => {
+                const key = `${comboId}_${cat.id}_${ci.itemId}`;
+                return selectedItems[key] > 0;
+              }),
+            })).filter((s: any) => s.selectedItems.length > 0),
+            totalPrice: basePrice * headcount,
+            headcount,
+          });
+        });
+
+        if (reconstructed.length === 0) return service;
+        return { ...service, comboSelectionsList: reconstructed };
+      }),
+    );
+  }, []); // Run once on mount
 
   const getActiveTab = () => {
     if (userRole === "admin" || userRole === "super-admin") {
@@ -797,16 +875,6 @@ function VendorBookingFlow() {
                 />
               </div>
 
-              <div className="w-full max-w-full overflow-x-hidden">
-                <OrderTypeHeader
-                  isGroupOrder={isGroupOrder}
-                  onOrderTypeChange={handleOrderTypeChange}
-                  isInvoiceMode={isInvoiceMode}
-                />
-              </div>
-
-              <div className="h-px w-full bg-border"></div>
-
               <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
                 <div className="xl:col-span-6">
                   <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto">
@@ -826,6 +894,7 @@ function VendorBookingFlow() {
                           isInvoiceMode={isInvoiceMode}
                           onLocationSelected={handleLocationSelected}
                           eventLocationData={eventLocationData}
+                          showValidationErrors={showValidationErrors}
                         />
                       </div>
 
@@ -882,6 +951,15 @@ function VendorBookingFlow() {
                           <Button
                             onClick={async (e) => {
                               e.preventDefault();
+                              setShowValidationErrors(true);
+                              const formValidation =
+                                createEventDetailFormSchema(
+                                  isInvoiceMode,
+                                ).safeParse(formData);
+                              if (!formValidation.success) {
+                                toast.error("Please fill all required fields.");
+                                return;
+                              }
 
                               const guestCount = formData?.headcount || 1;
                               for (const service of selectedServices) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ServiceImage from "@/components/shared/ServiceImage";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -10,12 +10,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, Eye, Users } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Eye, Users } from "lucide-react";
 
 interface ComboItemsListProps {
   items: ComboPackage[];
   selectedItems: Record<string, number>;
   onItemQuantityChange: (itemId: string, quantity: number) => void;
+  onComboSelection?: (comboSelections: any) => void;
 }
 
 interface ComboCategoryItem {
@@ -58,6 +66,7 @@ const ComboItemsList = ({
   items,
   selectedItems,
   onItemQuantityChange,
+  onComboSelection,
 }: ComboItemsListProps) => {
   const [activeComboId, setActiveComboId] = useState<string | null>(null);
   const [peopleByCombo, setPeopleByCombo] = useState<Record<string, number>>(
@@ -209,6 +218,7 @@ const ComboItemsList = ({
   const commitDraftSelections = () => {
     if (!activeCombo) return;
 
+    // Update individual item keys in selectedItems
     getComboItemKeys(activeCombo).forEach((key) => {
       const currentQty = selectedItems[key] || 0;
       const draftQty = draftSelections[key] || 0;
@@ -216,6 +226,48 @@ const ComboItemsList = ({
         onItemQuantityChange(key, draftQty);
       }
     });
+
+    // Persist combo metadata (headcount, basePrice) in selectedItems for durability
+    // These survive navigation/state transitions even if comboSelectionsList is lost
+    const comboBasePrice = getComboBasePrice(activeCombo);
+    onItemQuantityChange(`meta_${activeCombo.id}_headcount`, activeComboPeople);
+    onItemQuantityChange(`meta_${activeCombo.id}_basePrice`, Math.round(comboBasePrice * 100));
+
+    // Send full combo selection with headcount via onComboSelection
+    if (onComboSelection) {
+      const selections = (activeCombo.comboCategories || [])
+        .map((category) => {
+          const categoryItems = category.items || [];
+          const selectedCategoryItems = categoryItems
+            .filter((item) => {
+              const key = getItemSelectionKey(activeCombo.id, category.id, item);
+              return (draftSelections[key] || 0) > 0;
+            })
+            .map((item) => ({
+              itemId: item.id,
+              itemName: item.name,
+              additionalPrice: getSelectedItemUpcharge(item),
+              quantity: 1,
+              price: parseMoney(item.price),
+            }));
+          return {
+            categoryId: category.id,
+            categoryName: category.name,
+            selectedItems: selectedCategoryItems,
+          };
+        })
+        .filter((cat) => cat.selectedItems.length > 0);
+
+      const comboSelection = {
+        comboItemId: activeCombo.id,
+        comboName: activeCombo.name,
+        basePrice: getComboBasePrice(activeCombo),
+        selections,
+        totalPrice: activeComboGrandTotal,
+        headcount: activeComboPeople,
+      };
+      onComboSelection(comboSelection);
+    }
 
     setActiveComboId(null);
     setIsDialogScrolled(false);
@@ -274,6 +326,8 @@ const ComboItemsList = ({
                     const disableUnchecked =
                       !checked && selectedCount >= maxSelections;
                     const totalPrice = getSelectedItemUpcharge(item);
+                    const itemBasePrice = parseMoney(item.price);
+                    const premiumCharge = parseMoney(item.additionalCharge) || parseMoney(item.additionalPrice);
 
                     return (
                       <div
@@ -307,9 +361,15 @@ const ComboItemsList = ({
                               )}
                             </div>
 
-                            {totalPrice > 0 ? (
+                            {item.isPremium && itemBasePrice > 0 && premiumCharge > 0 ? (
+                              <div className="text-sm font-semibold">
+                                <span className="text-green-700">{formatCurrency(itemBasePrice)}</span>
+                                <span className="text-gray-500"> + </span>
+                                <span className="text-purple-600">({formatCurrency(premiumCharge)})</span>
+                              </div>
+                            ) : totalPrice > 0 ? (
                               <div className="text-sm text-green-700 font-semibold">
-                                +{formatCurrency(totalPrice)} / person
+                                {formatCurrency(totalPrice)}
                               </div>
                             ) : (
                               <div className="text-sm text-gray-500 font-medium">
@@ -464,27 +524,34 @@ const ComboItemsList = ({
                 </div>
               </DialogHeader>
 
-              <div className="px-5 pt-3">
-                <label className="mb-1 block text-xs font-bold text-[14px] text-gray-700">
+              <div className="px-5 pt-3 pb-2">
+                <label className="mb-1 block text-sm font-bold text-gray-700">
                   Select quantity:
                 </label>
-                <div className="relative">
-                  <select
-                    value={activeComboPeople}
-                    onChange={(e) =>
-                      handlePeopleChange(activeCombo.id, Number(e.target.value))
-                    }
-                    className="h-12 w-full appearance-none rounded-md border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-800 outline-none focus:border-orange-400"
-                  >
+                <Select
+                  value={String(activeComboPeople)}
+                  onValueChange={(value) =>
+                    handlePeopleChange(activeCombo.id, Number(value))
+                  }
+                >
+                  <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-orange-500" />
+                      <SelectValue />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60 mt-1">
                     {PEOPLE_OPTIONS.map((count) => (
-                      <option key={count} value={count}>
+                      <SelectItem
+                        key={count}
+                        value={String(count)}
+                        className="focus:bg-orange-50 focus:text-orange-700"
+                      >
                         {count} people
-                      </option>
+                      </SelectItem>
                     ))}
-                  </select>
-                  <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div

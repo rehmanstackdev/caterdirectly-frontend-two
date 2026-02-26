@@ -47,7 +47,7 @@ const AdminCustomAdjustments = ({
   const [mode, setMode] = useState<AdjustmentMode>('surcharge');
   const [value, setValue] = useState<number>(0);
   const [taxable, setTaxable] = useState<boolean>(true);
-  const { saveDraft, autoSave, isSaving, saveStatus, lastSaveTime } = useEnhancedDraftOrders();
+  const { autoSave, saveStatus, lastSaveTime } = useEnhancedDraftOrders();
   
   // Filter out delivery fees from adjustments (they're now handled separately)
   const filteredAdjustments = useMemo(() => {
@@ -91,15 +91,6 @@ const AdminCustomAdjustments = ({
     onChange(updated);
     const currentDraftId = draftId || (() => { try { return localStorage.getItem('currentDraftId'); } catch { return null; } })();
     autoSave(selectedServices, selectedItems, formData, currentDraftId || undefined, updated);
-  };
-
-  const handleSave = async () => {
-    const currentDraftId = draftId || (() => { try { return localStorage.getItem('currentDraftId'); } catch { return null; } })();
-    const saved = await saveDraft(selectedServices, selectedItems, formData, undefined, currentDraftId || undefined, false, adjustments);
-    if (saved) {
-      toast.success('Draft updated with custom adjustments');
-      try { localStorage.setItem('currentDraftId', saved); } catch {}
-    }
   };
 
   const footerNote = useMemo(() => {
@@ -163,10 +154,7 @@ const AdminCustomAdjustments = ({
           <Label htmlFor="adj-taxable" className="cursor-pointer">Taxable</Label>
         </div>
         <div className="flex gap-2">
-          <Button onClick={addAdjustment}>Add line item</Button>
-          <Button variant="secondary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving…' : 'Save to Draft'}
-          </Button>
+          <Button onClick={addAdjustment}>Add line item</Button>
         </div>
 
         <Separator />
@@ -201,3 +189,4 @@ const AdminCustomAdjustments = ({
 };
 
 export default AdminCustomAdjustments;
+

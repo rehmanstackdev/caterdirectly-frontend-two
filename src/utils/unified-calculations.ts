@@ -162,15 +162,27 @@ export const calculateServiceTotal = (
       comboCategoryItems
     );
 
+    // Add combo selections total (comboSelectionsList carries headcount & totalPrice)
+    let comboTotal = 0;
+    if (service.comboSelectionsList && service.comboSelectionsList.length > 0) {
+      comboTotal = service.comboSelectionsList.reduce((sum, combo) => {
+        return sum + (combo.totalPrice || 0);
+      }, 0);
+    }
+
+    const cateringFinalTotal = cateringCalculation.finalTotal + comboTotal;
+
     console.debug('[Pricing] Using catering price calculation:', {
       serviceId,
       serviceName: service.name || service.serviceName,
       guestCount,
       basePricePerPerson,
-      finalTotal: cateringCalculation.finalTotal
+      cateringTotal: cateringCalculation.finalTotal,
+      comboTotal,
+      finalTotal: cateringFinalTotal
     });
 
-    return cateringCalculation.finalTotal;
+    return cateringFinalTotal;
   }
 
   // Include base price logic:

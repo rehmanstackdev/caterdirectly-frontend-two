@@ -2,7 +2,6 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "@/components/dashboard/Dashboard";
-import OrderTypeHeader from "@/components/group-order/OrderTypeHeader";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import BookingForm from "@/components/booking/BookingForm";
 import BookingActions from "@/components/booking/BookingActions";
@@ -25,6 +24,7 @@ import { getServiceAddress } from "@/utils/delivery-calculations";
 import { LocationData } from "@/components/shared/address/types";
 import { calculateDeliveryFee } from "@/utils/delivery-calculations";
 import { calculateCateringPrice, extractCateringItems } from "@/utils/catering-price-calculation";
+import { createEventDetailFormSchema } from "@/validations/eventDetailFormValidation";
 
 function BookingFlow() {
   const navigate = useNavigate();
@@ -34,6 +34,7 @@ function BookingFlow() {
   const [searchParams] = useSearchParams();
   const draftId = searchParams.get("draft");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   // Store delivery fees per service (serviceId -> { range: string, fee: number })
   // Initialize from localStorage to persist across navigation
   const [serviceDeliveryFees, setServiceDeliveryFees] = useState<Record<string, { range: string; fee: number }>>(() => {
@@ -658,16 +659,6 @@ function BookingFlow() {
                 />
               </div>
 
-              <div className="w-full max-w-full overflow-x-hidden">
-                <OrderTypeHeader
-                  isGroupOrder={isGroupOrder}
-                  onOrderTypeChange={handleOrderTypeChange}
-                  isInvoiceMode={isInvoiceMode}
-                />
-              </div>
-
-              <div className="h-px w-full bg-border"></div>
-
               <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden">
                 {vendorCards}
               </div>
@@ -695,6 +686,7 @@ function BookingFlow() {
                   isInvoiceMode={isInvoiceMode}
                   onLocationSelected={handleLocationSelected}
                   eventLocationData={eventLocationData}
+                  showValidationErrors={showValidationErrors}
                 />
               </div>
 
@@ -725,6 +717,12 @@ function BookingFlow() {
                   isGroupOrder={isGroupOrder}
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    setShowValidationErrors(true);
+                    const formValidation = createEventDetailFormSchema(isInvoiceMode).safeParse(formData);
+                    if (!formValidation.success) {
+                      toast.error("Please fill all required fields.");
+                      return;
+                    }
 
                     // Validate minimum guests and minimum order amount for catering services
                     const guestCount = formData?.headcount || 1;

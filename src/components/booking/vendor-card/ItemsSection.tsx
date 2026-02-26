@@ -81,6 +81,7 @@ const ItemsSection = React.memo(({
                 items={comboItems}
                 selectedItems={selectedItems}
                 onItemQuantityChange={onItemQuantityChange}
+                onComboSelection={onComboSelection}
               />
             </div>
           )}

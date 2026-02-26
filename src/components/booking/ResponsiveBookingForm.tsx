@@ -11,15 +11,13 @@ import { CateringServiceStyle } from "@/types/service-types";
 import GoogleMapsAutocomplete from "@/components/shared/GoogleMapsAutocomplete";
 import { LocationData } from "@/components/shared/address/types";
 import { FormFieldError } from "@/components/ui/form-field-error";
-import {
-  useFormValidation,
-  validationRules,
-} from "@/hooks/use-form-validation";
+import { useFormValidation } from "@/hooks/use-form-validation";
 import { useFormAutoSave } from "@/hooks/use-form-auto-save";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useVendorAvailabilityCheck } from "@/hooks/vendor/use-vendor-availability-check";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/auth";
+import { createEventDetailFormSchema } from "@/validations/eventDetailFormValidation";
 
 interface ResponsiveBookingFormProps {
   formData: {
@@ -61,6 +59,7 @@ interface ResponsiveBookingFormProps {
   duration?: number;
   isInvoiceMode?: boolean;
   selectedServices?: any[];
+  showValidationErrors?: boolean;
 }
 
 function ResponsiveBookingForm({
@@ -71,6 +70,7 @@ function ResponsiveBookingForm({
   eventLocationData = null,
   selectedServices = [],
   isInvoiceMode = false,
+  showValidationErrors = false,
 }: ResponsiveBookingFormProps) {
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>(
     {},
@@ -86,26 +86,47 @@ function ResponsiveBookingForm({
 
   const isAdmin = userRole === "admin" || userRole === "super-admin";
 
+  const eventDetailSchema = useMemo(
+    () => createEventDetailFormSchema(isInvoiceMode),
+    [isInvoiceMode],
+  );
+
+  const getSchemaFieldError = (field: string, value: unknown): string | null => {
+    const fieldSchema = (eventDetailSchema.shape as any)[field];
+    if (!fieldSchema) return null;
+    const result = fieldSchema.safeParse(value);
+    return result.success ? null : (result.error.issues[0]?.message ?? null);
+  };
+
   const validationRulesConfig = [
-    validationRules.required("orderName"),
-    validationRules.required("location"),
-    validationRules.date("date"),
-    validationRules.required("deliveryWindow"),
-    validationRules.minValue("headcount", 1),
+    { field: "orderName", validate: (value: unknown) => getSchemaFieldError("orderName", value) },
+    { field: "location", validate: (value: unknown) => getSchemaFieldError("location", value) },
+    { field: "date", validate: (value: unknown) => getSchemaFieldError("date", value) },
+    { field: "deliveryWindow", validate: (value: unknown) => getSchemaFieldError("deliveryWindow", value) },
+    { field: "headcount", validate: (value: unknown) => getSchemaFieldError("headcount", value) },
     ...(isInvoiceMode
       ? [
-          validationRules.required("clientName"),
-          validationRules.email("clientEmail"),
-          validationRules.phone("clientPhone"),
+          { field: "clientName", validate: (value: unknown) => getSchemaFieldError("clientName", value) },
+          { field: "clientEmail", validate: (value: unknown) => getSchemaFieldError("clientEmail", value) },
+          { field: "clientPhone", validate: (value: unknown) => getSchemaFieldError("clientPhone", value) },
         ]
       : [
-          validationRules.required("primaryContactName"),
-          validationRules.email("primaryContactEmail"),
-          validationRules.phone("primaryContactPhone"),
+          {
+            field: "primaryContactName",
+            validate: (value: unknown) => getSchemaFieldError("primaryContactName", value),
+          },
+          {
+            field: "primaryContactEmail",
+            validate: (value: unknown) => getSchemaFieldError("primaryContactEmail", value),
+          },
+          {
+            field: "primaryContactPhone",
+            validate: (value: unknown) => getSchemaFieldError("primaryContactPhone", value),
+          },
         ]),
   ];
 
-  const { errors, touchField, getFieldError, validateAll } = useFormValidation({
+  const { errors, touchField, getFieldError } = useFormValidation({
     formData,
     validationRules: validationRulesConfig,
   });
@@ -196,10 +217,12 @@ function ResponsiveBookingForm({
                       type="text"
                       value={formData.clientName || ""}
                       onChange={onChange}
+                      onFocus={() => handleFieldFocus("clientName")}
                       className="mt-1"
                       placeholder="Enter client's full name"
                       required
                     />
+                    <FormFieldError error={showValidationErrors ? errors["clientName"] : getFieldError("clientName")} />
                   </div>
 
                   <div>
@@ -235,10 +258,12 @@ function ResponsiveBookingForm({
                       type="email"
                       value={formData.clientEmail || ""}
                       onChange={onChange}
+                      onFocus={() => handleFieldFocus("clientEmail")}
                       className="mt-1"
                       placeholder="client@example.com"
                       required
                     />
+                    <FormFieldError error={showValidationErrors ? errors["clientEmail"] : getFieldError("clientEmail")} />
                   </div>
 
                   <div>
@@ -254,10 +279,12 @@ function ResponsiveBookingForm({
                       type="tel"
                       value={formData.clientPhone || ""}
                       onChange={onChange}
+                      onFocus={() => handleFieldFocus("clientPhone")}
                       className="mt-1"
                       placeholder="(555) 123-4567"
                       required
                     />
+                    <FormFieldError error={showValidationErrors ? errors["clientPhone"] : getFieldError("clientPhone")} />
                   </div>
                 </div>
 
@@ -325,7 +352,7 @@ function ResponsiveBookingForm({
                   placeholder="Annual Company Retreat"
                   required
                 />
-                <FormFieldError error={getFieldError("orderName")} />
+                <FormFieldError error={showValidationErrors ? errors["orderName"] : getFieldError("orderName")} />
               </div>
 
               {!isInvoiceMode && (
@@ -376,7 +403,7 @@ function ResponsiveBookingForm({
                   }}
                 />
               </div>
-              <FormFieldError error={getFieldError("location")} />
+              <FormFieldError error={showValidationErrors ? errors["location"] : getFieldError("location")} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -462,7 +489,7 @@ function ResponsiveBookingForm({
                     }}
                   />
                 </div>
-                <FormFieldError error={getFieldError("date")} />
+                <FormFieldError error={showValidationErrors ? errors["date"] : getFieldError("date")} />
               </div>
 
               <div>
@@ -479,10 +506,12 @@ function ResponsiveBookingForm({
                           value: selectedTime || "",
                         },
                       } as React.ChangeEvent<HTMLInputElement>);
+                      handleFieldFocus("deliveryWindow");
                     }}
                     placeholder="Select time"
                   />
                 </div>
+                <FormFieldError error={showValidationErrors ? errors["deliveryWindow"] : getFieldError("deliveryWindow")} />
               </div>
 
               <div className="lg:col-span-1 sm:col-span-2">
@@ -504,7 +533,7 @@ function ResponsiveBookingForm({
                   placeholder="50"
                   required
                 />
-                <FormFieldError error={getFieldError("headcount")} />
+                <FormFieldError error={showValidationErrors ? errors["headcount"] : getFieldError("headcount")} />
               </div>
             </div>
           </div>
@@ -532,10 +561,12 @@ function ResponsiveBookingForm({
                       type="text"
                       value={formData.primaryContactName}
                       onChange={onChange}
+                      onFocus={() => handleFieldFocus("primaryContactName")}
                       className="mt-1"
                       placeholder="John Doe"
                       required
                     />
+                    <FormFieldError error={showValidationErrors ? errors["primaryContactName"] : getFieldError("primaryContactName")} />
                   </div>
 
                   <div>
@@ -551,10 +582,12 @@ function ResponsiveBookingForm({
                       type="tel"
                       value={formData.primaryContactPhone}
                       onChange={onChange}
+                      onFocus={() => handleFieldFocus("primaryContactPhone")}
                       className="mt-1"
                       placeholder="(555) 123-4567"
                       required
                     />
+                    <FormFieldError error={showValidationErrors ? errors["primaryContactPhone"] : getFieldError("primaryContactPhone")} />
                   </div>
                 </div>
 
@@ -571,10 +604,12 @@ function ResponsiveBookingForm({
                     type="email"
                     value={formData.primaryContactEmail}
                     onChange={onChange}
+                    onFocus={() => handleFieldFocus("primaryContactEmail")}
                     className="mt-1"
                     placeholder="john@example.com"
                     required
                   />
+                  <FormFieldError error={showValidationErrors ? errors["primaryContactEmail"] : getFieldError("primaryContactEmail")} />
                 </div>
 
                 {/* Backup Contact Section */}
@@ -696,3 +731,5 @@ function ResponsiveBookingForm({
 }
 
 export default ResponsiveBookingForm;
+
+

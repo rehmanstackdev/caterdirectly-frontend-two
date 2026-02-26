@@ -26,6 +26,7 @@ import { getServiceAddress } from "@/utils/delivery-calculations";
 import { LocationData } from "@/components/shared/address/types";
 import { calculateDeliveryFee } from "@/utils/delivery-calculations";
 import { calculateCateringPrice, extractCateringItems } from "@/utils/catering-price-calculation";
+import { createEventDetailFormSchema } from "@/validations/eventDetailFormValidation";
 
 function VendorBookingFlow() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ function VendorBookingFlow() {
   const [searchParams] = useSearchParams();
   const draftId = searchParams.get("draft");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   // Store delivery fees per service (serviceId -> { range: string, fee: number })
   // Initialize from localStorage to persist across navigation
   const [serviceDeliveryFees, setServiceDeliveryFees] = useState<Record<string, { range: string; fee: number }>>(() => {
@@ -683,6 +685,7 @@ function VendorBookingFlow() {
                   isInvoiceMode={isInvoiceMode}
                   onLocationSelected={handleLocationSelected}
                   eventLocationData={eventLocationData}
+                  showValidationErrors={showValidationErrors}
                 />
               </div>
 
@@ -713,6 +716,12 @@ function VendorBookingFlow() {
                   isGroupOrder={isGroupOrder}
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    setShowValidationErrors(true);
+                    const formValidation = createEventDetailFormSchema(isInvoiceMode).safeParse(formData);
+                    if (!formValidation.success) {
+                      toast.error("Please fill all required fields.");
+                      return;
+                    }
 
                     // Validate minimum guests and minimum order amount for catering services
                     const guestCount = formData?.headcount || 1;
