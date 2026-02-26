@@ -1,6 +1,6 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { Tabs } from '@/components/ui/tabs';
 import Header from '@/components/cater-directly/Header';
 import Footer from '@/components/cater-directly/Footer';
@@ -16,10 +16,18 @@ import { useAuth } from '@/contexts/auth';
 import { FilterProvider } from '@/contexts/FilterContext';
 import Dashboard from '@/components/dashboard/Dashboard';
 import CartBadge from '@/components/marketplace/CartBadge';
+import AddGroupOrderModal, { GroupOrderData } from '@/components/admin/AddGroupOrderModal';
+import GroupOrderSuccessModal from '@/components/admin/GroupOrderSuccessModal';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 
 const VendorMarketPlace = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [showGroupOrderModal, setShowGroupOrderModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successData, setSuccessData] = useState<GroupOrderData & { inviteToken: string } | null>(null);
   const { setInvoiceMode: setProposalMode, isInvoiceMode: isProposalMode } = useInvoice();
   const { activeTab, setActiveTab } = useMarketplaceTabs();
   const { user, userRole } = useAuth();
@@ -93,6 +101,36 @@ const VendorMarketPlace = () => {
     </FilterProvider>
   ), [activeTab, handleTabChange, handleTabHover, handleTabLeave, existingServices, isBookingMode, isVendorMode]);
 
+  const handleGroupOrderSubmit = (data: GroupOrderData) => {
+    setShowGroupOrderModal(false);
+    
+    // Generate a mock invite token (in real app, this would come from backend)
+    const inviteToken = 'cd95cd96c2f4e5234214af2029cb5cb4da5c6b2c5e95cc585018f80b89f04f46';
+    
+    setSuccessData({ ...data, inviteToken });
+    setShowSuccessModal(true);
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    if (successData) {
+      navigate('/admin/group-order/setup', {
+        state: {
+          formData: {
+            orderName: successData.eventName,
+            location: successData.address,
+            date: successData.date,
+            deliveryWindow: successData.time,
+            primaryContactName: successData.contactName,
+            primaryContactPhone: successData.phone,
+            primaryContactEmail: successData.email,
+            budgetPerPerson: parseFloat(successData.budgetPerPerson) || 0,
+          },
+        },
+      });
+    }
+  };
+
   return (
     <Dashboard activeTab="vendors" userRole="admin">
       <div className="space-y-6">
@@ -101,10 +139,31 @@ const VendorMarketPlace = () => {
           <h1 className="text-2xl font-bold">
             {isVendorMode ? "Create Invoice - Select Services" : "Marketplace"}
           </h1>
+          <Button onClick={() => setShowGroupOrderModal(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Group Order
+          </Button>
         </div>
         {MarketplaceContent}
       </div>
       <CartBadge />
+      <AddGroupOrderModal
+        open={showGroupOrderModal}
+        onClose={() => setShowGroupOrderModal(false)}
+        onSubmit={handleGroupOrderSubmit}
+      />
+      {successData && (
+        <GroupOrderSuccessModal
+          open={showSuccessModal}
+          onClose={handleSuccessClose}
+          eventName={successData.eventName}
+          address={successData.address}
+          date={successData.date}
+          time={successData.time}
+          budgetPerPerson={successData.budgetPerPerson}
+          inviteToken={successData.inviteToken}
+        />
+      )}
     </Dashboard>
   );
 };

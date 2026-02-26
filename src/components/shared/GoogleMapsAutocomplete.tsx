@@ -10,6 +10,7 @@ interface GoogleMapsAutocompleteProps {
   className?: string;
   placeholder?: string;
   onAddressSelected?: (address: string, locationData?: LocationData) => void;
+  onAddressChange?: (address: string) => void;
   required?: boolean;
   id?: string;
   name?: string;
@@ -20,6 +21,7 @@ const GoogleMapsAutocomplete = ({
   className,
   placeholder = "123 Main St, City, State",
   onAddressSelected,
+  onAddressChange,
   required,
   id = 'google-address-autocomplete',
   name = 'address',
@@ -46,14 +48,11 @@ const GoogleMapsAutocomplete = ({
   const onPlaceChanged = () => {
     if (autocomplete) {
       const place = autocomplete.getPlace();
-      
-      if (!place.geometry || !place.geometry.location) {
-        console.error("No geometry data for selected place");
-        return;
-      }
+      const fullAddress = place.formatted_address || place.name || inputValue;
 
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
+      // Always populate selected text even if geometry is missing.
+      setInputValue(fullAddress);
+      onAddressChange?.(fullAddress);
       
       // Extract address components
       let street = '';
@@ -84,30 +83,34 @@ const GoogleMapsAutocomplete = ({
       });
 
       street = [streetNumber, route].filter(Boolean).join(' ');
-      const fullAddress = place.formatted_address || inputValue;
+      if (place.geometry?.location) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
 
-      setInputValue(fullAddress);
+        const locationData: LocationData = {
+          city: city || 'N/A',
+          state: state || 'N/A',
+          street: street || 'N/A',
+          zipCode: zipCode || '',
+          lat,
+          lng,
+          coordinates: { lat, lng }
+        };
 
-      const locationData: LocationData = {
-        city: city || 'N/A',
-        state: state || 'N/A',
-        street: street || 'N/A',
-        zipCode: zipCode || '',
-        lat,
-        lng,
-        coordinates: { lat, lng }
-      };
-
-      console.log('Google Maps address selected:', locationData);
-
-      if (onAddressSelected) {
-        onAddressSelected(fullAddress, locationData);
+        console.log('Google Maps address selected:', locationData);
+        onAddressSelected?.(fullAddress, locationData);
+        return;
       }
+
+      console.warn("Selected place has no geometry. Saving text address only.");
+      onAddressSelected?.(fullAddress);
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
+    const nextValue = e.target.value;
+    setInputValue(nextValue);
+    onAddressChange?.(nextValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
