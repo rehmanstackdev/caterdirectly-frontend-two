@@ -32,9 +32,18 @@ function ResponsiveAdditionalServices({
   guestCount = 1,
 }: ResponsiveAdditionalServicesProps) {
   const hasSelectedServices = selectedServices.length > 0;
-  const hasSelectedItems = selectedServices.some(
-    (service) => getSelectedItemsCountForService(service, selectedItems) > 0,
-  );
+  
+  // Check if services have items OR if they are non-catering services (which don't need items)
+  const hasSelectedItems = selectedServices.some((service) => {
+    const serviceType = (service.serviceType || service.type || "").toLowerCase();
+    // Non-catering services don't require item selection
+    if (serviceType !== "catering") {
+      return true;
+    }
+    // Catering services need items
+    return getSelectedItemsCountForService(service, selectedItems) > 0;
+  });
+  
   const servicesMissing = !hasSelectedServices;
   const itemsMissing = hasSelectedServices && !hasSelectedItems;
 

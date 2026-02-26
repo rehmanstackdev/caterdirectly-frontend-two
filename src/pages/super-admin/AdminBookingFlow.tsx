@@ -40,8 +40,6 @@ function VendorBookingFlow() {
   const draftId = searchParams.get("draft");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
-  // Store delivery fees per service (serviceId -> { range: string, fee: number })
-  // Initialize from localStorage to persist across navigation
   const [serviceDeliveryFees, setServiceDeliveryFees] = useState<
     Record<string, { range: string; fee: number }>
   >(() => {
@@ -265,21 +263,13 @@ function VendorBookingFlow() {
       sessionStorage.removeItem("invoiceData");
     }
 
-    // Priority 3: Auto-enable for admins (lowest priority, only if no URL param or sessionStorage)
     if (userRole === "admin" || userRole === "super-admin") {
       if (!isInvoiceMode) {
-        // GUARD: Only set if not already true
-
         setInvoiceMode(true);
       }
     }
-
     initDoneRef.current = true;
-  }, [mode, userRole, setInvoiceMode, isInvoiceMode, loadDraftData]); // Use mode value instead of searchParams object
-
-  // No automatic cleanup - delivery fees persist until explicitly removed with the service
-
-  // Phase 1: Memoize getProcessedService for stable function reference
+  }, [mode, userRole, setInvoiceMode, isInvoiceMode, loadDraftData]);
   const getProcessedService = useCallback((rawService: any) => {
     if (import.meta.env.DEV) {
       console.log(
@@ -288,8 +278,7 @@ function VendorBookingFlow() {
       );
     }
     return processService(rawService);
-  }, []); // No dependencies - processService is pure
-
+  }, []);
   const handleChangeService = useCallback(
     (serviceIndex: number) => {
       return () => {
@@ -311,7 +300,6 @@ function VendorBookingFlow() {
   );
 
   const handleLoadDraft = (draft: any) => {
-    console.log("Loading draft:", draft);
     if (
       window.confirm(
         `Load draft "${draft.name}"? This will replace your current selections.`,
@@ -321,24 +309,13 @@ function VendorBookingFlow() {
     }
   };
 
-  // NEW: Handle combo selection properly by updating service state
-  // Handle delivery range selection - store in service delivery fees state
   const handleDeliveryRangeSelect = useCallback(
     (serviceIndex: number, range: { range: string; fee: number }) => {
       const service = selectedServices[serviceIndex];
       const serviceId =
         service?.id || service?.serviceId || `service-${serviceIndex}`;
 
-      console.log("[DeliveryFee] Storing delivery fee:", {
-        serviceIndex,
-        serviceId,
-        service: service,
-        range,
-        currentFees: serviceDeliveryFees,
-      });
-
       setServiceDeliveryFees((prev) => {
-        // Skip if fee is already set for this service with same range
         if (
           prev[serviceId]?.range === range.range &&
           prev[serviceId]?.fee === range.fee
@@ -350,8 +327,7 @@ function VendorBookingFlow() {
           ...prev,
           [serviceId]: range,
         };
-        console.log("[DeliveryFee] Updated fees state:", updated);
-        // Persist to localStorage
+
         try {
           localStorage.setItem("serviceDeliveryFees", JSON.stringify(updated));
         } catch (error) {
@@ -375,30 +351,36 @@ function VendorBookingFlow() {
       if (payload && "serviceId" in payload && "selections" in payload) {
         const { serviceId, selections } = payload;
 
-        console.log("[BookingFlow] ✅ Combo selected:", {
-          serviceId,
-          comboName: selections.comboName,
-          totalPrice: selections.totalPrice,
-        });
-
-        // Update the service by adding combo to comboSelectionsList
         setSelectedServices((prevServices) =>
           prevServices.map((service) => {
             const svcId = service.id || service.serviceId;
             if (svcId === serviceId) {
+              const existingCombos = service.comboSelectionsList || [];
+              
+              // Check if this exact combo already exists
+              const existingComboIndex = existingCombos.findIndex(
+                (combo) => combo.comboItemId === selections.comboItemId
+              );
+
+              let updatedCombos;
+              if (existingComboIndex >= 0) {
+                // Replace existing combo instead of adding duplicate
+                updatedCombos = [...existingCombos];
+                updatedCombos[existingComboIndex] = selections;
+              } else {
+                // Only add if it doesn't exist
+                updatedCombos = [...existingCombos, selections];
+              }
+              
               return {
                 ...service,
-                comboSelectionsList: [
-                  ...(service.comboSelectionsList || []),
-                  selections,
-                ],
+                comboSelectionsList: updatedCombos,
               };
             }
             return service;
           }),
         );
       } else {
-        // Legacy format fallback
         console.warn("[BookingFlow] Legacy combo format used");
         const comboItemId = `combo_${payload.comboItemId}_${Date.now()}`;
         handleItemQuantityChange(comboItemId, 1);
@@ -407,19 +389,27 @@ function VendorBookingFlow() {
     [setSelectedServices, handleItemQuantityChange],
   );
 
-  // Reconstruct comboSelectionsList from selectedItems when missing after navigation
   const comboReconstructedRef = useRef(false);
   useEffect(() => {
     if (comboReconstructedRef.current) return;
     comboReconstructedRef.current = true;
 
     const needsReconstruction = selectedServices.some((service) => {
-      const serviceType = (service.serviceType || service.type || "").toLowerCase();
+      const serviceType = (
+        service.serviceType ||
+        service.type ||
+        ""
+      ).toLowerCase();
       if (serviceType !== "catering") return false;
-      if (Array.isArray(service.comboSelectionsList) && service.comboSelectionsList.length > 0) return false;
-      // Check if there are combo category items in selectedItems
+      if (
+        Array.isArray(service.comboSelectionsList) &&
+        service.comboSelectionsList.length > 0
+      )
+        return false;
       const combos = service.service_details?.catering?.combos || [];
-      const comboIds = new Set(combos.map((c: any) => String(c?.id || c?.itemId || "")));
+      const comboIds = new Set(
+        combos.map((c: any) => String(c?.id || c?.itemId || "")),
+      );
       return Object.keys(selectedItems).some((key) => {
         if (!key.includes("_") || key.startsWith("meta_")) return false;
         const firstSeg = key.split("_")[0];
@@ -431,9 +421,17 @@ function VendorBookingFlow() {
 
     setSelectedServices((prev) =>
       prev.map((service) => {
-        const serviceType = (service.serviceType || service.type || "").toLowerCase();
+        const serviceType = (
+          service.serviceType ||
+          service.type ||
+          ""
+        ).toLowerCase();
         if (serviceType !== "catering") return service;
-        if (Array.isArray(service.comboSelectionsList) && service.comboSelectionsList.length > 0) return service;
+        if (
+          Array.isArray(service.comboSelectionsList) &&
+          service.comboSelectionsList.length > 0
+        )
+          return service;
 
         const combos = service.service_details?.catering?.combos || [];
         const reconstructed: any[] = [];
@@ -446,10 +444,17 @@ function VendorBookingFlow() {
           const comboItems: any[] = [];
           (combo.comboCategories || []).forEach((cat: any) => {
             (cat.items || []).forEach((item: any) => {
-              const key = item.selectionKey || `${comboId}_${cat.id}_${item.id}`;
+              const key =
+                item.selectionKey || `${comboId}_${cat.id}_${item.id}`;
               const qty = selectedItems[key] || 0;
               if (qty > 0) {
-                comboItems.push({ itemId: item.id, itemName: item.name || item.itemName || item.id, quantity: qty, price: item.price, additionalPrice: item.additionalCharge });
+                comboItems.push({
+                  itemId: item.id,
+                  itemName: item.name || item.itemName || item.id,
+                  quantity: qty,
+                  price: item.price,
+                  additionalPrice: item.additionalCharge,
+                });
               }
             });
           });
@@ -458,21 +463,28 @@ function VendorBookingFlow() {
 
           const metaHeadcount = selectedItems[`meta_${comboId}_headcount`];
           const metaBasePrice = selectedItems[`meta_${comboId}_basePrice`];
-          const basePrice = metaBasePrice ? metaBasePrice / 100 : parseFloat(String(combo.pricePerPerson || combo.price || 0)) || 0;
-          const headcount = metaHeadcount && metaHeadcount > 0 ? metaHeadcount : (formData?.headcount || 5);
+          const basePrice = metaBasePrice
+            ? metaBasePrice / 100
+            : parseFloat(String(combo.pricePerPerson || combo.price || 0)) || 0;
+          const headcount =
+            metaHeadcount && metaHeadcount > 0
+              ? metaHeadcount
+              : formData?.headcount || 5;
 
           reconstructed.push({
             comboItemId: comboId,
             comboName: combo.name || combo.itemName || comboId,
             basePrice,
-            selections: (combo.comboCategories || []).map((cat: any) => ({
-              categoryId: cat.id,
-              categoryName: cat.name || cat.categoryName || cat.id,
-              selectedItems: comboItems.filter((ci: any) => {
-                const key = `${comboId}_${cat.id}_${ci.itemId}`;
-                return selectedItems[key] > 0;
-              }),
-            })).filter((s: any) => s.selectedItems.length > 0),
+            selections: (combo.comboCategories || [])
+              .map((cat: any) => ({
+                categoryId: cat.id,
+                categoryName: cat.name || cat.categoryName || cat.id,
+                selectedItems: comboItems.filter((ci: any) => {
+                  const key = `${comboId}_${cat.id}_${ci.itemId}`;
+                  return selectedItems[key] > 0;
+                }),
+              }))
+              .filter((s: any) => s.selectedItems.length > 0),
             totalPrice: basePrice * headcount,
             headcount,
           });
@@ -482,7 +494,7 @@ function VendorBookingFlow() {
         return { ...service, comboSelectionsList: reconstructed };
       }),
     );
-  }, []); // Run once on mount
+  }, []);
 
   const getActiveTab = () => {
     if (userRole === "admin" || userRole === "super-admin") {
@@ -494,21 +506,16 @@ function VendorBookingFlow() {
   const dashboardUserRole =
     userRole === "admin" || userRole === "super-admin" ? "admin" : "event-host";
 
-  // Enhance services with vendor addresses and coordinates for distance calculation
   const servicesWithAddresses = useMemo(() => {
     return selectedServices.map((service) => {
       const vendorAddress = getServiceAddress(service);
       const serviceAny = service as any;
 
-      // Try to get vendor coordinates from various locations
       let vendorCoordinates = null;
 
-      // Check for coordinates at top level
       if (serviceAny.vendorCoordinates) {
         vendorCoordinates = serviceAny.vendorCoordinates;
-      }
-      // Check vendor object for coordinates
-      else if (service.vendor && typeof service.vendor === "object") {
+      } else if (service.vendor && typeof service.vendor === "object") {
         const vendor = service.vendor as any;
         if (
           vendor.coordinates &&
@@ -522,16 +529,13 @@ function VendorBookingFlow() {
         ) {
           vendorCoordinates = { lat: vendor.lat, lng: vendor.lng };
         }
-      }
-      // Check service_details for vendor coordinates
-      else if (service.service_details?.vendor?.coordinates) {
+      } else if (service.service_details?.vendor?.coordinates) {
         const coords = service.service_details.vendor.coordinates;
         if (typeof coords.lat === "number" && typeof coords.lng === "number") {
           vendorCoordinates = coords;
         }
       }
 
-      // Add vendor address and coordinates to service for useServiceDistances hook
       return {
         ...service,
         vendorFullAddress: vendorAddress,
@@ -541,7 +545,6 @@ function VendorBookingFlow() {
     });
   }, [selectedServices]);
 
-  // Calculate distances for all services using useServiceDistances hook
   const destinationCoordinates = eventLocationData?.coordinates
     ? {
         lat: eventLocationData.coordinates.lat,
@@ -555,7 +558,6 @@ function VendorBookingFlow() {
     destinationCoordinates,
   );
 
-  // Log location restoration on mount
   useEffect(() => {
     if (eventLocationData && formData.location) {
       console.log(
@@ -567,22 +569,17 @@ function VendorBookingFlow() {
         },
       );
     }
-  }, []); // Run only once on mount
+  }, []);
 
-  // Clear delivery fees when location changes to allow recalculation
   const previousLocationRef = useRef<string>("");
   useEffect(() => {
     const currentLocation = formData.location || "";
 
-    // If location has changed and is not empty, clear delivery fees
     if (
       previousLocationRef.current &&
       currentLocation &&
       previousLocationRef.current !== currentLocation
     ) {
-      console.log(
-        "[AdminBookingFlow] Location changed, clearing delivery fees for recalculation",
-      );
       setServiceDeliveryFees({});
       try {
         localStorage.removeItem("serviceDeliveryFees");
@@ -597,8 +594,6 @@ function VendorBookingFlow() {
     previousLocationRef.current = currentLocation;
   }, [formData.location]);
 
-  // Auto-calculate delivery fees when distances are available
-  // Use ref to avoid infinite loop (serviceDeliveryFees would cause re-trigger if in deps)
   const serviceDeliveryFeesRef = useRef(serviceDeliveryFees);
   serviceDeliveryFeesRef.current = serviceDeliveryFees;
 
@@ -611,9 +606,6 @@ function VendorBookingFlow() {
     });
 
     if (Object.keys(distancesByService).length === 0 || !formData.location) {
-      console.log(
-        "[AdminBookingFlow] Skipping auto-calculation: no distances or location",
-      );
       return;
     }
 
@@ -622,29 +614,16 @@ function VendorBookingFlow() {
     selectedServices.forEach((service) => {
       const serviceId = service.id || service.serviceId;
       if (!serviceId) {
-        console.log("[AdminBookingFlow] Skipping service: no serviceId");
         return;
       }
 
       const distance = distancesByService[serviceId];
-      console.log(`[AdminBookingFlow] Checking service ${serviceId}:`, {
-        serviceName: service.serviceName || service.name,
-        distance,
-        hasExistingFee: !!serviceDeliveryFeesRef.current[serviceId],
-      });
 
       if (!distance || distance <= 0) {
-        console.log(
-          `[AdminBookingFlow] Skipping service ${serviceId}: no valid distance`,
-        );
         return;
       }
 
-      // Skip if delivery fee already selected for this service (use ref to avoid stale closure)
       if (serviceDeliveryFeesRef.current[serviceId]) {
-        console.log(
-          `[AdminBookingFlow] Skipping service ${serviceId}: fee already exists`,
-        );
         return;
       }
 
@@ -657,11 +636,6 @@ function VendorBookingFlow() {
           formData.location,
           deliveryOptions,
           distance,
-        );
-
-        console.log(
-          `[AdminBookingFlow] Delivery calculation result for ${serviceId}:`,
-          deliveryResult,
         );
 
         if (deliveryResult.eligible && deliveryResult.fee >= 0) {
@@ -680,11 +654,8 @@ function VendorBookingFlow() {
       }
     });
 
-    // Apply all new fees at once if any were calculated
     if (Object.keys(newFees).length > 0) {
-      console.log("[AdminBookingFlow] Applying new delivery fees:", newFees);
       setServiceDeliveryFees((prev) => {
-        // Double-check to avoid duplicate updates
         const filteredNewFees: Record<string, { range: string; fee: number }> =
           {};
         Object.keys(newFees).forEach((serviceId) => {
@@ -699,9 +670,6 @@ function VendorBookingFlow() {
 
         try {
           localStorage.setItem("serviceDeliveryFees", JSON.stringify(updated));
-          console.log(
-            "[AdminBookingFlow] Persisted delivery fees to localStorage",
-          );
         } catch (error) {
           console.warn(
             "[AdminBookingFlow] Failed to persist delivery fees:",
@@ -711,7 +679,6 @@ function VendorBookingFlow() {
         return updated;
       });
     } else {
-      console.log("[AdminBookingFlow] No new delivery fees to apply");
     }
   }, [distancesByService, formData.location, selectedServices]);
 
@@ -731,10 +698,6 @@ function VendorBookingFlow() {
             error,
           );
         }
-        console.log(
-          "[AdminBookingFlow] Location selected with coordinates:",
-          locationData,
-        );
       }
     },
     [],
@@ -742,10 +705,6 @@ function VendorBookingFlow() {
 
   const vendorCards = useMemo(() => {
     if (import.meta.env.DEV) {
-      console.log(
-        "[BookingFlow] 🔄 Processing services array, count:",
-        selectedServices.length,
-      );
     }
 
     return selectedServices.map((service, index) => {
@@ -846,7 +805,6 @@ function VendorBookingFlow() {
     >
       <Dashboard userRole={"admin"} activeTab={getActiveTab()}>
         <div className="w-full max-w-full overflow-x-hidden">
-          {/* Invoice Mode Indicator */}
           {isInvoiceMode && (
             <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -872,12 +830,13 @@ function VendorBookingFlow() {
                   selectedItems={selectedItems}
                   formData={formData}
                   onLoadDraft={handleLoadDraft}
+                  className="mb-4"
                 />
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
                 <div className="xl:col-span-6">
-                  <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto">
+                  <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
                     <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden xl:pr-2">
                       {vendorCards}
                       <AddServiceButton
@@ -929,7 +888,7 @@ function VendorBookingFlow() {
                   </div>
                 </div>
                 <div className="xl:col-span-4">
-                  <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:overflow-y-auto">
+                  <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
                     <div className="pr-1">
                       <AdditionalServices
                         selectedServices={selectedServices}
@@ -944,9 +903,17 @@ function VendorBookingFlow() {
                         showAddServiceButton={false}
                       />
 
-                      {Object.values(selectedItems).some(
+                      {(Object.values(selectedItems).some(
                         (quantity) => Number(quantity) > 0,
-                      ) && (
+                      ) ||
+                        selectedServices.some((service) => {
+                          const serviceType = (
+                            service.serviceType ||
+                            service.type ||
+                            ""
+                          ).toLowerCase();
+                          return serviceType !== "catering";
+                        })) && (
                         <div className="sticky bottom-0 bg-white w-full max-w-full overflow-x-hidden mt-4 pt-3 border-t border-gray-200">
                           <Button
                             onClick={async (e) => {
@@ -1028,17 +995,6 @@ function VendorBookingFlow() {
 
                                     const serviceTotal =
                                       cateringCalcResult.finalTotal;
-
-                                    console.log(
-                                      "[AdminBookingFlow] Minimum order amount validation:",
-                                      {
-                                        serviceName,
-                                        serviceTotal,
-                                        minimumOrderAmount,
-                                        guestCount,
-                                        minimumGuests,
-                                      },
-                                    );
 
                                     if (serviceTotal < minimumOrderAmount) {
                                       toast.error(
@@ -1733,23 +1689,6 @@ function VendorBookingFlow() {
                                             effectiveProteinQuantity;
 
                                           if (import.meta.env.DEV) {
-                                            console.log(
-                                              "[AdminBookingFlow] Combo pricing calculation:",
-                                              {
-                                                comboName: combo.comboName,
-                                                comboItemId: comboItemId,
-                                                basePrice: basePrice,
-                                                proteinQuantity:
-                                                  proteinQuantity,
-                                                effectiveProteinQuantity:
-                                                  effectiveProteinQuantity,
-                                                guestCount: guestCount,
-                                                baseTotal: baseTotal,
-                                                totalUpcharges: totalUpcharges,
-                                                comboTotal: comboTotal,
-                                                formula: `(${basePrice} � ${effectiveProteinQuantity} proteins) + (${totalUpcharges / guestCount} upcharge � ${guestCount} guests) = ${comboTotal}`,
-                                              },
-                                            );
                                           }
 
                                           const comboImage =
@@ -1825,7 +1764,6 @@ function VendorBookingFlow() {
                                                         categoryItem?.picture ||
                                                         "";
 
-                                                      // Use the selected quantity for all items (no guest count multiplication)
                                                       const itemQuantity =
                                                         categoryItem.quantity ||
                                                         1;
@@ -2006,26 +1944,6 @@ function VendorBookingFlow() {
                                         deliveryRanges;
                                     }
 
-                                    if (import.meta.env.DEV) {
-                                      console.log(
-                                        "[AdminBookingFlow] Delivery ranges for service:",
-                                        {
-                                          serviceName:
-                                            service.serviceName || service.name,
-                                          deliveryOptions,
-                                          deliveryRangesSource: deliveryRanges,
-                                          mappedDeliveryRanges:
-                                            mappedService.deliveryRanges,
-                                          isArray:
-                                            Array.isArray(deliveryRanges),
-                                          isRecord:
-                                            typeof deliveryRanges ===
-                                              "object" &&
-                                            !Array.isArray(deliveryRanges),
-                                        },
-                                      );
-                                    }
-
                                     if (service.service_details) {
                                       const {
                                         baseItems,
@@ -2068,25 +1986,6 @@ function VendorBookingFlow() {
 
                                       mappedService.totalPrice =
                                         cateringCalcResult.finalTotal;
-
-                                      if (import.meta.env.DEV) {
-                                        console.log(
-                                          "[AdminBookingFlow] Catering service total calculation:",
-                                          {
-                                            serviceName:
-                                              service.serviceName ||
-                                              service.name,
-                                            basePricePerPerson,
-                                            guestCount,
-                                            basePriceTotal:
-                                              cateringCalcResult.basePriceTotal,
-                                            additionalChargesTotal:
-                                              cateringCalcResult.additionalChargesTotal,
-                                            totalPrice:
-                                              cateringCalcResult.finalTotal,
-                                          },
-                                        );
-                                      }
                                     }
                                   }
 
@@ -2099,18 +1998,6 @@ function VendorBookingFlow() {
                                   (formData as any)?.companyName ||
                                   (formData as any)?.organizationName ||
                                   "";
-
-                                console.log(
-                                  "?? [AdminBookingFlow] Company name fields:",
-                                  {
-                                    company: (formData as any)?.company,
-                                    clientCompany: formData?.clientCompany,
-                                    companyName: (formData as any)?.companyName,
-                                    organizationName: (formData as any)
-                                      ?.organizationName,
-                                    finalCompanyName: companyName,
-                                  },
-                                );
 
                                 const baseInvoiceData: any = {
                                   eventName:

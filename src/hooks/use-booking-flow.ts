@@ -85,6 +85,14 @@ const convertPriceToNumber = (price: string | number | undefined): number => {
 
 // Helper function to validate if a service has proper service_details
 const hasValidServiceDetails = (service: ServiceSelection | ServiceItem): boolean => {
+  // Skip validation for services marked as from backup
+  if ((service as any)._fromBackup) return true;
+  
+  // If service has comboSelectionsList, it's valid
+  if ((service as any).comboSelectionsList && Array.isArray((service as any).comboSelectionsList) && (service as any).comboSelectionsList.length > 0) {
+    return true;
+  }
+  
   if (!service.service_details) return false;
   
   // Check if service_details is malformed
@@ -208,7 +216,9 @@ const convertServiceItemToSelection = (serviceItem: ServiceItem): ServiceSelecti
     vendor_id: serviceItem.vendor_id,
     description: serviceItem.description,
     // Use the validated/recovered service_details
-    service_details: validServiceDetails
+    service_details: validServiceDetails,
+    // Preserve comboSelectionsList if it exists
+    comboSelectionsList: (serviceItem as any).comboSelectionsList || undefined
   } as any;
   
   return serviceSelection;
@@ -221,7 +231,9 @@ const ensureServiceItemProperties = (selection: ServiceSelection): ServiceSelect
     // Ensure all required properties exist
     vendor_id: selection.vendor_id || selection.vendor || '',
     description: selection.description || '',
-    service_details: selection.service_details
+    service_details: selection.service_details,
+    // Preserve comboSelectionsList if it exists
+    comboSelectionsList: selection.comboSelectionsList || undefined
   };
 };
 

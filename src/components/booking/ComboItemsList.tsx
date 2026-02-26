@@ -60,7 +60,9 @@ interface ComboPackage {
   peopleServed?: number | string;
 }
 
-const PEOPLE_OPTIONS = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
+const PEOPLE_OPTIONS = [1, 2, 3, 4, ...Array.from({ length: 20 }, (_, i) => (i + 1) * 5)];
+
+const isPredefinedOption = (value: number) => PEOPLE_OPTIONS.includes(value);
 
 const ComboItemsList = ({
   items,
@@ -74,6 +76,8 @@ const ComboItemsList = ({
   );
   const [isDialogScrolled, setIsDialogScrolled] = useState(false);
   const [isDialogAtBottom, setIsDialogAtBottom] = useState(false);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customValue, setCustomValue] = useState('');
   const [draftSelections, setDraftSelections] = useState<
     Record<string, number>
   >({});
@@ -130,10 +134,9 @@ const ComboItemsList = ({
   const getDefaultPeople = (combo: ComboPackage): number => {
     const serves = getComboServes(combo);
     if (serves && serves > 0) {
-      const rounded = Math.ceil(serves / 5) * 5;
-      return Math.max(5, Math.min(100, rounded));
+      return Math.max(1, Math.min(100, serves));
     }
-    return 5;
+    return 1;
   };
 
   const getPeopleForCombo = (combo: ComboPackage): number => {
@@ -494,6 +497,8 @@ const ComboItemsList = ({
             setIsDialogScrolled(false);
             setIsDialogAtBottom(false);
             setDraftSelections({});
+            setShowCustomInput(false);
+            setCustomValue('');
           }
         }}
       >
@@ -528,30 +533,88 @@ const ComboItemsList = ({
                 <label className="mb-1 block text-sm font-bold text-gray-700">
                   Select quantity:
                 </label>
-                <Select
-                  value={String(activeComboPeople)}
-                  onValueChange={(value) =>
-                    handlePeopleChange(activeCombo.id, Number(value))
-                  }
-                >
-                  <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-orange-500" />
-                      <SelectValue />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 mt-1">
-                    {PEOPLE_OPTIONS.map((count) => (
-                      <SelectItem
-                        key={count}
-                        value={String(count)}
-                        className="focus:bg-orange-50 focus:text-orange-700"
-                      >
-                        {count} people
+                {!showCustomInput ? (
+                  <Select
+                    value={isPredefinedOption(activeComboPeople) ? String(activeComboPeople) : 'custom-display'}
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setShowCustomInput(true);
+                        setCustomValue(String(activeComboPeople));
+                      } else if (value !== 'custom-display') {
+                        handlePeopleChange(activeCombo.id, Number(value));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-orange-500" />
+                        <SelectValue>
+                          {activeComboPeople} {activeComboPeople === 1 ? 'person' : 'people'}
+                        </SelectValue>
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 mt-1">
+                      {!isPredefinedOption(activeComboPeople) && (
+                        <SelectItem value="custom-display" className="focus:bg-orange-50 focus:text-orange-700">
+                          {activeComboPeople} {activeComboPeople === 1 ? 'person' : 'people'} (Custom)
+                        </SelectItem>
+                      )}
+                      {PEOPLE_OPTIONS.map((count) => (
+                        <SelectItem
+                          key={count}
+                          value={String(count)}
+                          className="focus:bg-orange-50 focus:text-orange-700"
+                        >
+                          {count} {count === 1 ? 'person' : 'people'}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom" className="focus:bg-orange-50 focus:text-orange-700 font-semibold">
+                        Custom amount...
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-500" />
+                      <input
+                        type="number"
+                        min="1"
+                        value={customValue}
+                        onChange={(e) => setCustomValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && customValue && Number(customValue) >= 1) {
+                            handlePeopleChange(activeCombo.id, Number(customValue));
+                            setShowCustomInput(false);
+                          }
+                        }}
+                        className="h-12 w-full pl-10 pr-3 border border-orange-200 rounded-md text-sm text-gray-800 focus:ring-2 focus:ring-orange-400 focus:ring-offset-0 focus:outline-none"
+                        placeholder="Enter quantity"
+                        autoFocus
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (customValue && Number(customValue) >= 1) {
+                          handlePeopleChange(activeCombo.id, Number(customValue));
+                          setShowCustomInput(false);
+                        }
+                      }}
+                      className="h-12 px-4 bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                      OK
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCustomInput(false)}
+                      className="h-12 px-4 border-orange-200"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div

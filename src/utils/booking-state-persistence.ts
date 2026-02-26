@@ -48,11 +48,11 @@ export const saveBookingStateBackup = (
       return service;
     });
 
-    // Create a leaner representation to avoid storage quota issues (SSOT is DB)
+    // Create a leaner representation to avoid storage quota issues (SSOT is DB)  
+    // Keep the full service object but mark it as from backup
     const persistedServices = validatedServices.map(s => ({
       ...s,
-      // Drop heavy nested data in backup to prevent QuotaExceededError
-      service_details: null
+      _fromBackup: true // Mark as backup so we know not to validate service_details
     }));
 
     const backup: BookingStateBackup = {
@@ -61,7 +61,8 @@ export const saveBookingStateBackup = (
       formData,
       timestamp: Date.now(),
       version: 1,
-      checksum: btoa(JSON.stringify({ selectedServices: persistedServices, selectedItems, formData })).slice(0, 10)
+      // Use encodeURIComponent instead of btoa to handle special characters
+      checksum: encodeURIComponent(JSON.stringify({ selectedServices: persistedServices, selectedItems, formData })).slice(0, 10)
     };
 
     // Validate backup structure
@@ -106,7 +107,7 @@ export const loadBookingStateBackup = (): BookingStateBackup | null => {
       const migrated: BookingStateBackup = {
         ...parsed,
         version: 1,
-        checksum: btoa(JSON.stringify({
+        checksum: encodeURIComponent(JSON.stringify({
           selectedServices: parsed.selectedServices,
           selectedItems: parsed.selectedItems,
           formData: parsed.formData
@@ -124,7 +125,7 @@ export const loadBookingStateBackup = (): BookingStateBackup | null => {
     const backup: BookingStateBackup = parsed;
     
     // Check data integrity
-    const expectedChecksum = btoa(JSON.stringify({
+    const expectedChecksum = encodeURIComponent(JSON.stringify({
       selectedServices: backup.selectedServices,
       selectedItems: backup.selectedItems,
       formData: backup.formData

@@ -133,21 +133,26 @@ export const EnhancedCartManagement = ({
   }
 
   return (
-    <div className={cn(className)}>
+    <div className={cn("bg-white border rounded-lg p-3 shadow-sm", className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="w-full justify-between">
+          <Button variant="outline" size="default" className="w-full justify-between h-11">
             <div className="flex items-center gap-2">
               {getSaveStatusIcon()}
-              <span className="text-sm">
+              <span className="text-sm font-medium">
                 {saveStatus === 'saving' ? 'Saving...' : 
                  saveStatus === 'success' ? 'Saved' : 
                  saveStatus === 'error' ? 'Save failed' : 
                  'Save Progress'}
               </span>
+              {selectedServices.length > 0 && (
+                <Badge variant="default" className="text-xs bg-orange-500">
+                  {selectedServices.length} {selectedServices.length === 1 ? 'Service' : 'Services'}
+                </Badge>
+              )}
               {hasUnsavedChanges && (
                 <Badge variant="secondary" className="text-xs">
-                  Changes
+                  Unsaved
                 </Badge>
               )}
             </div>
