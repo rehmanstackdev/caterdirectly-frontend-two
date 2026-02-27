@@ -95,7 +95,7 @@ function VendorBookingFlow() {
     try {
       saveBookingStateBackup(selectedServices, selectedItems, formData);
     } catch (error) {
-      console.warn(
+      console.log(
         "[AdminBookingFlow] Failed to save state before navigation:",
         error,
       );
@@ -271,12 +271,6 @@ function VendorBookingFlow() {
     initDoneRef.current = true;
   }, [mode, userRole, setInvoiceMode, isInvoiceMode, loadDraftData]);
   const getProcessedService = useCallback((rawService: any) => {
-    if (import.meta.env.DEV) {
-      console.log(
-        "[BookingFlow] 🔄 Processing service:",
-        rawService.id || rawService.serviceId,
-      );
-    }
     return processService(rawService);
   }, []);
   const handleChangeService = useCallback(
@@ -356,22 +350,19 @@ function VendorBookingFlow() {
             const svcId = service.id || service.serviceId;
             if (svcId === serviceId) {
               const existingCombos = service.comboSelectionsList || [];
-              
-              // Check if this exact combo already exists
+
               const existingComboIndex = existingCombos.findIndex(
-                (combo) => combo.comboItemId === selections.comboItemId
+                (combo) => combo.comboItemId === selections.comboItemId,
               );
 
               let updatedCombos;
               if (existingComboIndex >= 0) {
-                // Replace existing combo instead of adding duplicate
                 updatedCombos = [...existingCombos];
                 updatedCombos[existingComboIndex] = selections;
               } else {
-                // Only add if it doesn't exist
                 updatedCombos = [...existingCombos, selections];
               }
-              
+
               return {
                 ...service,
                 comboSelectionsList: updatedCombos,
