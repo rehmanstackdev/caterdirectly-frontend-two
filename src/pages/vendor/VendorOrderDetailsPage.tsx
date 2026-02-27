@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import invoiceService from '@/services/api/invoice.Service';
 import { useVendorData } from '@/hooks/vendor/use-vendor-data';
 import { format } from 'date-fns';
-
 import React from 'react';
 
 function VendorOrderDetailsPage() {
@@ -180,7 +179,8 @@ function VendorOrderDetailsPage() {
             selectedItems: mappedSelectedItems,
             invites: invoiceData.invites || [],
             isGroupOrder: !!(invoiceData.budgetPerPerson || invoiceData.paymentSettings || invoiceData.orderDeadline),
-            customLineItems: invoiceData.customLineItems || []
+            customLineItems: invoiceData.customLineItems || [],
+            invoiceStatus: invoiceData.status || '',
           });
         }
       } catch (error) {
