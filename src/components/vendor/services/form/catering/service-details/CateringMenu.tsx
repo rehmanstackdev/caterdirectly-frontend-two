@@ -134,7 +134,7 @@ const CateringMenu: React.FC<CateringMenuProps> = ({
               price: combo.pricePerPerson,
               priceType: "per_person" as const,
               category: combo.category,
-              image: combo.imageUrl,
+              image: combo.image || combo.imageUrl,
               isCombo: true,
               comboCategories: combo.comboCategories,
             }));

@@ -201,14 +201,20 @@ export function useApprovalHandler() {
             console.log('=== END MENU ITEM PROCESSING ===');
           }
           
-          // Handle combo images separately
+          // Handle combo images separately - track imageIndex like menu items
           const comboImageFiles: File[] = [];
           const comboItemFiles: File[] = [];
-          
+          let comboImageIndex = 0;
+          let comboItemImageIndex = 0;
+          // Maps to track which combo/item gets which imageIndex
+          const comboImageIndexMap = new Map<number, number>();
+          const comboItemImageIndexMap = new Map<string, number>();
+
           if (formData.combos) {
             console.log('=== COMBO IMAGE PROCESSING ===');
             console.log('Total combos to process:', formData.combos.length);
-            for (const combo of formData.combos) {
+            for (let ci = 0; ci < formData.combos.length; ci++) {
+              const combo = formData.combos[ci];
               console.log('Processing combo:', combo.name, 'Image:', combo.image, 'ImageUrl:', combo.imageUrl);
               // Process combo main image - check both image and imageUrl fields
               const comboImage = combo.image || combo.imageUrl;
@@ -217,25 +223,31 @@ export function useApprovalHandler() {
                   const blob = await fetch(comboImage).then(r => r.blob());
                   const file = new File([blob], `combo-${combo.name}.jpg`, { type: blob.type || 'image/jpeg' });
                   comboImageFiles.push(file);
-                  console.log('Combo image file created:', file.name, file.size);
+                  comboImageIndexMap.set(ci, comboImageIndex);
+                  comboImageIndex++;
+                  console.log('Combo image file created:', file.name, file.size, 'at imageIndex:', comboImageIndex - 1);
                 } catch (error) {
                   console.error('Error converting combo blob to file:', error);
                 }
               } else {
                 console.log('Combo has no blob image:', comboImage);
               }
-              
+
               // Process combo category item images
               if (combo.comboCategories) {
-                for (const category of combo.comboCategories) {
+                for (let catIdx = 0; catIdx < combo.comboCategories.length; catIdx++) {
+                  const category = combo.comboCategories[catIdx];
                   if (category.items) {
-                    for (const item of category.items) {
+                    for (let itemIdx = 0; itemIdx < category.items.length; itemIdx++) {
+                      const item = category.items[itemIdx];
                       if (item.image && item.image.startsWith('blob:')) {
                         try {
                           const blob = await fetch(item.image).then(r => r.blob());
                           const file = new File([blob], `combo-item-${item.name}.jpg`, { type: blob.type || 'image/jpeg' });
                           comboItemFiles.push(file);
-                          console.log('Combo item image file created:', file.name, file.size);
+                          comboItemImageIndexMap.set(`${ci}-${catIdx}-${itemIdx}`, comboItemImageIndex);
+                          comboItemImageIndex++;
+                          console.log('Combo item image file created:', file.name, file.size, 'at imageIndex:', comboItemImageIndex - 1);
                         } catch (error) {
                           console.error('Error converting combo item blob to file:', error);
                         }
@@ -247,20 +259,23 @@ export function useApprovalHandler() {
             }
             console.log('=== END COMBO IMAGE PROCESSING ===');
           }
-          
-          // Process combos to remove blob URLs but preserve HTTP URLs
+
+          // Process combos to remove blob URLs but preserve HTTP URLs, and set imageIndex
           const processedCombos = [];
           if (formData.combos) {
             console.log('=== COMBO DATA PROCESSING ===');
-            for (const combo of formData.combos) {
+            for (let ci = 0; ci < formData.combos.length; ci++) {
+              const combo = formData.combos[ci];
               console.log('Processing combo data:', combo.name, 'Image:', combo.image, 'ImageUrl:', combo.imageUrl);
               const processedCategories = [];
               if (combo.comboCategories) {
-                for (const category of combo.comboCategories) {
+                for (let catIdx = 0; catIdx < combo.comboCategories.length; catIdx++) {
+                  const category = combo.comboCategories[catIdx];
                   const processedItems = [];
                   if (category.items) {
-                    for (const item of category.items) {
-                      const processedItem = {
+                    for (let itemIdx = 0; itemIdx < category.items.length; itemIdx++) {
+                      const item = category.items[itemIdx];
+                      const processedItem: any = {
                         ...item,
                         image: item.image && item.image.startsWith('http') ? item.image : undefined,
                         price: item.price || 0,
@@ -268,6 +283,11 @@ export function useApprovalHandler() {
                         isPremium: item.isPremium || false,
                         additionalCharge: item.isPremium ? (item.additionalCharge || 0) : undefined
                       };
+                      // Set imageIndex for combo category items with new blob images
+                      const itemKey = `${ci}-${catIdx}-${itemIdx}`;
+                      if (comboItemImageIndexMap.has(itemKey)) {
+                        processedItem.imageIndex = comboItemImageIndexMap.get(itemKey);
+                      }
                       processedItems.push(processedItem);
                     }
                   }
@@ -277,13 +297,18 @@ export function useApprovalHandler() {
                   });
                 }
               }
-              
-              const processedCombo = {
+
+              const processedCombo: any = {
                 ...combo,
+                pricePerPerson: Number(combo.pricePerPerson) || 0,
                 imageUrl: (combo.image && combo.image.startsWith('http')) || (combo.imageUrl && combo.imageUrl.startsWith('http')) ? (combo.image || combo.imageUrl) : undefined,
                 comboCategories: processedCategories
               };
-              console.log('Processed combo:', processedCombo.name, 'ImageUrl:', processedCombo.imageUrl);
+              // Set imageIndex for combos with new blob images
+              if (comboImageIndexMap.has(ci)) {
+                processedCombo.imageIndex = comboImageIndexMap.get(ci);
+              }
+              console.log('Processed combo:', processedCombo.name, 'ImageUrl:', processedCombo.imageUrl, 'ImageIndex:', processedCombo.imageIndex);
               processedCombos.push(processedCombo);
             }
             console.log('=== END COMBO DATA PROCESSING ===');

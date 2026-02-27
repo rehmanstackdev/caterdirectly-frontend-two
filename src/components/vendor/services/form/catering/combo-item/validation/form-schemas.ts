@@ -29,7 +29,7 @@ export const comboItemSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Combo name is required"),
   description: z.string().optional(),
-  price: z.number().min(0.01, "Price must be greater than 0"),
+  price: z.coerce.number().min(0.01, "Price must be greater than 0"),
   category: z.string().min(1, "Category is required"),
   image: z.string().optional(),
   isCombo: z.literal(true),

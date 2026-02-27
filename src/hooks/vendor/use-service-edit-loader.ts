@@ -230,7 +230,14 @@ export function useServiceEditLoader(
                       const combos = serviceToEdit.catering.combos || [];
                       return combos.map(combo => ({
                         ...combo,
-                        image: combo.imageUrl || combo.image
+                        image: combo.imageUrl || combo.image,
+                        comboCategories: (combo.comboCategories || []).map((cat: any) => ({
+                          ...cat,
+                          items: (cat.items || []).map((item: any) => ({
+                            ...item,
+                            image: item.imageUrl || item.image
+                          }))
+                        }))
                       }));
                     })()
                   };
@@ -345,10 +352,17 @@ export function useServiceEditLoader(
                 const transformedCombos = combos.map(combo => {
                   console.log('Processing combo:', combo);
                   console.log('Combo categories:', combo.comboCategories);
-                  
+
                   return {
                     ...combo,
-                    image: combo.imageUrl || combo.image // Map imageUrl to image for form compatibility
+                    image: combo.imageUrl || combo.image, // Map imageUrl to image for form compatibility
+                    comboCategories: (combo.comboCategories || []).map((cat: any) => ({
+                      ...cat,
+                      items: (cat.items || []).map((item: any) => ({
+                        ...item,
+                        image: item.imageUrl || item.image // Map imageUrl to image for combo category items
+                      }))
+                    }))
                   };
                 });
                 
