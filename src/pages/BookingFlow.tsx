@@ -261,12 +261,6 @@ function BookingFlow() {
     initDoneRef.current = true;
   }, [mode, userRole, setInvoiceMode, isInvoiceMode, loadDraftData]);
   const getProcessedService = useCallback((rawService: any) => {
-    if (import.meta.env.DEV) {
-      console.log(
-        "[BookingFlow] 🔄 Processing service:",
-        rawService.id || rawService.serviceId,
-      );
-    }
     return processService(rawService);
   }, []);
 
@@ -291,7 +285,6 @@ function BookingFlow() {
   );
 
   const handleLoadDraft = (draft: any) => {
-    console.log("Loading draft:", draft);
     if (
       window.confirm(
         `Load draft "${draft.name}"? This will replace your current selections.`,
@@ -306,11 +299,6 @@ function BookingFlow() {
       if (payload && "serviceId" in payload && "selections" in payload) {
         const { serviceId, selections } = payload;
 
-        console.log("[BookingFlow] ✅ Combo selected:", {
-          serviceId,
-          comboName: selections.comboName,
-          totalPrice: selections.totalPrice,
-        });
         setSelectedServices((prevServices) =>
           prevServices.map((service) => {
             const svcId = service.id || service.serviceId;
@@ -498,13 +486,7 @@ function BookingFlow() {
             "eventLocationData",
             JSON.stringify(locationData),
           );
-        } catch (error) {
-          console.log("[BookingFlow] Failed to persist location data:", error);
-        }
-        console.log(
-          "[BookingFlow] Location selected with coordinates:",
-          locationData,
-        );
+        } catch (error) {}
       }
     },
     [],
@@ -1041,6 +1023,16 @@ function BookingFlow() {
                                   const serviceItems: any[] = [];
                                   Object.entries(selectedItems).forEach(
                                     ([itemId, quantity]) => {
+                                      // Skip form/meta keys that are not real service item identifiers.
+                                      if (
+                                        itemId === "headcount" ||
+                                        itemId === "guestCount" ||
+                                        itemId === "quantity" ||
+                                        itemId.startsWith("meta_")
+                                      ) {
+                                        return;
+                                      }
+
                                       const validQuantity =
                                         quantity && typeof quantity === "number"
                                           ? quantity
@@ -1173,6 +1165,16 @@ function BookingFlow() {
                                             serviceType === "party-rental" ||
                                             serviceType === "party-rentals"
                                           ) {
+                                            // Only allow UUID-like IDs in fallback mode to avoid
+                                            // sending non-item keys (e.g. "headcount") as rental UUIDs.
+                                            const isUuidLikeFallbackId =
+                                              /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                                                itemId,
+                                              );
+                                            if (!isUuidLikeFallbackId) {
+                                              return;
+                                            }
+
                                             serviceItems.push({
                                               name: itemId,
                                               quantity: validQuantity,

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import ServiceItemsList from "../ServiceItemsList";
@@ -11,6 +10,8 @@ interface ItemsSectionProps {
   selectedItems: Record<string, number>;
   onItemQuantityChange: (itemId: string, quantity: number) => void;
   onComboSelection?: (comboSelections: any) => void;
+  serviceMinimumGuests?: number | string;
+  serviceMaximumGuests?: number | string;
 }
 
 const ItemsSection = React.memo(({
@@ -19,43 +20,44 @@ const ItemsSection = React.memo(({
   bookableItems,
   selectedItems,
   onItemQuantityChange,
-  onComboSelection
+  onComboSelection,
+  serviceMinimumGuests,
+  serviceMaximumGuests,
 }: ItemsSectionProps) => {
   const getSectionTitle = (serviceType: string) => {
     switch (serviceType) {
-      case 'catering':
-        return 'Menu Items';
-      case 'party-rental':
-      case 'party-rentals':
-        return 'Rental Items';
-      case 'staff':
-        return 'Staff Services';
-      case 'venue':
-      case 'venues':
-        return 'Venue Options';
+      case "catering":
+        return "Menu Items";
+      case "party-rental":
+      case "party-rentals":
+        return "Rental Items";
+      case "staff":
+        return "Staff Services";
+      case "venue":
+      case "venues":
+        return "Venue Options";
       default:
-        return 'Items';
+        return "Items";
     }
   };
 
-  // Separate regular items and combo items
-  // Only consider items as combos if they have comboCategories with actual items
-  const regularItems = bookableItems.filter(item =>
-    !item.comboCategories ||
-    !Array.isArray(item.comboCategories) ||
-    item.comboCategories.length === 0
+  const regularItems = bookableItems.filter(
+    (item) =>
+      !item.comboCategories ||
+      !Array.isArray(item.comboCategories) ||
+      item.comboCategories.length === 0,
   );
-  const comboItems = bookableItems.filter(item =>
-    item.comboCategories &&
-    Array.isArray(item.comboCategories) &&
-    item.comboCategories.length > 0
+  const comboItems = bookableItems.filter(
+    (item) =>
+      item.comboCategories &&
+      Array.isArray(item.comboCategories) &&
+      item.comboCategories.length > 0,
   );
 
   return (
     <Collapsible open={isExpanded}>
       <CollapsibleContent className="mt-4">
         <div className="border-t pt-4 space-y-6">
-          {/* Regular Menu Items */}
           {regularItems.length > 0 && (
             <div>
               <h4 className="font-medium text-sm mb-3 text-gray-700">
@@ -71,7 +73,6 @@ const ItemsSection = React.memo(({
             </div>
           )}
 
-          {/* Combo Items */}
           {comboItems.length > 0 && (
             <div>
               <h4 className="font-medium text-sm mb-3 text-gray-700">
@@ -82,6 +83,8 @@ const ItemsSection = React.memo(({
                 selectedItems={selectedItems}
                 onItemQuantityChange={onItemQuantityChange}
                 onComboSelection={onComboSelection}
+                serviceMinimumGuests={serviceMinimumGuests}
+                serviceMaximumGuests={serviceMaximumGuests}
               />
             </div>
           )}
@@ -91,6 +94,7 @@ const ItemsSection = React.memo(({
   );
 });
 
-ItemsSection.displayName = 'ItemsSection';
+ItemsSection.displayName = "ItemsSection";
 
 export default ItemsSection;
+

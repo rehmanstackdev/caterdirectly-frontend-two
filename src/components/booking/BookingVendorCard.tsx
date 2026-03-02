@@ -39,8 +39,8 @@ interface BookingVendorCardProps {
     range: { range: string; fee: number },
   ) => void;
   guestCount?: number;
-  calculatedDistance?: number; // Distance in miles for auto-selection
-  preselectedDeliveryFee?: { range: string; fee: number }; // Pre-selected delivery fee
+  calculatedDistance?: number;
+  preselectedDeliveryFee?: { range: string; fee: number };
 }
 
 const BookingVendorCard = React.memo(
@@ -77,6 +77,38 @@ const BookingVendorCard = React.memo(
       serviceDetails?.serviceType || serviceDetails?.type || "service";
     const hasBookableItems = bookableItems.length > 0;
 
+    const parsePositiveNumber = (value: unknown): number | null => {
+      if (typeof value === "number" && Number.isFinite(value) && value > 0)
+        return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      }
+      return null;
+    };
+
+    const serviceMinimumGuests =
+      parsePositiveNumber((serviceDetails as any)?.minimumGuests) ??
+      parsePositiveNumber(
+        (serviceDetails as any)?.service_details?.minimumGuests,
+      ) ??
+      parsePositiveNumber(
+        (serviceDetails as any)?.service_details?.catering?.minimumGuests,
+      ) ??
+      parsePositiveNumber((serviceDetails as any)?.catering?.minimumGuests) ??
+      null;
+
+    const serviceMaximumGuests =
+      parsePositiveNumber((serviceDetails as any)?.maximumGuests) ??
+      parsePositiveNumber(
+        (serviceDetails as any)?.service_details?.maximumGuests,
+      ) ??
+      parsePositiveNumber(
+        (serviceDetails as any)?.service_details?.catering?.maximumGuests,
+      ) ??
+      parsePositiveNumber((serviceDetails as any)?.catering?.maximumGuests) ??
+      null;
+
     const serviceTotal = unifiedCalculateServiceTotal(
       serviceDetails,
       selectedItems,
@@ -89,7 +121,6 @@ const BookingVendorCard = React.memo(
       ? getSelectedItemsCountForService(serviceDetails, selectedItems)
       : 0;
 
-    // Wrap combo callback to inject serviceId
     const serviceId = serviceDetails?.serviceId || serviceDetails?.id;
     const wrappedComboSelection = (selections: any) => {
       onComboSelection({ serviceId, selections });
@@ -111,7 +142,6 @@ const BookingVendorCard = React.memo(
 
     const isRemovable: boolean = Boolean(canRemove);
 
-    // Parse delivery ranges from service details
     const deliveryRanges = React.useMemo(() => {
       try {
         const ranges =
@@ -232,6 +262,8 @@ const BookingVendorCard = React.memo(
                     selectedItems={selectedItems}
                     onItemQuantityChange={onItemQuantityChange}
                     onComboSelection={wrappedComboSelection}
+                    serviceMinimumGuests={serviceMinimumGuests}
+                    serviceMaximumGuests={serviceMaximumGuests}
                   />
                 </div>
               )}

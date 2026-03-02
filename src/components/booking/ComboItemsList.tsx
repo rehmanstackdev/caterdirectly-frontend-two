@@ -24,6 +24,8 @@ interface ComboItemsListProps {
   selectedItems: Record<string, number>;
   onItemQuantityChange: (itemId: string, quantity: number) => void;
   onComboSelection?: (comboSelections: any) => void;
+  serviceMinimumGuests?: number | string;
+  serviceMaximumGuests?: number | string;
 }
 
 interface ComboCategoryItem {
@@ -54,21 +56,29 @@ interface ComboPackage {
   price?: number;
   imageUrl?: string;
   comboCategories?: ComboCategory[];
+  minimumGuests?: number | string;
+  minGuests?: number | string;
+  minGuestCount?: number | string;
+  minimumGuest?: number | string;
+  guestNumber?: number | string;
+  guestCount?: number | string;
+  maximumGuests?: number | string;
+  maxGuests?: number | string;
+  maxGuestCount?: number | string;
+  maximumGuest?: number | string;
   serves?: number | string;
   servingSize?: number | string;
   servesCount?: number | string;
   peopleServed?: number | string;
 }
 
-const PEOPLE_OPTIONS = [1, 2, 3, 4, ...Array.from({ length: 20 }, (_, i) => (i + 1) * 5)];
-
-const isPredefinedOption = (value: number) => PEOPLE_OPTIONS.includes(value);
-
 const ComboItemsList = ({
   items,
   selectedItems,
   onItemQuantityChange,
   onComboSelection,
+  serviceMinimumGuests,
+  serviceMaximumGuests,
 }: ComboItemsListProps) => {
   const [activeComboId, setActiveComboId] = useState<string | null>(null);
   const [peopleByCombo, setPeopleByCombo] = useState<Record<string, number>>(
@@ -76,8 +86,6 @@ const ComboItemsList = ({
   );
   const [isDialogScrolled, setIsDialogScrolled] = useState(false);
   const [isDialogAtBottom, setIsDialogAtBottom] = useState(false);
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customValue, setCustomValue] = useState('');
   const [draftSelections, setDraftSelections] = useState<
     Record<string, number>
   >({});
@@ -131,16 +139,82 @@ const ComboItemsList = ({
     );
   };
 
+  const getComboMinimumGuests = (combo: ComboPackage): number | null => {
+    return (
+      parseServesNumber(combo.minimumGuests) ||
+      parseServesNumber(combo.minGuests) ||
+      parseServesNumber(combo.minGuestCount) ||
+      parseServesNumber(combo.minimumGuest) ||
+      parseServesNumber(combo.guestNumber) ||
+      parseServesNumber(combo.guestCount) ||
+      null
+    );
+  };
+
+  const getComboMaximumGuests = (combo: ComboPackage): number | null => {
+    return (
+      parseServesNumber(combo.maximumGuests) ||
+      parseServesNumber(combo.maxGuests) ||
+      parseServesNumber(combo.maxGuestCount) ||
+      parseServesNumber(combo.maximumGuest) ||
+      null
+    );
+  };
+
+  const getEffectiveMinimumGuests = (combo: ComboPackage): number | null => {
+    return (
+      getComboMinimumGuests(combo) ||
+      parseServesNumber(serviceMinimumGuests) ||
+      null
+    );
+  };
+
+  const getEffectiveMaximumGuests = (combo: ComboPackage): number | null => {
+    return (
+      getComboMaximumGuests(combo) ||
+      parseServesNumber(serviceMaximumGuests) ||
+      null
+    );
+  };
+
+  const clampGuestCount = (
+    value: number,
+    minGuests: number | null,
+    maxGuests: number | null,
+  ): number => {
+    let result = Math.max(1, Math.round(value));
+    if (minGuests && result < minGuests) result = minGuests;
+    if (maxGuests && result > maxGuests) result = maxGuests;
+    return result;
+  };
+
   const getDefaultPeople = (combo: ComboPackage): number => {
+    const minimumGuests = getEffectiveMinimumGuests(combo);
+    const maximumGuests = getEffectiveMaximumGuests(combo);
     const serves = getComboServes(combo);
-    if (serves && serves > 0) {
-      return Math.max(1, Math.min(100, serves));
+    const preferredValue = minimumGuests || serves || 1;
+    return clampGuestCount(preferredValue, minimumGuests, maximumGuests);
+  };
+
+  const getPeopleOptionsForCombo = (combo: ComboPackage): number[] => {
+    const minimumGuests = getEffectiveMinimumGuests(combo) || 1;
+    const maximumGuests = getEffectiveMaximumGuests(combo);
+
+    if (!maximumGuests || maximumGuests < minimumGuests) {
+      return [minimumGuests];
     }
-    return 1;
+
+    return Array.from(
+      { length: maximumGuests - minimumGuests + 1 },
+      (_, index) => minimumGuests + index,
+    );
   };
 
   const getPeopleForCombo = (combo: ComboPackage): number => {
-    return peopleByCombo[combo.id] || getDefaultPeople(combo);
+    const minimumGuests = getEffectiveMinimumGuests(combo);
+    const maximumGuests = getEffectiveMaximumGuests(combo);
+    const selectedPeople = peopleByCombo[combo.id] || getDefaultPeople(combo);
+    return clampGuestCount(selectedPeople, minimumGuests, maximumGuests);
   };
 
   const handlePeopleChange = (comboId: string, people: number) => {
@@ -179,12 +253,16 @@ const ComboItemsList = ({
     setDraftSelections(nextDraft);
   }, [activeCombo, selectedItems]);
 
-  const getSelectedItemUpcharge = (item: ComboCategoryItem): number => {
-    return (
-      parseMoney(item.additionalCharge) ||
-      parseMoney(item.additionalPrice) ||
-      parseMoney(item.price)
-    );
+  const getSelectedItemAmount = (item: ComboCategoryItem): number => {
+    const premiumCharge =
+      parseMoney(item.additionalCharge) || parseMoney(item.additionalPrice);
+
+    // Premium items contribute only their extra charge.
+    if (premiumCharge > 0) {
+      return premiumCharge;
+    }
+
+    return 0;
   };
 
   const getSelectedExtraPerPerson = (
@@ -201,7 +279,7 @@ const ComboItemsList = ({
           const key = getItemSelectionKey(combo.id, category.id, item);
           const isSelected = (sourceSelections[key] || 0) > 0;
           if (!isSelected) return subTotal;
-          return subTotal + getSelectedItemUpcharge(item);
+          return subTotal + getSelectedItemAmount(item);
         }, 0)
       );
     }, 0);
@@ -215,7 +293,17 @@ const ComboItemsList = ({
     activeComboBasePrice + activeComboExtraPrice;
 
   const activeComboServes = activeCombo ? getComboServes(activeCombo) : null;
-  const activeComboPeople = activeCombo ? getPeopleForCombo(activeCombo) : 5;
+  const activeComboPeopleOptions = activeCombo
+    ? getPeopleOptionsForCombo(activeCombo)
+    : [1];
+  const activeComboPeople = activeCombo
+    ? (() => {
+        const selectedPeople = getPeopleForCombo(activeCombo);
+        return activeComboPeopleOptions.includes(selectedPeople)
+          ? selectedPeople
+          : activeComboPeopleOptions[0] || selectedPeople;
+      })()
+    : 5;
   const activeComboGrandTotal = activeComboPerPersonTotal * activeComboPeople;
 
   const commitDraftSelections = () => {
@@ -234,7 +322,10 @@ const ComboItemsList = ({
     // These survive navigation/state transitions even if comboSelectionsList is lost
     const comboBasePrice = getComboBasePrice(activeCombo);
     onItemQuantityChange(`meta_${activeCombo.id}_headcount`, activeComboPeople);
-    onItemQuantityChange(`meta_${activeCombo.id}_basePrice`, Math.round(comboBasePrice * 100));
+    onItemQuantityChange(
+      `meta_${activeCombo.id}_basePrice`,
+      Math.round(comboBasePrice * 100),
+    );
 
     // Send full combo selection with headcount via onComboSelection
     if (onComboSelection) {
@@ -243,13 +334,17 @@ const ComboItemsList = ({
           const categoryItems = category.items || [];
           const selectedCategoryItems = categoryItems
             .filter((item) => {
-              const key = getItemSelectionKey(activeCombo.id, category.id, item);
+              const key = getItemSelectionKey(
+                activeCombo.id,
+                category.id,
+                item,
+              );
               return (draftSelections[key] || 0) > 0;
             })
             .map((item) => ({
               itemId: item.id,
               itemName: item.name,
-              additionalPrice: getSelectedItemUpcharge(item),
+              additionalPrice: getSelectedItemAmount(item),
               quantity: 1,
               price: parseMoney(item.price),
             }));
@@ -291,11 +386,13 @@ const ComboItemsList = ({
         <div className="space-y-2.5">
           {combo.comboCategories.map((category) => {
             const categoryItems = category.items || [];
+
             const maxSelections =
               typeof category.maxSelections === "number" &&
               category.maxSelections > 0
                 ? category.maxSelections
                 : Math.max(1, categoryItems.length);
+            const isSingleSelectCategory = maxSelections === 1;
 
             const selectedCount = categoryItems.reduce((count, item) => {
               const key = getItemSelectionKey(combo.id, category.id, item);
@@ -328,14 +425,16 @@ const ComboItemsList = ({
                     const checked = (draftSelections[itemId] || 0) > 0;
                     const disableUnchecked =
                       !checked && selectedCount >= maxSelections;
-                    const totalPrice = getSelectedItemUpcharge(item);
+                    const totalPrice = getSelectedItemAmount(item);
                     const itemBasePrice = parseMoney(item.price);
-                    const premiumCharge = parseMoney(item.additionalCharge) || parseMoney(item.additionalPrice);
+                    const premiumCharge =
+                      parseMoney(item.additionalCharge) ||
+                      parseMoney(item.additionalPrice);
 
                     return (
                       <div
                         key={item.id}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors ${checked ? "border-orange-300 bg-orange-50 " : "border-gray-200 bg-gray-50"}`}
+                        className={`flex flex-row-reverse items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors ${checked ? "border-orange-300 bg-orange-50 " : "border-gray-200 bg-gray-50"}`}
                       >
                         <div className="flex items-start sm:items-center gap-2 flex-1 min-w-0">
                           {(item.image || item.imageUrl) && (
@@ -364,34 +463,73 @@ const ComboItemsList = ({
                               )}
                             </div>
 
-                            {item.isPremium && itemBasePrice > 0 && premiumCharge > 0 ? (
+                            {item.isPremium &&
+                            itemBasePrice > 0 &&
+                            premiumCharge > 0 ? (
                               <div className="text-sm font-semibold">
-                                <span className="text-green-700">{formatCurrency(itemBasePrice)}</span>
+                                <span className="text-green-700">
+                                  {formatCurrency(itemBasePrice)}
+                                </span>
                                 <span className="text-gray-500"> + </span>
-                                <span className="text-purple-600">({formatCurrency(premiumCharge)})</span>
+                                <span className="text-purple-600">
+                                  ({formatCurrency(premiumCharge)})
+                                </span>
+                              </div>
+                            ) : item.isPremium && premiumCharge > 0 ? (
+                              <div className="text-sm font-semibold text-purple-600">
+                                ({formatCurrency(premiumCharge)})
                               </div>
                             ) : totalPrice > 0 ? (
                               <div className="text-sm text-green-700 font-semibold">
                                 {formatCurrency(totalPrice)}
                               </div>
                             ) : (
-                              <div className="text-sm text-gray-500 font-medium">
-                                Included
+                              <div className="text-sm text-green-700 font-medium">
+                                {itemBasePrice > 0
+                                  ? `${formatCurrency(itemBasePrice)} `
+                                  : " "}
                               </div>
                             )}
                           </div>
                         </div>
-                        <Checkbox
-                          className="border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 data-[state=checked]:text-white"
-                          checked={checked}
-                          disabled={disableUnchecked}
-                          onCheckedChange={(nextChecked) =>
-                            setDraftSelections((prev) => ({
-                              ...prev,
-                              [itemId]: nextChecked === true ? 1 : 0,
-                            }))
-                          }
-                        />
+                        <div className="flex-shrink-0">
+                          {isSingleSelectCategory ? (
+                            <input
+                              type="radio"
+                              name={`combo-${combo.id}-${category.id}`}
+                              checked={checked}
+                              onChange={(e) =>
+                                setDraftSelections((prev) => {
+                                  const next = { ...prev };
+                                  categoryItems.forEach((catItem) => {
+                                    const catKey = getItemSelectionKey(
+                                      combo.id,
+                                      category.id,
+                                      catItem,
+                                    );
+                                    next[catKey] = 0;
+                                  });
+                                  next[itemId] = e.target.checked ? 1 : 0;
+                                  return next;
+                                })
+                              }
+                              className="h-4 w-4 accent-orange-500 cursor-pointer"
+                              style={{ accentColor: "#f97316" }}
+                            />
+                          ) : (
+                            <Checkbox
+                              className="border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 data-[state=checked]:text-white"
+                              checked={checked}
+                              disabled={disableUnchecked}
+                              onCheckedChange={(nextChecked) =>
+                                setDraftSelections((prev) => ({
+                                  ...prev,
+                                  [itemId]: nextChecked === true ? 1 : 0,
+                                }))
+                              }
+                            />
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -497,8 +635,6 @@ const ComboItemsList = ({
             setIsDialogScrolled(false);
             setIsDialogAtBottom(false);
             setDraftSelections({});
-            setShowCustomInput(false);
-            setCustomValue('');
           }
         }}
       >
@@ -533,88 +669,33 @@ const ComboItemsList = ({
                 <label className="mb-1 block text-sm font-bold text-gray-700">
                   Select quantity:
                 </label>
-                {!showCustomInput ? (
-                  <Select
-                    value={isPredefinedOption(activeComboPeople) ? String(activeComboPeople) : 'custom-display'}
-                    onValueChange={(value) => {
-                      if (value === 'custom') {
-                        setShowCustomInput(true);
-                        setCustomValue(String(activeComboPeople));
-                      } else if (value !== 'custom-display') {
-                        handlePeopleChange(activeCombo.id, Number(value));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-orange-500" />
-                        <SelectValue>
-                          {activeComboPeople} {activeComboPeople === 1 ? 'person' : 'people'}
-                        </SelectValue>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 mt-1">
-                      {!isPredefinedOption(activeComboPeople) && (
-                        <SelectItem value="custom-display" className="focus:bg-orange-50 focus:text-orange-700">
-                          {activeComboPeople} {activeComboPeople === 1 ? 'person' : 'people'} (Custom)
-                        </SelectItem>
-                      )}
-                      {PEOPLE_OPTIONS.map((count) => (
-                        <SelectItem
-                          key={count}
-                          value={String(count)}
-                          className="focus:bg-orange-50 focus:text-orange-700"
-                        >
-                          {count} {count === 1 ? 'person' : 'people'}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="custom" className="focus:bg-orange-50 focus:text-orange-700 font-semibold">
-                        Custom amount...
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-500" />
-                      <input
-                        type="number"
-                        min="1"
-                        value={customValue}
-                        onChange={(e) => setCustomValue(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && customValue && Number(customValue) >= 1) {
-                            handlePeopleChange(activeCombo.id, Number(customValue));
-                            setShowCustomInput(false);
-                          }
-                        }}
-                        className="h-12 w-full pl-10 pr-3 border border-orange-200 rounded-md text-sm text-gray-800 focus:ring-2 focus:ring-orange-400 focus:ring-offset-0 focus:outline-none"
-                        placeholder="Enter quantity"
-                        autoFocus
-                      />
+                <Select
+                  value={String(activeComboPeople)}
+                  onValueChange={(value) => {
+                    handlePeopleChange(activeCombo.id, Number(value));
+                  }}
+                >
+                  <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-orange-500" />
+                      <SelectValue>
+                        {activeComboPeople}{" "}
+                        {activeComboPeople === 1 ? "person" : "people"}
+                      </SelectValue>
                     </div>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        if (customValue && Number(customValue) >= 1) {
-                          handlePeopleChange(activeCombo.id, Number(customValue));
-                          setShowCustomInput(false);
-                        }
-                      }}
-                      className="h-12 px-4 bg-orange-500 hover:bg-orange-600 text-white"
-                    >
-                      OK
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowCustomInput(false)}
-                      className="h-12 px-4 border-orange-200"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60 mt-1">
+                    {activeComboPeopleOptions.map((count) => (
+                      <SelectItem
+                        key={count}
+                        value={String(count)}
+                        className="focus:bg-orange-50 focus:text-orange-700"
+                      >
+                        {count} {count === 1 ? "person" : "people"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div

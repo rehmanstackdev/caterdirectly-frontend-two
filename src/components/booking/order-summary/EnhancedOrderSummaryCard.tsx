@@ -269,19 +269,18 @@ const EnhancedOrderSummaryCard = React.memo(
             if (Array.isArray(comboSelectionsList)) {
               comboSelectionsList.forEach((cs: any) => {
                 if (cs.comboItemId) {
-                  comboHeadcounts[String(cs.comboItemId)] = cs.headcount || guestCount;
+                  comboHeadcounts[String(cs.comboItemId)] =
+                    cs.headcount || guestCount;
                   comboBasePrices[String(cs.comboItemId)] = cs.basePrice || 0;
                 }
               });
             }
 
-            // Fallback: read combo metadata from selectedItems and combo definitions
             const allCombos = service.service_details?.catering?.combos || [];
             allCombos.forEach((combo: any) => {
-              const cid = String(combo?.id || combo?.itemId || '');
+              const cid = String(combo?.id || combo?.itemId || "");
               if (!cid) return;
 
-              // Fallback 1: meta keys from selectedItems (survive navigation)
               if (!comboHeadcounts[cid]) {
                 const metaHeadcount = selectedItems[`meta_${cid}_headcount`];
                 if (metaHeadcount && metaHeadcount > 0) {
@@ -295,9 +294,11 @@ const EnhancedOrderSummaryCard = React.memo(
                 }
               }
 
-              // Fallback 2: derive basePrice from combo definition in service_details
               if (!comboBasePrices[cid]) {
-                const defPrice = parseFloat(String(combo?.pricePerPerson || combo?.price || 0)) || 0;
+                const defPrice =
+                  parseFloat(
+                    String(combo?.pricePerPerson || combo?.price || 0),
+                  ) || 0;
                 if (defPrice > 0) {
                   comboBasePrices[cid] = defPrice;
                 }
@@ -342,7 +343,10 @@ const EnhancedOrderSummaryCard = React.memo(
               if (seen.has(comboId)) return;
               const combo = comboById.get(comboId);
               const items = itemsByComboId[comboId] || [];
-              const comboDefPrice = parseFloat(String(combo?.pricePerPerson || combo?.price || 0)) || 0;
+              const comboDefPrice =
+                parseFloat(
+                  String(combo?.pricePerPerson || combo?.price || 0),
+                ) || 0;
 
               cards.push({
                 comboId,
@@ -372,19 +376,27 @@ const EnhancedOrderSummaryCard = React.memo(
 
             return cards;
           })();
-          // Calculate combo total from comboSelectionsList
+
           const serviceComboTotal = (() => {
             const csl = (service as any).comboSelectionsList;
             if (!Array.isArray(csl)) return 0;
-            return csl.reduce((sum: number, cs: any) => sum + (cs.totalPrice || 0), 0);
+            return csl.reduce(
+              (sum: number, cs: any) => sum + (cs.totalPrice || 0),
+              0,
+            );
           })();
 
-          // Compute service total directly from UI data (reliable source of truth)
-          const menuItemsTotal = menuItems.reduce((sum, item) => sum + item.additionalCharge * item.quantity, 0);
+          const menuItemsTotal = menuItems.reduce(
+            (sum, item) => sum + item.additionalCharge * item.quantity,
+            0,
+          );
           const comboCardsTotal = comboCards.reduce((sum, combo) => {
             const baseTotal = combo.basePrice * combo.headcount;
-            const simpleTotal = combo.simpleItems.reduce((s, item) => s + item.price * combo.headcount, 0);
-            const premiumTotal = combo.premiumItems.reduce((s, item) => s + (item.price + item.additionalCharge) * combo.headcount, 0);
+            const simpleTotal = 0;
+            const premiumTotal = combo.premiumItems.reduce(
+              (s, item) => s + item.additionalCharge * combo.headcount,
+              0,
+            );
             return sum + baseTotal + simpleTotal + premiumTotal;
           }, 0);
           const computedServiceTotal = menuItemsTotal + comboCardsTotal;
@@ -404,24 +416,31 @@ const EnhancedOrderSummaryCard = React.memo(
       return calculations;
     }, [selectedServices, selectedItems, guestCount]);
 
-    // Compute subtotal by replacing catering totals with computedServiceTotal,
-    // while preserving direct totals for non-catering services (e.g. venues).
     const correctedSubtotal = useMemo(() => {
-      const hasCateringComputed = Object.values(cateringCalculations).some(c => c.computedServiceTotal > 0);
+      const hasCateringComputed = Object.values(cateringCalculations).some(
+        (c) => c.computedServiceTotal > 0,
+      );
       if (hasCateringComputed) {
         const cateringTotal = Object.values(cateringCalculations).reduce(
-          (sum, c) => sum + (c.computedServiceTotal || 0), 0
+          (sum, c) => sum + (c.computedServiceTotal || 0),
+          0,
         );
 
         const nonCateringSubtotal = selectedServices.reduce((sum, service) => {
           const serviceType = service.serviceType || service.type || "";
           if (serviceType === "catering") return sum;
 
-          if (typeof service.totalPrice === "number" && service.totalPrice > 0) {
-            return sum + service.totalPrice;
+          const serviceAny = service as any;
+          if (
+            typeof serviceAny.totalPrice === "number" &&
+            serviceAny.totalPrice > 0
+          ) {
+            return sum + serviceAny.totalPrice;
           }
 
-          return sum + calculateServiceTotal(service, selectedItems, guestCount);
+          return (
+            sum + calculateServiceTotal(service, selectedItems, guestCount)
+          );
         }, 0);
 
         return nonCateringSubtotal + cateringTotal;
@@ -514,6 +533,15 @@ const EnhancedOrderSummaryCard = React.memo(
                       ? deliveryFee
                       : undefined;
 
+                  const serviceTotal =
+                    isCatering && cateringCalc
+                      ? cateringCalc.computedServiceTotal ||
+                        cateringCalc.finalTotal + (cateringCalc.comboTotal || 0)
+                      : 0;
+                  const effectiveGuestCount = guestCount > 0 ? guestCount : 1;
+                  const serviceTotalPerPerson =
+                    serviceTotal / effectiveGuestCount;
+
                   return (
                     <div
                       key={
@@ -575,11 +603,17 @@ const EnhancedOrderSummaryCard = React.memo(
                             {cateringCalc.comboCards &&
                               cateringCalc.comboCards.length > 0 &&
                               cateringCalc.comboCards.map((combo) => {
-                                const itemsPerPerson = combo.basePrice +
-                                  combo.simpleItems.reduce((s, item) => s + item.price, 0) +
-                                  combo.premiumItems.reduce((s, item) => s + item.additionalCharge, 0);
+                                const itemsPerPerson =
+                                  combo.basePrice +
+                                  combo.premiumItems.reduce(
+                                    (s, item) => s + item.additionalCharge,
+                                    0,
+                                  );
                                 return (
-                                  <div key={combo.comboId} className="bg-gray-50 rounded-lg p-3 space-y-3 text-sm">
+                                  <div
+                                    key={combo.comboId}
+                                    className="bg-gray-50 rounded-lg p-3 space-y-3 text-sm"
+                                  >
                                     {/* Combo header */}
                                     <div>
                                       <div className="flex justify-between items-center">
@@ -587,23 +621,33 @@ const EnhancedOrderSummaryCard = React.memo(
                                           {combo.comboName}
                                         </span>
                                         <span className="text-lg font-bold text-orange-600">
-                                          {formatCurrency(combo.basePrice * combo.headcount)}
+                                          {formatCurrency(
+                                            combo.basePrice * combo.headcount,
+                                          )}
                                         </span>
                                       </div>
                                       <div className="flex items-center justify-between">
                                         <div className="text-xs text-gray-500">
-                                          {formatCurrency(combo.basePrice)} x {combo.headcount} {combo.headcount === 1 ? 'person' : 'persons'}
+                                          {formatCurrency(combo.basePrice)} x{" "}
+                                          {combo.headcount}{" "}
+                                          {combo.headcount === 1
+                                            ? "person"
+                                            : "persons"}
                                         </div>
                                         {itemsPerPerson > 0 && (
-                                          <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100 whitespace-nowrap">
-                                            {formatCurrency(itemsPerPerson)} / Person
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100 whitespace-nowrap"
+                                          >
+                                            {formatCurrency(itemsPerPerson)} /
+                                            Person
                                           </Badge>
                                         )}
                                       </div>
                                     </div>
 
-                                    {/* Combo items */}
-                                    {(combo.simpleItems.length > 0 || combo.premiumItems.length > 0) && (
+                                    {(combo.simpleItems.length > 0 ||
+                                      combo.premiumItems.length > 0) && (
                                       <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm space-y-3">
                                         {combo.simpleItems.length > 0 && (
                                           <div className="inline-block bg-green-200 rounded-full text-[10px] font-semibold text-gray-500 uppercase px-2">
@@ -612,18 +656,19 @@ const EnhancedOrderSummaryCard = React.memo(
                                         )}
                                         {combo.simpleItems.map((item, idx) => (
                                           <div
-                                            key={combo.comboId + "-simple-" + idx}
+                                            key={
+                                              combo.comboId + "-simple-" + idx
+                                            }
                                             className="space-y-1 py-1 border-b border-gray-100 last:border-0"
                                           >
                                             <div className="flex justify-between items-center">
-                                              <span className="text-gray-800 font-medium">{item.name}</span>
+                                              <span className="text-gray-800 font-medium">
+                                                {item.name}
+                                              </span>
                                             </div>
                                             <div className="flex justify-between items-center text-xs text-gray-500">
                                               <span>
-                                                {formatCurrency(item.price)} x {combo.headcount} {combo.headcount === 1 ? 'person' : 'persons'}
-                                              </span>
-                                              <span className="text-orange-600 font-semibold">
-                                                {formatCurrency(item.price * combo.headcount)}
+                                                {formatCurrency(item.price)}
                                               </span>
                                             </div>
                                           </div>
@@ -635,20 +680,31 @@ const EnhancedOrderSummaryCard = React.memo(
                                           </div>
                                         )}
                                         {combo.premiumItems.map((item, idx) => {
-                                          const backendPrice = item.price || 0;
-                                          const upcharge = item.additionalCharge || 0;
-                                          const itemTotal = (backendPrice + upcharge) * combo.headcount;
+                                          const upcharge =
+                                            item.additionalCharge || 0;
+                                          const itemTotal =
+                                            upcharge * combo.headcount;
                                           return (
                                             <div
-                                              key={combo.comboId + "-premium-" + idx}
+                                              key={
+                                                combo.comboId +
+                                                "-premium-" +
+                                                idx
+                                              }
                                               className="space-y-1 py-1 border-b border-gray-100 last:border-0"
                                             >
                                               <div className="flex justify-between items-center">
-                                                <span className="text-gray-800 font-medium">{item.name}</span>
+                                                <span className="text-gray-800 font-medium">
+                                                  {item.name}
+                                                </span>
                                               </div>
                                               <div className="flex justify-between items-center text-xs text-gray-500">
                                                 <span>
-                                                  {formatCurrency(backendPrice)} + ({formatCurrency(upcharge)}) x {combo.headcount} {combo.headcount === 1 ? 'person' : 'persons'}
+                                                  ({formatCurrency(upcharge)}) x{" "}
+                                                  {combo.headcount}{" "}
+                                                  {combo.headcount === 1
+                                                    ? "person"
+                                                    : "persons"}
                                                 </span>
                                                 <span className="text-orange-600 font-semibold">
                                                   {formatCurrency(itemTotal)}
@@ -667,9 +723,15 @@ const EnhancedOrderSummaryCard = React.memo(
                               <span className="font-semibold text-gray-900">
                                 Service Total
                               </span>
-                              <span className="text-xl font-bold text-orange-600">
-                                {formatCurrency(cateringCalc.computedServiceTotal || (cateringCalc.finalTotal + (cateringCalc.comboTotal || 0)))}
-                              </span>
+                              <div className="flex flex-col items-end leading-tight">
+                                <span className="text-xl font-bold text-orange-600">
+                                  {formatCurrency(serviceTotal)}
+                                </span>
+                                <span className="text-xs font-medium text-gray-500">
+                                  {formatCurrency(serviceTotalPerPerson)} /
+                                  person
+                                </span>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -953,3 +1015,5 @@ const EnhancedOrderSummaryCard = React.memo(
 EnhancedOrderSummaryCard.displayName = "EnhancedOrderSummaryCard";
 
 export default EnhancedOrderSummaryCard;
+
+

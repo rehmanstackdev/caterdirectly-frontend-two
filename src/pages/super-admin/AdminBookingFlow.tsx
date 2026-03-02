@@ -1198,7 +1198,7 @@ function VendorBookingFlow() {
                                         service.price_type ||
                                         "flat",
                                       image: serviceImage,
-                                    };
+                                  };
                                   }
 
                                   let availableItems: any[] = [];
@@ -1246,6 +1246,16 @@ function VendorBookingFlow() {
                                   const serviceItems: any[] = [];
                                   Object.entries(selectedItems).forEach(
                                     ([itemId, quantity]) => {
+                                      // Skip form/meta keys that are not real service item identifiers.
+                                      if (
+                                        itemId === "headcount" ||
+                                        itemId === "guestCount" ||
+                                        itemId === "quantity" ||
+                                        itemId.startsWith("meta_")
+                                      ) {
+                                        return;
+                                      }
+
                                       const validQuantity =
                                         quantity && typeof quantity === "number"
                                           ? quantity
@@ -1391,6 +1401,16 @@ function VendorBookingFlow() {
                                             serviceType === "party-rental" ||
                                             serviceType === "party-rentals"
                                           ) {
+                                            // Only allow UUID-like IDs in fallback mode to avoid
+                                            // sending non-item keys (e.g. "headcount") as rental UUIDs.
+                                            const isUuidLikeFallbackId =
+                                              /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                                                itemId,
+                                              );
+                                            if (!isUuidLikeFallbackId) {
+                                              return;
+                                            }
+
                                             serviceItems.push({
                                               name: itemId,
                                               quantity: validQuantity,
@@ -1864,6 +1884,9 @@ function VendorBookingFlow() {
                                     service.service_details?.serviceImage ||
                                     "";
 
+                                  const guestCountForService =
+                                    parseInt(String(formData?.headcount || "1")) || 1;
+
                                   const mappedService: any = {
                                     serviceType: normalizedServiceType,
                                     serviceName:
@@ -1977,6 +2000,10 @@ function VendorBookingFlow() {
 
                                       mappedService.totalPrice =
                                         cateringCalcResult.finalTotal;
+                                      mappedService.pricePerPerson =
+                                        guestCountForService > 0
+                                          ? mappedService.totalPrice / guestCountForService
+                                          : mappedService.totalPrice;
                                     }
                                   }
 
@@ -2059,10 +2086,12 @@ function VendorBookingFlow() {
                                   };
                                 }
 
+                                console.log("[AdminBookingFlow] createInvoice request payload:", invoiceData);
                                 const response =
                                   await invoiceService.createInvoice(
                                     invoiceData,
                                   );
+                                console.log("[AdminBookingFlow] createInvoice response:", response);
                                 const invoiceId =
                                   response?.data?.invoice?.id ||
                                   response?.data?.id;
@@ -2120,3 +2149,14 @@ function VendorBookingFlow() {
 }
 
 export default VendorBookingFlow;
+
+
+
+
+
+
+
+
+
+
+
