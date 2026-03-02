@@ -2,6 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "@/components/dashboard/Dashboard";
+import OrderTypeHeader from "@/components/group-order/OrderTypeHeader";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import BookingForm from "@/components/booking/BookingForm";
 import { Button } from "@/components/ui/button";
@@ -640,6 +641,16 @@ function VendorBookingFlow() {
                   className="mb-4"
                 />
               </div>
+              <div className="w-full max-w-full overflow-x-hidden">
+                <OrderTypeHeader
+                  isGroupOrder={isGroupOrder}
+                  onOrderTypeChange={handleOrderTypeChange}
+                  isInvoiceMode={isInvoiceMode}
+                />
+              </div>
+
+              <div className="h-px w-full bg-border"></div>
+
               <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
                 <div className="xl:col-span-6">
                   <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
