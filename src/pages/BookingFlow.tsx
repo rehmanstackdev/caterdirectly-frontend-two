@@ -304,12 +304,23 @@ function BookingFlow() {
           prevServices.map((service) => {
             const svcId = service.id || service.serviceId;
             if (svcId === serviceId) {
+              const existingCombos = service.comboSelectionsList || [];
+
+              const existingComboIndex = existingCombos.findIndex(
+                (combo) => combo.comboItemId === selections.comboItemId,
+              );
+
+              let updatedCombos;
+              if (existingComboIndex >= 0) {
+                updatedCombos = [...existingCombos];
+                updatedCombos[existingComboIndex] = selections;
+              } else {
+                updatedCombos = [...existingCombos, selections];
+              }
+
               return {
                 ...service,
-                comboSelectionsList: [
-                  ...(service.comboSelectionsList || []),
-                  selections,
-                ],
+                comboSelectionsList: updatedCombos,
               };
             }
             return service;
@@ -774,8 +785,34 @@ function BookingFlow() {
                                         comboCategoryItems,
                                       );
 
-                                    const serviceTotal =
-                                      cateringCalcResult.finalTotal;
+                                    // Calculate combo totals using headcount from comboSelectionsList
+                                    // (same logic as EnhancedOrderSummaryCard)
+                                    let comboTotal = 0;
+                                    const comboSelections = service.comboSelectionsList || [];
+                                    if (Array.isArray(comboSelections)) {
+                                      comboSelections.forEach((combo: any) => {
+                                        const headcount = combo.headcount || guestCount;
+                                        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+                                        const base = basePrice * headcount;
+                                        let premiumTotal = 0;
+                                        if (combo.selections && Array.isArray(combo.selections)) {
+                                          combo.selections.forEach((cat: any) => {
+                                            if (cat.selectedItems && Array.isArray(cat.selectedItems)) {
+                                              cat.selectedItems.forEach((item: any) => {
+                                                const upcharge = parseFloat(String(item.additionalCharge || item.upcharge || 0)) || 0;
+                                                if (upcharge > 0) premiumTotal += upcharge * headcount;
+                                              });
+                                            }
+                                          });
+                                        }
+                                        comboTotal += base + premiumTotal;
+                                      });
+                                    }
+
+                                    // Use combo total if available, otherwise fall back to catering calc
+                                    const serviceTotal = comboTotal > 0
+                                      ? comboTotal + cateringCalcResult.finalTotal
+                                      : cateringCalcResult.finalTotal;
 
                                     if (serviceTotal < minimumOrderAmount) {
                                       toast.error(
@@ -1056,6 +1093,16 @@ function BookingFlow() {
                                         itemId.includes("_") &&
                                         itemId.split("_").length >= 3
                                       ) {
+                                        // Skip combo category items if comboSelectionsList exists
+                                        // They will be handled by the comboSelectionsList loop below
+                                        if (
+                                          service.comboSelectionsList &&
+                                          Array.isArray(service.comboSelectionsList) &&
+                                          service.comboSelectionsList.length > 0
+                                        ) {
+                                          return;
+                                        }
+
                                         const parts = itemId.split("_");
                                         const comboId = parts[0];
                                         const categoryId = parts[1];
@@ -1112,6 +1159,18 @@ function BookingFlow() {
                                               0,
                                           ),
                                         );
+                                        const isUuidLikeId =
+                                          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                                            actualItemId,
+                                          );
+
+                                        if (
+                                          !categoryItem &&
+                                          isUuidLikeId &&
+                                          itemPrice <= 0
+                                        ) {
+                                          return;
+                                        }
 
                                         const itemImage =
                                           categoryItem?.image ||
@@ -1240,6 +1299,25 @@ function BookingFlow() {
                                         }
 
                                         if (serviceType === "catering") {
+                                          const resolvedItemName =
+                                            item.name ||
+                                            item.menuItemName ||
+                                            item.itemName ||
+                                            item.title ||
+                                            "";
+                                          const isUuidLikeId =
+                                            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                                              itemId,
+                                            );
+
+                                          if (
+                                            !resolvedItemName &&
+                                            isUuidLikeId &&
+                                            itemPrice <= 0
+                                          ) {
+                                            return;
+                                          }
+
                                           const itemImage =
                                             item.image ||
                                             item.imageUrl ||
@@ -1259,10 +1337,7 @@ function BookingFlow() {
                                               service.name ||
                                               "Menu",
                                             menuItemName:
-                                              item.name ||
-                                              item.menuItemName ||
-                                              item.itemName ||
-                                              itemId,
+                                              resolvedItemName || itemId,
                                             price: itemPrice,
                                             quantity: validQuantity,
                                             totalPrice:
@@ -1367,18 +1442,37 @@ function BookingFlow() {
                                             );
                                           }
 
+                                          const directQuantity =
+                                            selectedItems[finalComboItemId];
+                                          const prefixedQuantity =
+                                            selectedItems[
+                                              `${serviceId}_${finalComboItemId}`
+                                            ];
+                                          const hasSelectedCategoryItems =
+                                            Array.isArray(combo.selections) &&
+                                            combo.selections.some(
+                                              (category: any) =>
+                                                Array.isArray(
+                                                  category.selectedItems,
+                                                ) &&
+                                                category.selectedItems.some(
+                                                  (item: any) =>
+                                                    (item.quantity || 0) > 0,
+                                                ),
+                                            );
+
                                           if (proteinQuantity === 0) {
-                                            const directQuantity =
-                                              selectedItems[finalComboItemId];
-                                            const prefixedQuantity =
-                                              selectedItems[
-                                                `${serviceId}_${finalComboItemId}`
-                                              ];
                                             proteinQuantity =
                                               directQuantity ||
                                               prefixedQuantity ||
-                                              combo.quantity ||
                                               0;
+                                          }
+
+                                          if (
+                                            !hasSelectedCategoryItems &&
+                                            proteinQuantity <= 0
+                                          ) {
+                                            return;
                                           }
 
                                           const effectiveProteinQuantity =
@@ -1434,8 +1528,9 @@ function BookingFlow() {
 
                                           const comboTotal =
                                             baseTotal + totalUpcharges;
+
                                           const comboQuantity =
-                                            effectiveProteinQuantity;
+                                            combo.headcount || effectiveProteinQuantity;
 
                                           const comboImage =
                                             originalComboItem?.image ||
@@ -1447,10 +1542,6 @@ function BookingFlow() {
                                             combo?.image ||
                                             combo?.imageUrl ||
                                             "";
-
-                                          const pricePerCombo =
-                                            comboTotal / comboQuantity;
-
                                           serviceItems.push({
                                             menuName:
                                               combo.comboName ||
@@ -1460,7 +1551,7 @@ function BookingFlow() {
                                               combo.comboName ||
                                               originalComboItem?.name ||
                                               "",
-                                            price: pricePerCombo,
+                                            price: basePrice,
                                             quantity: comboQuantity,
                                             totalPrice: comboTotal,
                                             cateringId:
@@ -1490,6 +1581,7 @@ function BookingFlow() {
                                                         parseFloat(
                                                           String(
                                                             categoryItem.additionalCharge ||
+                                                              categoryItem.additionalPrice ||
                                                               categoryItem.upcharge ||
                                                               0,
                                                           ),
@@ -1512,8 +1604,7 @@ function BookingFlow() {
                                                         "";
 
                                                       const itemQuantity =
-                                                        categoryItem.quantity ||
-                                                        1;
+                                                        comboQuantity || categoryItem.quantity || 1;
                                                       const itemTotalPrice =
                                                         totalPrice *
                                                         itemQuantity;
@@ -1619,6 +1710,9 @@ function BookingFlow() {
                                     service.service_details?.serviceImage ||
                                     "";
 
+                                  const guestCountForService =
+                                    parseInt(String(formData?.headcount || "1")) || 1;
+
                                   const mappedService: any = {
                                     serviceType: normalizedServiceType,
                                     serviceName:
@@ -1637,6 +1731,7 @@ function BookingFlow() {
 
                                   if (normalizedServiceType === "catering") {
                                     mappedService.cateringItems = serviceItems;
+
                                     if (deliveryFee && deliveryFee.fee > 0) {
                                       mappedService.deliveryFee =
                                         deliveryFee.fee;
@@ -1728,8 +1823,41 @@ function BookingFlow() {
                                           comboCategoryItems,
                                         );
 
-                                      mappedService.totalPrice =
-                                        cateringCalcResult.finalTotal;
+                                      const comboTotal = Array.isArray(
+                                        (service as any).comboSelectionsList,
+                                      )
+                                        ? (service as any).comboSelectionsList.reduce(
+                                            (sum: number, combo: any) =>
+                                              sum +
+                                              (Number(combo?.totalPrice) || 0),
+                                            0,
+                                          )
+                                        : 0;
+
+                                      const computedServiceTotal =
+                                        additionalChargeItems
+                                          .filter((item: any) => item.isMenuItem)
+                                          .reduce(
+                                            (sum: number, item: any) =>
+                                              sum +
+                                              (Number(item.additionalCharge) ||
+                                                0) *
+                                                (Number(item.quantity) || 0),
+                                            0,
+                                          ) + comboTotal;
+
+                                      const serviceTotal =
+                                        computedServiceTotal ||
+                                        (cateringCalcResult.finalTotal +
+                                          comboTotal);
+
+                                      mappedService.totalPrice = serviceTotal;
+                                      mappedService.cateringServiceTotal =
+                                        serviceTotal;
+                                      mappedService.pricePerPerson =
+                                        guestCountForService > 0
+                                          ? serviceTotal / guestCountForService
+                                          : serviceTotal;
                                     }
                                   }
 
@@ -1815,24 +1943,35 @@ function BookingFlow() {
                                   await invoiceService.createInvoice(
                                     invoiceData,
                                   );
-                                const invoiceId = response.data.invoice.id;
+                                const invoiceId =
+                                  response?.data?.invoice?.id ||
+                                  response?.data?.id;
                                 clearCart(true);
+                                setServiceDeliveryFees({});
+
                                 try {
                                   localStorage.removeItem(
                                     "serviceDeliveryFees",
                                   );
+                                  localStorage.removeItem("eventLocationData");
                                 } catch (error) {
                                   console.warn(
-                                    "[DeliveryFee] Failed to clear localStorage:",
+                                    "[BookingFlow] Failed to clear localStorage:",
                                     error,
                                   );
                                 }
-                                navigate(`/host/order-summary/${invoiceId}`);
+                                toast.success("Invoice created successfully");
+                                if (invoiceId) {
+                                  navigate(`/host/order-summary/${invoiceId}`);
+                                }
                               } catch (error) {
                                 console.error(
                                   "Invoice creation failed:",
                                   error,
                                 );
+                                toast.error("Failed to create invoice");
+                              } finally {
+                                setIsSubmitting(false);
                               }
                             }}
                             disabled={isSubmitting}

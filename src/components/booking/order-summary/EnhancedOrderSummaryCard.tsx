@@ -746,27 +746,6 @@ const EnhancedOrderSummaryCard = React.memo(
                         />
                       )}
 
-                      {isCatering &&
-                        finalDeliveryFee &&
-                        finalDeliveryFee.fee > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-100">
-                            <div className="flex justify-between items-center text-sm">
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-700 font-medium">
-                                  Delivery Fee
-                                </span>
-                                {finalDeliveryFee.range && (
-                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                    {finalDeliveryFee.range}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-orange-600 font-semibold">
-                                +{formatCurrency(finalDeliveryFee.fee)}
-                              </span>
-                            </div>
-                          </div>
-                        )}
                     </div>
                   );
                 })}

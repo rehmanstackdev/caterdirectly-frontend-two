@@ -132,16 +132,17 @@ function HostOrderSummaryPage() {
             if (service.cateringItems && service.cateringItems.length > 0) {
               serviceItems = service.cateringItems;
               menuItems = service.cateringItems.map((item: any) => {
-                const comboCategoryItems = (invoiceData.services || []).flatMap((s: any) => 
-                  (s.comboCategoryItems || []).filter((comboItem: any) => 
+                const comboCategoryItems = (invoiceData.services || []).flatMap((s: any) =>
+                  (s.comboCategoryItems || []).filter((comboItem: any) =>
                     comboItem.comboId === (item.cateringId || item.id)
                   )
                 );
-                
+
                 return {
                   id: item.cateringId || item.id,
                   name: item.menuItemName || item.name,
                   price: parseFloat(item.price || 0),
+                  quantity: item.quantity || 1,
                   category: item.menuName || 'Menu',
                   menuName: item.menuName,
                   menuItemName: item.menuItemName,
@@ -154,7 +155,7 @@ function HostOrderSummaryPage() {
                   description: item.description || ''
                 };
               });
-              
+
               // Build selectedItems from cateringItems
               service.cateringItems.forEach((item: any) => {
                 const itemId = item.cateringId || item.id;
@@ -163,26 +164,24 @@ function HostOrderSummaryPage() {
                 }
               });
             }
-            
-            // Add combo base items for all combos from comboCategoryItems
+
             if (serviceType === 'catering') {
-              const allComboCategoryItems = (invoiceData.services || []).flatMap((s: any) => s.comboCategoryItems || []);
+              const allComboCategoryItems = service.comboCategoryItems || [];
               const comboGroups = new Map();
-              
+
               allComboCategoryItems.forEach((item: any) => {
                 if (!comboGroups.has(item.comboId)) {
                   comboGroups.set(item.comboId, []);
                 }
                 comboGroups.get(item.comboId).push(item);
               });
-              
+
               comboGroups.forEach((comboCategoryItems, comboId) => {
                 const existingCombo = menuItems.find(item => item.id === comboId);
-                // Find the combo image from the first combo category item or from cateringItems
-                const comboImage = comboCategoryItems[0]?.image || 
-                  service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId)?.image || '';
+                const matchingCateringItem = service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId);
+                const comboImage = comboCategoryItems[0]?.image || matchingCateringItem?.image || '';
                 if (!existingCombo) {
-                  const comboName = comboId === 'd322b22b-c67a-42c2-b757-5deb9949ccaf' ? 'Desserts' : 'Combo';
+                  const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
                   menuItems.push({
                     id: comboId,
                     name: comboName,
@@ -214,7 +213,7 @@ function HostOrderSummaryPage() {
                 }
               });
             }
-            
+
             if (service.partyRentalItems && service.partyRentalItems.length > 0) {
               serviceItems = service.partyRentalItems;
               rentalItems = service.partyRentalItems.map((item: any) => ({
@@ -223,8 +222,7 @@ function HostOrderSummaryPage() {
                 price: parseFloat(item.eachPrice || item.price || 0),
                 priceType: 'fixed'
               }));
-              
-              // Build selectedItems from partyRentalItems
+
               service.partyRentalItems.forEach((item: any) => {
                 const itemId = item.rentalId || item.id;
                 if (itemId) {
@@ -232,7 +230,7 @@ function HostOrderSummaryPage() {
                 }
               });
             }
-            
+
             if (service.staffItems && service.staffItems.length > 0) {
               serviceItems = service.staffItems;
               staffItems = service.staffItems.map((item: any) => ({
@@ -242,19 +240,18 @@ function HostOrderSummaryPage() {
                 pricingType: item.pricingType || 'hourly',
                 perHourPrice: parseFloat(item.perHourPrice || item.price || 0)
               }));
-              
-              // Build selectedItems from staffItems (include duration for staff)
+
               service.staffItems.forEach((item: any) => {
                 const itemId = item.staffId || item.id;
                 if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
+                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1;
                   if (item.hours) {
-                    mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
+                    mappedSelectedItems[`${itemId}_duration`] = item.hours;
                   }
                 }
               });
             }
-            
+
             if (service.venueItems && service.venueItems.length > 0) {
               serviceItems = service.venueItems;
               venueItems = service.venueItems.map((item: any) => ({
@@ -263,11 +260,9 @@ function HostOrderSummaryPage() {
                 price: parseFloat(item.price || 0)
               }));
             }
-            
-            // Build service_details structure based on service type
+
             let serviceDetails: any = {};
             if (serviceType === 'catering') {
-              // Map comboCategoryItems from API to the format expected by calculation
               const mappedComboCategoryItems = (service.comboCategoryItems || []).map((item: any) => ({
                 id: item.id,
                 name: item.menuItemName || item.name,
@@ -281,13 +276,11 @@ function HostOrderSummaryPage() {
                 image: item.image || item.imageUrl || ''
               }));
 
-              // Add image field to menuItems for display
               const menuItemsWithImages = menuItems.map((mi: any) => ({
                 ...mi,
                 image: mi.image || mi.imageUrl || ''
               }));
 
-              // Create combos structure for calculation
               const comboIds = [...new Set(mappedComboCategoryItems.map((item: any) => item.comboId))];
               const combos = comboIds.map((comboId: any) => {
                 const comboItems = mappedComboCategoryItems.filter((item: any) => item.comboId === comboId);
@@ -311,13 +304,15 @@ function HostOrderSummaryPage() {
                   });
                 });
 
+                // Derive combo name from matching cateringItem
+                const matchingCateringItem = service.cateringItems?.find((ci: any) => (ci.cateringId || ci.id) === comboId);
+                const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
+
                 return {
                   id: comboId,
-                  name: 'Combo',
+                  name: comboName,
                   isCombo: true,
-                  // pricePerPerson is 0 because combo category items are displayed separately
-                  // in the "Selected Items" and "Additional Charges" sections
-                  pricePerPerson: 0,
+                  pricePerPerson: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
                   comboCategories: Array.from(categoryMap.values())
                 };
               });
@@ -621,8 +616,14 @@ const calculateTotal = () => {
     return total + deliveryFee;
   }, 0);
 
-  // Include tax in the total calculation
-  return baseTotals.subtotal + baseTotals.serviceFee + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0) + baseTotals.tax;
+  // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
+  const serviceFeeBase = baseTotals.subtotal + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0);
+  const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
+  const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+  const taxRate = baseTotals.taxData?.rate ?? 0;
+  const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
+
+  return serviceFeeBase + recalcServiceFee + recalcTax;
 };
 
 const calculateTotalWithTip = () => {
@@ -688,16 +689,17 @@ const calculateTotalWithTip = () => {
             if (service.cateringItems && service.cateringItems.length > 0) {
               serviceItems = service.cateringItems;
               menuItems = service.cateringItems.map((item: any) => {
-                const comboCategoryItems = (invoiceData.services || []).flatMap((s: any) => 
-                  (s.comboCategoryItems || []).filter((comboItem: any) => 
+                const comboCategoryItems = (invoiceData.services || []).flatMap((s: any) =>
+                  (s.comboCategoryItems || []).filter((comboItem: any) =>
                     comboItem.comboId === (item.cateringId || item.id)
                   )
                 );
-                
+
                 return {
                   id: item.cateringId || item.id,
                   name: item.menuItemName || item.name,
                   price: parseFloat(item.price || 0),
+                  quantity: item.quantity || 1,
                   category: item.menuName || 'Menu',
                   menuName: item.menuName,
                   menuItemName: item.menuItemName,
@@ -710,8 +712,7 @@ const calculateTotalWithTip = () => {
                   description: item.description || ''
                 };
               });
-              
-              // Build selectedItems from cateringItems
+
               service.cateringItems.forEach((item: any) => {
                 const itemId = item.cateringId || item.id;
                 if (itemId) {
@@ -719,26 +720,24 @@ const calculateTotalWithTip = () => {
                 }
               });
             }
-            
-            // Add combo base items for all combos from comboCategoryItems (refresh)
+
             if (serviceType === 'catering') {
-              const allComboCategoryItems = (invoiceData.services || []).flatMap((s: any) => s.comboCategoryItems || []);
+              const allComboCategoryItems = service.comboCategoryItems || [];
               const comboGroups = new Map();
-              
+
               allComboCategoryItems.forEach((item: any) => {
                 if (!comboGroups.has(item.comboId)) {
                   comboGroups.set(item.comboId, []);
                 }
                 comboGroups.get(item.comboId).push(item);
               });
-              
+
               comboGroups.forEach((comboCategoryItems, comboId) => {
                 const existingCombo = menuItems.find(item => item.id === comboId);
-                // Find the combo image from the first combo category item or from cateringItems
-                const comboImage = comboCategoryItems[0]?.image || 
-                  service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId)?.image || '';
+                const matchingCateringItem = service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId);
+                const comboImage = comboCategoryItems[0]?.image || matchingCateringItem?.image || '';
                 if (!existingCombo) {
-                  const comboName = comboId === 'd322b22b-c67a-42c2-b757-5deb9949ccaf' ? 'Desserts' : 'Combo';
+                  const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
                   menuItems.push({
                     id: comboId,
                     name: comboName,
@@ -770,7 +769,7 @@ const calculateTotalWithTip = () => {
                 }
               });
             }
-            
+
             if (service.partyRentalItems && service.partyRentalItems.length > 0) {
               serviceItems = service.partyRentalItems;
               rentalItems = service.partyRentalItems.map((item: any) => ({
@@ -779,8 +778,7 @@ const calculateTotalWithTip = () => {
                 price: parseFloat(item.eachPrice || item.price || 0),
                 priceType: 'fixed'
               }));
-              
-              // Build selectedItems from partyRentalItems
+
               service.partyRentalItems.forEach((item: any) => {
                 const itemId = item.rentalId || item.id;
                 if (itemId) {
@@ -788,7 +786,7 @@ const calculateTotalWithTip = () => {
                 }
               });
             }
-            
+
             if (service.staffItems && service.staffItems.length > 0) {
               serviceItems = service.staffItems;
               staffItems = service.staffItems.map((item: any) => ({
@@ -798,19 +796,18 @@ const calculateTotalWithTip = () => {
                 pricingType: item.pricingType || 'hourly',
                 perHourPrice: parseFloat(item.perHourPrice || item.price || 0)
               }));
-              
-              // Build selectedItems from staffItems (include duration for staff)
+
               service.staffItems.forEach((item: any) => {
                 const itemId = item.staffId || item.id;
                 if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
+                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1;
                   if (item.hours) {
-                    mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
+                    mappedSelectedItems[`${itemId}_duration`] = item.hours;
                   }
                 }
               });
             }
-            
+
             if (service.venueItems && service.venueItems.length > 0) {
               serviceItems = service.venueItems;
               venueItems = service.venueItems.map((item: any) => ({
@@ -819,11 +816,9 @@ const calculateTotalWithTip = () => {
                 price: parseFloat(item.price || 0)
               }));
             }
-            
-            // Build service_details structure based on service type
+
             let serviceDetails: any = {};
             if (serviceType === 'catering') {
-              // Map comboCategoryItems from API to the format expected by calculation
               const mappedComboCategoryItems = (service.comboCategoryItems || []).map((item: any) => ({
                 id: item.id,
                 name: item.menuItemName || item.name,
@@ -837,13 +832,11 @@ const calculateTotalWithTip = () => {
                 image: item.image || item.imageUrl || ''
               }));
 
-              // Add image field to menuItems for display
               const menuItemsWithImages = menuItems.map((mi: any) => ({
                 ...mi,
                 image: mi.image || mi.imageUrl || ''
               }));
 
-              // Create combos structure for calculation
               const comboIds = [...new Set(mappedComboCategoryItems.map((item: any) => item.comboId))];
               const combos = comboIds.map((comboId: any) => {
                 const comboItems = mappedComboCategoryItems.filter((item: any) => item.comboId === comboId);
@@ -867,13 +860,14 @@ const calculateTotalWithTip = () => {
                   });
                 });
 
+                const matchingCateringItem = service.cateringItems?.find((ci: any) => (ci.cateringId || ci.id) === comboId);
+                const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
+
                 return {
                   id: comboId,
-                  name: 'Combo',
+                  name: comboName,
                   isCombo: true,
-                  // pricePerPerson is 0 because combo category items are displayed separately
-                  // in the "Selected Items" and "Additional Charges" sections
-                  pricePerPerson: 0,
+                  pricePerPerson: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
                   comboCategories: Array.from(categoryMap.values())
                 };
               });

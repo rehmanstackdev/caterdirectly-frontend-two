@@ -327,12 +327,23 @@ function VendorBookingFlow() {
           prevServices.map((service) => {
             const svcId = service.id || service.serviceId;
             if (svcId === serviceId) {
+              const existingCombos = service.comboSelectionsList || [];
+
+              const existingComboIndex = existingCombos.findIndex(
+                (combo: any) => combo.comboItemId === selections.comboItemId,
+              );
+
+              let updatedCombos;
+              if (existingComboIndex >= 0) {
+                updatedCombos = [...existingCombos];
+                updatedCombos[existingComboIndex] = selections;
+              } else {
+                updatedCombos = [...existingCombos, selections];
+              }
+
               return {
                 ...service,
-                comboSelectionsList: [
-                  ...(service.comboSelectionsList || []),
-                  selections,
-                ],
+                comboSelectionsList: updatedCombos,
               };
             }
             return service;
@@ -805,8 +816,35 @@ function VendorBookingFlow() {
                                         comboCategoryItems,
                                       );
 
-                                    const serviceTotal =
-                                      cateringCalcResult.finalTotal;
+                                    // Calculate combo totals using headcount from comboSelectionsList
+                                    // (same logic as EnhancedOrderSummaryCard)
+                                    let comboTotal = 0;
+                                    const comboSelections = service.comboSelectionsList || [];
+                                    if (Array.isArray(comboSelections)) {
+                                      comboSelections.forEach((combo: any) => {
+                                        const headcount = combo.headcount || guestCount;
+                                        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+                                        const base = basePrice * headcount;
+                                        let premiumTotal = 0;
+                                        if (combo.selections && Array.isArray(combo.selections)) {
+                                          combo.selections.forEach((cat: any) => {
+                                            if (cat.selectedItems && Array.isArray(cat.selectedItems)) {
+                                              cat.selectedItems.forEach((item: any) => {
+                                                const upcharge = parseFloat(String(item.additionalCharge || item.upcharge || 0)) || 0;
+                                                if (upcharge > 0) premiumTotal += upcharge * headcount;
+                                              });
+                                            }
+                                          });
+                                        }
+                                        comboTotal += base + premiumTotal;
+                                      });
+                                    }
+
+                                    // Use combo total if available, otherwise fall back to catering calc
+                                    const serviceTotal = comboTotal > 0
+                                      ? comboTotal + cateringCalcResult.finalTotal
+                                      : cateringCalcResult.finalTotal;
+
                                     if (serviceTotal < minimumOrderAmount) {
                                       toast.error(
                                         "Minimum order amount not met",
@@ -1156,6 +1194,16 @@ function VendorBookingFlow() {
                                         itemId.includes("_") &&
                                         itemId.split("_").length >= 3
                                       ) {
+                                        // Skip combo category items if comboSelectionsList exists
+                                        // They will be handled by the comboSelectionsList loop below
+                                        if (
+                                          service.comboSelectionsList &&
+                                          Array.isArray(service.comboSelectionsList) &&
+                                          service.comboSelectionsList.length > 0
+                                        ) {
+                                          return;
+                                        }
+
                                         const parts = itemId.split("_");
                                         const comboId = parts[0];
                                         const categoryId = parts[1];
@@ -1568,37 +1616,10 @@ function VendorBookingFlow() {
                                           }
                                           const comboTotal =
                                             baseTotal + totalUpcharges;
+
                                           const comboQuantity =
-                                            effectiveProteinQuantity;
-                                          if (import.meta.env.DEV) {
-                                            console.log(
-                                              "[VendorBookingFlow] Combo pricing calculation:",
-                                              {
-                                                comboName: combo.comboName,
-                                                comboItemId: comboItemId,
-                                                basePrice: basePrice,
-                                                proteinQuantity:
-                                                  proteinQuantity,
-                                                effectiveProteinQuantity:
-                                                  effectiveProteinQuantity,
-                                                guestCount: guestCount,
-                                                baseTotal: baseTotal,
-                                                totalUpcharges: totalUpcharges,
-                                                comboTotal: comboTotal,
-                                                formula:
-                                                  "(" +
-                                                  basePrice +
-                                                  " x " +
-                                                  effectiveProteinQuantity +
-                                                  " proteins) + (" +
-                                                  totalUpcharges / guestCount +
-                                                  " upcharge x " +
-                                                  guestCount +
-                                                  " guests) = " +
-                                                  comboTotal,
-                                              },
-                                            );
-                                          }
+                                            combo.headcount || effectiveProteinQuantity;
+
                                           const comboImage =
                                             originalComboItem?.image ||
                                             originalComboItem?.imageUrl ||
@@ -1609,9 +1630,6 @@ function VendorBookingFlow() {
                                             combo?.image ||
                                             combo?.imageUrl ||
                                             "";
-                                          const pricePerCombo =
-                                            comboTotal / comboQuantity;
-
                                           serviceItems.push({
                                             menuName:
                                               combo.comboName ||
@@ -1621,7 +1639,7 @@ function VendorBookingFlow() {
                                               combo.comboName ||
                                               originalComboItem?.name ||
                                               "",
-                                            price: pricePerCombo,
+                                            price: basePrice,
                                             quantity: comboQuantity,
                                             totalPrice: comboTotal,
                                             cateringId:
@@ -1650,6 +1668,7 @@ function VendorBookingFlow() {
                                                         parseFloat(
                                                           String(
                                                             categoryItem.additionalCharge ||
+                                                              categoryItem.additionalPrice ||
                                                               categoryItem.upcharge ||
                                                               0,
                                                           ),
@@ -1670,8 +1689,7 @@ function VendorBookingFlow() {
                                                         categoryItem?.picture ||
                                                         "";
                                                       const itemQuantity =
-                                                        categoryItem.quantity ||
-                                                        1;
+                                                        comboQuantity || categoryItem.quantity || 1;
                                                       const itemTotalPrice =
                                                         totalPrice *
                                                         itemQuantity;
@@ -1773,6 +1791,10 @@ function VendorBookingFlow() {
                                     service.service_details?.image ||
                                     service.service_details?.serviceImage ||
                                     "";
+
+                                  const guestCountForService =
+                                    parseInt(String(formData?.headcount || "1")) || 1;
+
                                   const vendor =
                                     typeof service.vendor === "object" &&
                                     service.vendor !== null
@@ -1838,23 +1860,35 @@ function VendorBookingFlow() {
                                       Array.isArray(deliveryRanges) &&
                                       deliveryRanges.length > 0
                                     ) {
+                                      const deliveryRangesRecord: Record<
+                                        string,
+                                        number
+                                      > = {};
+                                      deliveryRanges.forEach((range: any) => {
+                                        if (
+                                          range.range &&
+                                          typeof range.fee === "number"
+                                        ) {
+                                          deliveryRangesRecord[range.range] =
+                                            range.fee;
+                                        }
+                                      });
+                                      if (
+                                        Object.keys(deliveryRangesRecord)
+                                          .length > 0
+                                      ) {
+                                        mappedService.deliveryRanges =
+                                          deliveryRangesRecord;
+                                      }
+                                    } else if (
+                                      deliveryRanges &&
+                                      typeof deliveryRanges === "object" &&
+                                      !Array.isArray(deliveryRanges)
+                                    ) {
                                       mappedService.deliveryRanges =
                                         deliveryRanges;
                                     }
 
-                                    if (import.meta.env.DEV) {
-                                      console.log(
-                                        "[VendorBookingFlow] Delivery ranges for service:",
-                                        {
-                                          serviceName:
-                                            service.serviceName || service.name,
-                                          deliveryOptions,
-                                          deliveryRanges: deliveryRanges,
-                                          mappedDeliveryRanges:
-                                            mappedService.deliveryRanges,
-                                        },
-                                      );
-                                    }
                                     if (service.service_details) {
                                       const {
                                         baseItems,
@@ -1864,12 +1898,14 @@ function VendorBookingFlow() {
                                         selectedItems,
                                         service.service_details,
                                       );
+
                                       const basePricePerPerson =
                                         baseItems.reduce((sum, item) => {
                                           return (
                                             sum + item.price * item.quantity
                                           );
                                         }, 0);
+
                                       const additionalCharges =
                                         additionalChargeItems.map((item) => ({
                                           name: item.name,
@@ -1892,8 +1928,42 @@ function VendorBookingFlow() {
                                           guestCount,
                                           comboCategoryItems,
                                         );
-                                      mappedService.totalPrice =
-                                        cateringCalcResult.finalTotal;
+
+                                      const comboTotal = Array.isArray(
+                                        (service as any).comboSelectionsList,
+                                      )
+                                        ? (service as any).comboSelectionsList.reduce(
+                                            (sum: number, combo: any) =>
+                                              sum +
+                                              (Number(combo?.totalPrice) || 0),
+                                            0,
+                                          )
+                                        : 0;
+
+                                      const computedServiceTotal =
+                                        additionalChargeItems
+                                          .filter((item: any) => item.isMenuItem)
+                                          .reduce(
+                                            (sum: number, item: any) =>
+                                              sum +
+                                              (Number(item.additionalCharge) ||
+                                                0) *
+                                                (Number(item.quantity) || 0),
+                                            0,
+                                          ) + comboTotal;
+
+                                      const serviceTotal =
+                                        computedServiceTotal ||
+                                        (cateringCalcResult.finalTotal +
+                                          comboTotal);
+
+                                      mappedService.totalPrice = serviceTotal;
+                                      mappedService.cateringServiceTotal =
+                                        serviceTotal;
+                                      mappedService.pricePerPerson =
+                                        guestCountForService > 0
+                                          ? serviceTotal / guestCountForService
+                                          : serviceTotal;
                                     }
                                   }
 
