@@ -20,8 +20,8 @@ const MarketplacePagination = ({
   if (totalItems === 0) return null;
 
   return (
-    <div className="flex items-center justify-between px-2 py-4 border-t">
-      <div className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-3 px-2 py-4 border-t sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-xs sm:text-sm text-muted-foreground leading-5">
         {isLoading ? (
           <div className="flex items-center gap-2">
             <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
@@ -34,7 +34,8 @@ const MarketplacePagination = ({
           </>
         )}
       </div>
-      <div className="flex items-center space-x-2">
+      <div className="w-full sm:w-auto overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 min-w-max">
         {isLoading ? (
           <>
             <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
@@ -54,7 +55,7 @@ const MarketplacePagination = ({
               size="sm"
               onClick={() => onPageChange(1)}
               disabled={currentPage === 1}
-              className="h-8 w-8 p-0"
+              className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-xs sm:text-sm"
             >
               <span className="sr-only">Go to first page</span>
               &laquo;
@@ -64,9 +65,10 @@ const MarketplacePagination = ({
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="h-8 px-3"
+              className="h-7 px-2 sm:h-8 sm:px-3 text-xs sm:text-sm"
             >
-              Previous
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </Button>
 
             {/* Page Numbers */}
@@ -109,7 +111,7 @@ const MarketplacePagination = ({
                       variant={currentPage === page ? "default" : "outline"}
                       size="sm"
                       onClick={() => onPageChange(page as number)}
-                      className="h-8 w-8 p-0"
+                      className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-xs sm:text-sm"
                     >
                       {page}
                     </Button>
@@ -123,7 +125,7 @@ const MarketplacePagination = ({
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage >= totalPages}
-              className="h-8 px-3"
+              className="h-7 px-2 sm:h-8 sm:px-3 text-xs sm:text-sm"
             >
               Next
             </Button>
@@ -132,13 +134,14 @@ const MarketplacePagination = ({
               size="sm"
               onClick={() => onPageChange(totalPages)}
               disabled={currentPage >= totalPages}
-              className="h-8 w-8 p-0"
+              className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-xs sm:text-sm"
             >
               <span className="sr-only">Go to last page</span>
               &raquo;
             </Button>
           </>
         )}
+        </div>
       </div>
     </div>
   );

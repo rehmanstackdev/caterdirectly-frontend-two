@@ -85,6 +85,14 @@ const convertPriceToNumber = (price: string | number | undefined): number => {
 
 // Helper function to validate if a service has proper service_details
 const hasValidServiceDetails = (service: ServiceSelection | ServiceItem): boolean => {
+  // Skip validation for services marked as from backup
+  if ((service as any)._fromBackup) return true;
+  
+  // If service has comboSelectionsList, it's valid
+  if ((service as any).comboSelectionsList && Array.isArray((service as any).comboSelectionsList) && (service as any).comboSelectionsList.length > 0) {
+    return true;
+  }
+  
   if (!service.service_details) return false;
   
   // Check if service_details is malformed
@@ -94,9 +102,15 @@ const hasValidServiceDetails = (service: ServiceSelection | ServiceItem): boolea
   
   const serviceType = service.type || (service as any).serviceType;
   
-  // For catering services, check if menuItems exist
+  // For catering services, check if menuItems or combos exist (multiple possible paths)
   if (serviceType === 'catering') {
-    return !!(service.service_details.catering?.menuItems && service.service_details.catering.menuItems.length > 0);
+    const d = service.service_details;
+    return !!(
+      (d.catering?.menuItems && d.catering.menuItems.length > 0) ||
+      (d.catering?.combos && d.catering.combos.length > 0) ||
+      (d.menuItems && Array.isArray(d.menuItems) && d.menuItems.length > 0) ||
+      (d.menu && Array.isArray(d.menu) && d.menu.length > 0)
+    );
   }
   
   // For party rentals, check if rentalItems or items exist
@@ -109,9 +123,15 @@ const hasValidServiceDetails = (service: ServiceSelection | ServiceItem): boolea
     return !!(service.service_details.staffServices && service.service_details.staffServices.length > 0);
   }
   
-  // For venue services, check if venueOptions exist
+  // For venue services, check if venueOptions or any venue-related details exist
   if (serviceType === 'venue' || serviceType === 'venues') {
-    return !!(service.service_details.venueOptions && service.service_details.venueOptions.length > 0);
+    const d = service.service_details;
+    // Venue services may not have structured items - having non-null service_details is sufficient
+    return !!(
+      (d.venueOptions && d.venueOptions.length > 0) ||
+      (d.venue?.options && d.venue.options.length > 0) ||
+      Object.keys(d).length > 0
+    );
   }
   
   // For other service types, if service_details exists, consider it valid
@@ -196,7 +216,9 @@ const convertServiceItemToSelection = (serviceItem: ServiceItem): ServiceSelecti
     vendor_id: serviceItem.vendor_id,
     description: serviceItem.description,
     // Use the validated/recovered service_details
-    service_details: validServiceDetails
+    service_details: validServiceDetails,
+    // Preserve comboSelectionsList if it exists
+    comboSelectionsList: (serviceItem as any).comboSelectionsList || undefined
   } as any;
   
   return serviceSelection;
@@ -209,7 +231,9 @@ const ensureServiceItemProperties = (selection: ServiceSelection): ServiceSelect
     // Ensure all required properties exist
     vendor_id: selection.vendor_id || selection.vendor || '',
     description: selection.description || '',
-    service_details: selection.service_details
+    service_details: selection.service_details,
+    // Preserve comboSelectionsList if it exists
+    comboSelectionsList: selection.comboSelectionsList || undefined
   };
 };
 
@@ -685,11 +709,19 @@ export function useBookingFlow() {
           const newPrice = newService.price ?? newService.servicePrice ?? 0;
           const prevPrice = prevService.price ?? prevService.servicePrice ?? 0;
           
+          // Check comboSelectionsList changes
+          const newComboList = (newService as any).comboSelectionsList;
+          const prevComboList = (prevService as any).comboSelectionsList;
+          const newComboCount = Array.isArray(newComboList) ? newComboList.length : 0;
+          const prevComboCount = Array.isArray(prevComboList) ? prevComboList.length : 0;
+
           if (
             newQuantity !== prevQuantity ||
             newDuration !== prevDuration ||
             newPrice !== prevPrice ||
-            newService.service_details !== prevService.service_details
+            newService.service_details !== prevService.service_details ||
+            newComboCount !== prevComboCount ||
+            newComboList !== prevComboList
           ) {
             unchanged = false;
             break;

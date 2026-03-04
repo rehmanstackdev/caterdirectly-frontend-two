@@ -608,19 +608,24 @@ const calculateTotal = () => {
   // Use service delivery fees if available, otherwise fallback to baseTotals
   const deliveryFee = serviceDeliveryFees > 0 ? serviceDeliveryFees : baseTotals.deliveryFee;
 
+  // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
+  const serviceFeeBase = baseTotals.subtotal + deliveryFee + (baseTotals.adjustmentsTotal || 0);
+  const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
+  const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+  const taxRate = baseTotals.taxData?.rate ?? 0;
+  const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
+
   console.log('[OrderSummaryPage] calculateTotal breakdown:', {
     subtotal: baseTotals.subtotal,
-    serviceFee: baseTotals.serviceFee,
-    deliveryFeeFromServices: serviceDeliveryFees,
-    deliveryFeeFromBaseTotals: baseTotals.deliveryFee,
-    deliveryFeeUsed: deliveryFee,
+    deliveryFee,
     adjustmentsTotal: baseTotals.adjustmentsTotal,
-    adjustmentsBreakdown: baseTotals.adjustmentsBreakdown,
-    calculatedTotal: baseTotals.subtotal + baseTotals.serviceFee + deliveryFee + (baseTotals.adjustmentsTotal || 0)
+    serviceFeeBase,
+    recalcServiceFee,
+    recalcTax,
+    total: serviceFeeBase + recalcServiceFee + recalcTax
   });
 
-  // Include tax in the total calculation
-  return baseTotals.subtotal + baseTotals.serviceFee + deliveryFee + (baseTotals.adjustmentsTotal || 0) + baseTotals.tax;
+  return serviceFeeBase + recalcServiceFee + recalcTax;
 };
 
 const calculateTotalWithTip = () => {

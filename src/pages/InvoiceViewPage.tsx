@@ -98,23 +98,29 @@ const InvoiceViewPage = () => {
       // Use pricing snapshot if available
       if (invoice.pricing_snapshot) {
         const snapshot = invoice.pricing_snapshot as any;
+        const snapshotTaxExempt = snapshot.overrides?.isTaxExempt || false;
+        const snapshotServiceFeeWaived = snapshot.overrides?.isServiceFeeWaived || false;
 
-        // Calculate total including tax (snapshot.total might not include tax)
-        const snapshotTotal = snapshot.subtotal + snapshot.serviceFee + snapshot.deliveryFee +
-                              (snapshot.adjustmentsTotal || 0) + (snapshot.tax || 0);
+        // Match OrderItemsBreakdown: recalculate service fee & tax on (subtotal + delivery + adjustments)
+        const serviceFeeBase = snapshot.subtotal + snapshot.deliveryFee + (snapshot.adjustmentsTotal || 0);
+        const sfPercentage = adminSettings.serviceFeePercentage || 0;
+        const recalcServiceFee = snapshotServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (sfPercentage / 100)).toFixed(2));
+        const snapshotTaxRate = snapshot.taxRate || 0;
+        const recalcTax = snapshotTaxExempt ? 0 : parseFloat((serviceFeeBase * snapshotTaxRate).toFixed(2));
+        const snapshotTotal = serviceFeeBase + recalcServiceFee + recalcTax;
 
         return {
           subtotal: snapshot.subtotal,
-          serviceFee: snapshot.serviceFee,
+          serviceFee: recalcServiceFee,
           deliveryFee: snapshot.deliveryFee,
           adjustmentsTotal: snapshot.adjustmentsTotal || 0,
           adjustmentsBreakdown: snapshot.adjustmentsBreakdown || [],
-          tax: snapshot.tax,
-          taxRate: snapshot.taxRate,
+          tax: recalcTax,
+          taxRate: snapshotTaxRate,
           taxLocation: snapshot.taxLocation,
           total: snapshotTotal,
-          isTaxExempt: snapshot.overrides?.isTaxExempt || false,
-          isServiceFeeWaived: snapshot.overrides?.isServiceFeeWaived || false,
+          isTaxExempt: snapshotTaxExempt,
+          isServiceFeeWaived: snapshotServiceFeeWaived,
           fromSnapshot: true
         };
       }
@@ -138,26 +144,23 @@ const InvoiceViewPage = () => {
         return total + deliveryFee;
       }, 0);
       
-      const taxableAdjustments = (orderTotals.adjustmentsBreakdown || [])
-        .filter(adj => adj.taxable !== false)
-        .reduce((sum, adj) => sum + adj.amount, 0);
-
-      const preTaxTotal = orderTotals.subtotal + orderTotals.serviceFee + totalDeliveryFees + taxableAdjustments;
-
-      // Use location-based tax calculation (orderTotals.tax includes location-based tax)
-      const tax = isTaxExempt ? 0 : orderTotals.tax;
+      // Match OrderItemsBreakdown: recalculate service fee & tax on (subtotal + delivery + adjustments)
+      const serviceFeeBase = orderTotals.subtotal + totalDeliveryFees + (orderTotals.adjustmentsTotal || 0);
+      const sfPercentage = adminSettings.serviceFeePercentage || 0;
+      const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (sfPercentage / 100)).toFixed(2));
       const taxRate = orderTotals.taxData?.rate || 0;
+      const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
 
       return {
         subtotal: orderTotals.subtotal,
-        serviceFee: orderTotals.serviceFee,
+        serviceFee: recalcServiceFee,
         deliveryFee: totalDeliveryFees,
         adjustmentsTotal: orderTotals.adjustmentsTotal || 0,
         adjustmentsBreakdown: orderTotals.adjustmentsBreakdown || [],
-        tax,
+        tax: recalcTax,
         taxRate,
         taxLocation: formData?.location || '',
-        total: preTaxTotal + tax,
+        total: serviceFeeBase + recalcServiceFee + recalcTax,
         isTaxExempt,
         isServiceFeeWaived,
         fromSnapshot: false
@@ -540,8 +543,14 @@ const InvoiceViewPage = () => {
       return total + deliveryFee;
     }, 0);
 
-    // Include tax in the total calculation
-    return baseTotals.subtotal + baseTotals.serviceFee + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0) + baseTotals.tax;
+    // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
+    const serviceFeeBase = baseTotals.subtotal + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0);
+    const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
+    const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+    const taxRate = baseTotals.taxData?.rate ?? 0;
+    const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
+
+    return serviceFeeBase + recalcServiceFee + recalcTax;
   };
 
   const handlePaymentSuccess = (orderId: string) => {

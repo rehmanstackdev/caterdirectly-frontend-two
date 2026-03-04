@@ -11,6 +11,7 @@ import GroupOrderSetup from '../pages/GroupOrderSetup';
 import GroupOrderReviewPage from '../pages/GroupOrderReviewPage';
 import GroupOrderSummaryPage from '../pages/GroupOrderSummaryPage';
 import GroupOrderConfirmationPage from '../pages/GroupOrderConfirmationPage';
+import GroupOrderMarketplace from '../pages/GroupOrderMarketplace';
 import FavoritesPage from '../pages/FavoritesPage';
 
 const OrderRoutes = (
@@ -47,6 +48,7 @@ const OrderRoutes = (
     <Route path="/group-order/*" element={
       <ProtectedRoute>
         <Routes>
+          <Route path="marketplace" element={<GroupOrderMarketplace />} />
           <Route path="setup" element={<GroupOrderSetup />} />
           <Route path="review" element={<GroupOrderReviewPage />} />
           <Route path="summary/:id" element={<GroupOrderSummaryPage />} />

@@ -799,6 +799,16 @@ function VendorGroupOrderSetup() {
         const serviceItems: any[] = [];
 
         Object.entries(state.selectedItems).forEach(([itemId, quantity]) => {
+          // Skip metadata keys that are not actual service items
+          if (
+            itemId === "headcount" ||
+            itemId === "guestCount" ||
+            itemId === "quantity" ||
+            itemId.startsWith("meta_")
+          ) {
+            return;
+          }
+
           // Ensure quantity is a valid number, default to 1 if missing
           const validQuantity = quantity && typeof quantity === 'number' ? quantity : (quantity || 1);
           // Skip items with zero or negative quantity (but allow 1 and above)

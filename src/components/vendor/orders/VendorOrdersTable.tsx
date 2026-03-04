@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { Download, CheckCircle, XCircle, Clock, AlertCircle, Pencil } from 'lucide-react';
+import { Download, CheckCircle, XCircle, Clock, AlertCircle, Pencil, Truck } from 'lucide-react';
+import DeliveryTimeDialog from '@/components/vendor/orders/DeliveryTimeDialog';
 import { useState } from 'react';
 import invoiceService from '@/services/api/invoice.Service';
 import { generateInvoicePDF } from '@/utils/invoice-pdf-generator';
@@ -103,6 +104,8 @@ export default function VendorOrdersTable({ orders, loading }: VendorOrdersTable
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
+  const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
+  const [deliveryOrderId, setDeliveryOrderId] = useState<string | null>(null);
 
   const handleDownloadPDF = async (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -229,6 +232,7 @@ export default function VendorOrdersTable({ orders, loading }: VendorOrdersTable
   }
 
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
@@ -318,6 +322,19 @@ export default function VendorOrdersTable({ orders, loading }: VendorOrdersTable
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
+                    setDeliveryOrderId(order.id);
+                    setShowDeliveryDialog(true);
+                  }}
+                  className="h-8 w-8 p-0 hover:bg-[#F07712]/10 hover:border-[#F07712] border border-transparent transition-colors"
+                  title="Set Delivery Time"
+                >
+                  <Truck className="h-4 w-4 text-[#F07712]" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedOrder(order);
                     setIsStatusModalOpen(true);
                   }}
@@ -342,6 +359,7 @@ export default function VendorOrdersTable({ orders, loading }: VendorOrdersTable
           );
         })}
       </TableBody>
+    </Table>
       <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader className="space-y-3">
@@ -403,6 +421,11 @@ export default function VendorOrdersTable({ orders, loading }: VendorOrdersTable
           )}
         </DialogContent>
       </Dialog>
-    </Table>
+      <DeliveryTimeDialog
+        open={showDeliveryDialog}
+        onOpenChange={setShowDeliveryDialog}
+        invoiceId={deliveryOrderId}
+      />
+    </>
   );
 }

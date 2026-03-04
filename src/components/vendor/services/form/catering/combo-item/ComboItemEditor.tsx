@@ -83,12 +83,12 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
       
       <div className="border rounded p-2 bg-white">
         <Label htmlFor={`image-${item.id}`} className="block text-xs mb-1">Item Image</Label>
-        {item.image ? (
+        {(item.image || (item as any).imageUrl) ? (
           <div className="relative">
-            <img 
-              src={item.image} 
-              alt={item.name || 'Combo item'} 
-              className="w-full h-32 object-cover rounded" 
+            <img
+              src={item.image || (item as any).imageUrl}
+              alt={item.name || 'Combo item'}
+              className="w-full h-32 object-cover rounded"
             />
             <Button
               type="button"

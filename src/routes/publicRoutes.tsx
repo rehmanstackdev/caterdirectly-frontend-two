@@ -16,6 +16,9 @@ const EventRsvpPage = lazy(() => import("../pages/EventRsvpPage"));
 const GroupOrderInvitation = lazy(
   () => import("../pages/GroupOrderInvitation"),
 );
+const GroupOrderInviteStart = lazy(
+  () => import("../pages/GroupOrderInviteStart"),
+);
 const GuestTicketPaymentPage = lazy(
   () => import("../pages/GuestTicketPaymentPage"),
 );
@@ -173,7 +176,27 @@ const PublicRoutes = (
 
     {/* Public group order invitation route */}
     <Route
+      path="/group-order/invite-start/:id"
+      element={
+        <Suspense
+          fallback={<div className="min-h-screen bg-muted/5 animate-pulse" />}
+        >
+          <GroupOrderInviteStart />
+        </Suspense>
+      }
+    />
+    <Route
       path="/group-order/invite/:id"
+      element={
+        <Suspense
+          fallback={<div className="min-h-screen bg-muted/5 animate-pulse" />}
+        >
+          <GroupOrderInvitation />
+        </Suspense>
+      }
+    />
+    <Route
+      path="/invite/:id"
       element={
         <Suspense
           fallback={<div className="min-h-screen bg-muted/5 animate-pulse" />}

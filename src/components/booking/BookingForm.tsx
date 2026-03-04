@@ -40,6 +40,7 @@ interface BookingFormProps {
   duration?: number;
   isInvoiceMode?: boolean;
   selectedServices?: any[]; // To access catering service styles
+  showValidationErrors?: boolean;
 }
 
 function BookingForm({ 
@@ -54,7 +55,8 @@ function BookingForm({
   quantity = 1,
   duration = 1,
   selectedServices = [],
-  isInvoiceMode = false
+  isInvoiceMode = false,
+  showValidationErrors = false,
 }: BookingFormProps) {
   return (
     <ResponsiveBookingForm
@@ -70,6 +72,7 @@ function BookingForm({
       duration={duration}
       selectedServices={selectedServices}
       isInvoiceMode={isInvoiceMode}
+      showValidationErrors={showValidationErrors}
     />
   );
 };

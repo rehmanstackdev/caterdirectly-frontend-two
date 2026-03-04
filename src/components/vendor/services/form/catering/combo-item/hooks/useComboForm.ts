@@ -20,7 +20,7 @@ export function useComboForm(menuItem?: MenuItem, onSave?: (item: MenuItem) => v
       id: item.id || uuidv4(),
       name: item.name || '',
       description: item.description || '',
-      image: item.image,
+      image: item.image || (item as any).imageUrl,
       price: item.price || 0,
       quantity: item.quantity || 0,
       dietaryFlags: item.dietaryFlags || [],

@@ -73,6 +73,7 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
               price: form.watch('price') || 0,
               priceType: 'per_person', // Default price type for combo
               category: form.watch('category') || '',
+              image: menuItem?.image,
               isCombo: true,
               comboCategories: menuItem?.comboCategories || []
             }}

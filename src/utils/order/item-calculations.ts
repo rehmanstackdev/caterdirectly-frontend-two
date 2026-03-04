@@ -75,6 +75,8 @@ export const getSelectedItemsCountForService = (service: ServiceSelection, selec
   
   Object.entries(selectedItems).forEach(([itemId, quantity]) => {
     if (itemId.endsWith('_duration') || quantity <= 0) return;
+    // Skip combo metadata keys (meta_comboId_headcount, meta_comboId_basePrice)
+    if (itemId.startsWith('meta_')) return;
 
     // Try prefixed form first: <serviceId>_<actualId>
     if (serviceId && itemId.startsWith(serviceId + '_')) {
@@ -88,6 +90,16 @@ export const getSelectedItemsCountForService = (service: ServiceSelection, selec
     // Direct match (for services that don't prefix keys)
     if (identifiers.size > 0 && identifiers.has(itemId)) {
       count += quantity;
+      return;
+    }
+
+    // Combo category item match: key format is comboId_categoryId_itemId
+    // Check if the first segment matches any combo identifier
+    if (itemId.includes('_')) {
+      const firstSegment = itemId.split('_')[0];
+      if (identifiers.has(firstSegment)) {
+        count += quantity;
+      }
     }
   });
   
