@@ -1,20 +1,15 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { Invoice } from '@/types/invoice-types';
 import { APP_LOGO } from '@/constants/app-assets';
 import { getTaxRateByLocation } from './tax-calculation';
-
-declare module 'jspdf' {
-    interface jsPDF {
-        autoTable: (options: any) => jsPDF;
-    }
-}
 
 // Brand Colors
 const BRAND_ORANGE = [240, 119, 18] as [number, number, number]; // #F07712
 const PRIMARY_DARK = [15, 23, 42] as [number, number, number];   // Slate 900
 const TEXT_GRAY = [100, 116, 139] as [number, number, number];   // Slate 500
 const BORDER_GRAY = [226, 232, 240] as [number, number, number]; // Slate 200
+const SIMPLE_GREEN = [22, 163, 74] as [number, number, number]; // Green 600
+const PREMIUM_PURPLE = [126, 34, 206] as [number, number, number]; // Purple 700
 
 const loadImage = (url: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
@@ -32,158 +27,142 @@ const getServiceItems = (service: any, guestCount: number = 1) => {
     const items: any[] = [];
     const serviceType = service.serviceType || '';
 
-    // For catering services, use the same calculation as OrderItemsBreakdown
     if (serviceType === 'catering') {
-        // Get menu items from multiple possible locations (like OrderItemsBreakdown does)
         const apiCateringItems = service.cateringItems ||
-                                 service.service_details?.menuItems ||
-                                 service.service_details?.catering?.menuItems ||
-                                 [];
+            service.service_details?.menuItems ||
+            service.service_details?.catering?.menuItems ||
+            [];
 
-        // Get combo category items from multiple possible locations
         const apiComboCategoryItems = service.comboCategoryItems ||
-                                      service.service_details?.comboCategoryItems ||
-                                      [];
+            service.service_details?.comboCategoryItems ||
+            [];
 
-        // 1. Menu items (cateringItems) - price × quantity ONLY (NO guest count)
+        const comboIds = new Set(
+            (Array.isArray(apiComboCategoryItems) ? apiComboCategoryItems : [])
+                .map((item: any) => item.comboId)
+                .filter(Boolean),
+        );
+        const comboBaseById: Record<string, { name: string; price: number; quantity: number }> = {};
+
         if (Array.isArray(apiCateringItems)) {
             apiCateringItems.forEach((item: any) => {
+                const itemId = item.id || item.cateringId;
+                const cateringId = item.cateringId || item.id;
+                const isComboBase = Boolean(item.isCombo) || comboIds.has(itemId) || comboIds.has(cateringId);
                 const price = Number(item.price || item.pricePerPerson) || 0;
                 const quantity = Number(item.quantity) || 1;
-                // Menu items: price × quantity (guest count NOT involved)
-                const total = price * quantity;
+
+                if (isComboBase && itemId) {
+                    const baseData = {
+                        name: item.menuItemName || item.name || 'Combo',
+                        price,
+                        quantity: quantity > 0 ? quantity : guestCount,
+                    };
+                    comboBaseById[itemId] = baseData;
+                    if (cateringId && cateringId !== itemId) {
+                        comboBaseById[cateringId] = baseData;
+                    }
+                    return;
+                }
 
                 items.push({
                     name: item.menuItemName || item.name || 'Menu Item',
                     description: item.menuName || 'Menu Item',
-                    quantity: quantity,
-                    price: price,
-                    total: total,
+                    quantity,
+                    price,
+                    total: price * quantity,
                     isCatering: true,
-                    isMenuItem: true
+                    isMenuItem: true,
                 });
             });
         }
 
-        // 2. Combo Category Items - simple items and premium items
-        if (Array.isArray(apiComboCategoryItems)) {
+        if (Array.isArray(apiComboCategoryItems) && apiComboCategoryItems.length > 0) {
+            const groupedByCombo: Record<string, any[]> = {};
             apiComboCategoryItems.forEach((comboItem: any) => {
                 const itemName = comboItem.menuItemName || comboItem.name || '';
                 const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemName);
+                if (isUUID || !itemName.trim()) return;
 
-                if (!isUUID && itemName.trim() !== '') {
-                    const quantity = Number(comboItem.quantity) || 1;
-                    const price = Number(comboItem.price) || 0;
-                    // Check both premiumCharge and additionalCharge
-                    const premiumCharge = Number(comboItem.premiumCharge || comboItem.additionalCharge) || 0;
+                const comboId = comboItem.comboId || '_default';
+                if (!groupedByCombo[comboId]) groupedByCombo[comboId] = [];
+                groupedByCombo[comboId].push(comboItem);
+            });
 
-                    // Calculate totals matching OrderItemsBreakdown.tsx logic
-                    let total = 0;
-                    let displayQuantity = quantity;
-                    let displayPrice = 0;
+            if (Object.keys(groupedByCombo).length > 0) {
+                items.push({ rowType: 'comboSection', name: 'COMBOS SELECTED ITEMS', quantity: 0, price: 0, total: 0 });
+            }
 
-                    if (premiumCharge > 0) {
-                        // Premium item: unit price = price + premiumCharge
-                        displayPrice = price + premiumCharge;
-                        total = displayPrice * quantity;
-                        displayQuantity = quantity;
-                    } else if (price > 0) {
-                        // Simple item: price × quantity (quantity already has correct value from BookingFlow)
-                        total = price * quantity;
-                        displayQuantity = quantity;
-                        displayPrice = price;
-                    }
+            Object.entries(groupedByCombo).forEach(([comboId, comboItems]) => {
+                const comboBase = comboBaseById[comboId];
+                const comboName = comboBase?.name || comboItems[0]?.menuName || 'Combo';
+                const comboQty = comboBase?.quantity || guestCount;
+                const comboBasePrice = comboBase?.price || 0;
 
-                    items.push({
-                        name: `    • ${itemName}`,
-                        description: `${comboItem.menuName || comboItem.categoryName || 'Combo Category'}${premiumCharge > 0 ? ` (+$${premiumCharge.toFixed(2)} premium)` : ''}`,
-                        quantity: displayQuantity,
-                        price: displayPrice,
-                        total: total,
-                        isComboItem: true,
-                        premiumCharge: premiumCharge,
-                        isSimpleItem: premiumCharge === 0 && price > 0,
-                        isPremiumItem: premiumCharge > 0
-                    });
+                items.push({ rowType: 'comboHeader', name: comboName, quantity: comboQty, price: comboBasePrice, total: comboBasePrice * comboQty });
+
+                const simpleItems = comboItems.filter((item: any) => (Number(item.premiumCharge || item.additionalCharge) || 0) <= 0);
+                const premiumItems = comboItems.filter((item: any) => (Number(item.premiumCharge || item.additionalCharge) || 0) > 0);
+
+                if (simpleItems.length > 0) {
+                    items.push({ rowType: 'comboSubHeader', name: 'Simple Items', quantity: 0, price: 0, total: 0 });
                 }
+
+                simpleItems.forEach((item: any) => {
+                    const quantity = Number(item.quantity) || 1;
+                    const price = Number(item.price) || 0;
+                    items.push({ rowType: 'comboSimpleItem', name: '  - ' + (item.menuItemName || item.name || 'Item'), quantity, price, total: price * quantity });
+                });
+
+                if (premiumItems.length > 0) {
+                    items.push({ rowType: 'comboSubHeader', name: 'Premium Items', quantity: 0, price: 0, total: 0 });
+                }
+
+                premiumItems.forEach((item: any) => {
+                    const quantity = Number(item.quantity) || 1;
+                    const premiumCharge = Number(item.premiumCharge || item.additionalCharge) || 0;
+                    items.push({ rowType: 'comboPremiumItem', name: '  - ' + (item.menuItemName || item.name || 'Item'), quantity, price: premiumCharge, total: premiumCharge * quantity });
+                });
             });
         }
 
-        // If no items found but service has totalPrice, use that (already calculated by backend)
         if (items.length === 0 && Number(service.totalPrice) > 0) {
-            items.push({
-                name: service.serviceName || service.name || 'Catering Service',
-                description: 'Catering',
-                quantity: guestCount,
-                price: Number(service.totalPrice) / guestCount,
-                total: Number(service.totalPrice),
-                isCatering: true
-            });
+            items.push({ name: service.serviceName || service.name || 'Catering Service', description: 'Catering', quantity: guestCount, price: Number(service.totalPrice) / guestCount, total: Number(service.totalPrice), isCatering: true });
         }
 
         return items;
     }
 
-    // Party Rental Items
     if (Array.isArray(service.partyRentalItems)) {
         service.partyRentalItems.forEach((item: any) => {
-            items.push({
-                name: item.name || 'Rental Item',
-                description: 'Party Rentals',
-                quantity: Number(item.quantity) || 0,
-                price: Number(item.eachPrice) || 0,
-                total: Number(item.totalPrice) || 0
-            });
+            items.push({ name: item.name || 'Rental Item', description: 'Party Rentals', quantity: Number(item.quantity) || 0, price: Number(item.eachPrice) || 0, total: Number(item.totalPrice) || 0 });
         });
     }
 
-    // Staff Items
     if (Array.isArray(service.staffItems)) {
         service.staffItems.forEach((item: any) => {
             const hours = Number(item.hours) || 0;
             const perHourPrice = Number(item.perHourPrice) || 0;
             const quantity = Number(item.quantity) || hours || 1;
-            items.push({
-                name: item.name || 'Staff',
-                description: item.pricingType === 'hourly' ? `Event Staff (${hours} hrs)` : 'Event Staff',
-                quantity: quantity,
-                price: perHourPrice || (Number(item.totalPrice) || 0) / quantity,
-                total: Number(item.totalPrice) || 0
-            });
+            items.push({ name: item.name || 'Staff', description: item.pricingType === 'hourly' ? `Event Staff (${hours} hrs)` : 'Event Staff', quantity, price: perHourPrice || (Number(item.totalPrice) || 0) / quantity, total: Number(item.totalPrice) || 0 });
         });
     }
 
-    // Venue Items
     if (Array.isArray(service.venueItems)) {
         service.venueItems.forEach((item: any) => {
-            items.push({
-                name: item.venueType || 'Venue',
-                description: `Venue (${item.minimumGuests}-${item.maximumGuests} guests)`,
-                quantity: 1,
-                price: Number(item.price) || 0,
-                total: Number(item.totalPrice) || 0
-            });
+            items.push({ name: item.venueType || 'Venue', description: `Venue (${item.minimumGuests}-${item.maximumGuests} guests)`, quantity: 1, price: Number(item.price) || 0, total: Number(item.totalPrice) || 0 });
         });
     }
 
-    // If no items but service has a price (e.g. flat fee venue), treat service as item
     if (items.length === 0 && Number(service.totalPrice) > 0) {
         const quantity = Number(service.quantity) || 1;
         const totalPrice = Number(service.totalPrice) || 0;
         const unitPrice = Number(service.price) || (totalPrice / quantity);
-        
-        items.push({
-            name: service.serviceName || 'Service',
-            description: service.serviceType || 'Flat Fee',
-            quantity: quantity,
-            price: unitPrice,
-            total: totalPrice
-        });
+        items.push({ name: service.serviceName || 'Service', description: service.serviceType || 'Flat Fee', quantity, price: unitPrice, total: totalPrice });
     }
 
     return items;
 };
-
 export const generateInvoicePDF = async (invoice: Invoice) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -247,59 +226,106 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     // CLIENT & EVENT INFO
     // ============================================
 
-    const startY = 75;
+                const startY = 75;
 
-    // Left Column: Bill To
-    doc.setFontSize(10);
-    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]); // Brand Orange
+    // Elevated info cards for better visual hierarchy
+    const infoGap = 8;
+    const infoCardX = 14;
+    const infoCardW = (pageWidth - 28 - infoGap) / 2;
+    const billCardY = startY;
+    const eventCardY = startY;
+    const infoPad = 5;
+
+    // Left card: Bill To
+    doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(infoCardX, billCardY, infoCardW, 40, 2, 2, 'FD');
+    doc.setFillColor(255, 247, 237);
+    doc.roundedRect(infoCardX, billCardY, infoCardW, 9, 2, 2, 'F');
+
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('BILL TO', 14, startY);
+    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+    doc.text('BILL TO', infoCardX + infoPad, billCardY + 6);
 
-    doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]); // Dark Slate
+    doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
     doc.setFontSize(11);
-    doc.text(invoice.contactName || 'Valued Client', 14, startY + 6);
+    doc.text(invoice.contactName || 'Valued Client', infoCardX + infoPad, billCardY + 16);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]); // Slate 500
-    doc.text(invoice.emailAddress || '', 14, startY + 11);
-    doc.text(invoice.phoneNumber || '', 14, startY + 16);
+    doc.setFontSize(9.5);
+    doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
+    doc.text(invoice.emailAddress || '', infoCardX + infoPad, billCardY + 22);
+    doc.text(invoice.phoneNumber || '', infoCardX + infoPad, billCardY + 28);
     if (invoice.companyName) {
-        doc.text(invoice.companyName, 14, startY + 21);
+        doc.text(invoice.companyName, infoCardX + infoPad, billCardY + 34);
     }
 
-    // Right Column: Event Details
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]); // Brand Orange
-    doc.text('EVENT DETAILS', pageWidth / 2, startY);
+    // Right card: Event Details
+    const eventCardX = infoCardX + infoCardW + infoGap;
+    doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(eventCardX, eventCardY, infoCardW, 40, 2, 2, 'FD');
+    doc.setFillColor(255, 247, 237);
+    doc.roundedRect(eventCardX, eventCardY, infoCardW, 9, 2, 2, 'F');
 
-    doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]); // Dark Slate
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+    doc.text('EVENT DETAILS', eventCardX + infoPad, eventCardY + 6);
+
+    doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
     doc.setFontSize(11);
-    doc.text(invoice.eventName || 'Untitled Event', pageWidth / 2, startY + 6);
+    doc.text(invoice.eventName || 'Untitled Event', eventCardX + infoPad, eventCardY + 16);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]); // Slate 500
+    doc.setFontSize(9.5);
+    doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
+    doc.text(`Date: ${invoice.eventDate ? new Date(invoice.eventDate).toLocaleDateString() : 'TBD'}`, eventCardX + infoPad, eventCardY + 22);
+    doc.text(`Time: ${invoice.serviceTime || 'TBD'}`, eventCardX + infoPad, eventCardY + 28);
+    doc.text(`Guests: ${invoice.guestCount || 0}`, eventCardX + infoPad, eventCardY + 34);
 
-    // Using text labels instead of icons for reliability
-    doc.text(`Date: ${invoice.eventDate ? new Date(invoice.eventDate).toLocaleDateString() : 'TBD'}`, pageWidth / 2, startY + 11);
-    doc.text(`Time: ${invoice.serviceTime || 'TBD'}`, pageWidth / 2, startY + 16);
-    doc.text(`Guests: ${invoice.guestCount || 0}`, pageWidth / 2, startY + 21);
-
-    // Location with wrapping
+    // Location below both cards
+    let infoBottomY = startY + 40;
     if (invoice.eventLocation) {
-        const locationLines = doc.splitTextToSize(`Location: ${invoice.eventLocation}`, (pageWidth / 2) - 14);
-        doc.text(locationLines, pageWidth / 2, startY + 26);
+        const locationText = `Location: ${invoice.eventLocation}`;
+        const locationLines = doc.splitTextToSize(locationText, pageWidth - 32);
+        const locationY = infoBottomY + 9;
+
+        doc.setFillColor(248, 250, 252);
+        const locationBoxHeight = Math.max(10, locationLines.length * 5 + 4);
+        doc.roundedRect(14, infoBottomY + 3, pageWidth - 28, locationBoxHeight, 2, 2, 'F');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
+        doc.text(locationLines, 18, locationY);
+
+        infoBottomY += locationBoxHeight + 5;
     }
-
+// ============================================
+    // ITEMS CARDS (OrderItemsBreakdown style)
     // ============================================
-    // ITEMS TABLE
-    // ============================================
 
-    // Get guest count for table calculations
     const tableGuestCount = Number(invoice.guestCount) || 1;
+    const contentLeft = 14;
+    const contentRight = pageWidth - 14;
+    const contentWidth = contentRight - contentLeft;
+    const cardPadding = 4;
 
-    const tableData = (invoice.services || []).flatMap(service => {
+    const formatMoney = (value: number) => '$' + Number(value || 0).toFixed(2);
+    const truncateText = (value: string, max = 42) => (value.length > max ? value.slice(0, max - 3) + '...' : value);
+
+    let cursorY = infoBottomY + 8;
+
+    const ensurePageSpace = (requiredHeight: number) => {
+        if (cursorY + requiredHeight > pageHeight - 35) {
+            doc.addPage();
+            cursorY = 20;
+        }
+    };
+
+    (invoice.services || []).forEach((service: any) => {
         const serviceType = service.serviceType || 'service';
         const serviceTypeLabel = {
             'catering': 'CATERING SERVICE',
@@ -308,77 +334,152 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
             'events_staff': 'EVENT STAFF',
             'staff': 'EVENT STAFF',
             'venues': 'VENUE SERVICE',
-            'venue': 'VENUE SERVICE'
+            'venue': 'VENUE SERVICE',
         }[serviceType] || 'SERVICE';
+        const itemColumnLabel = serviceType === 'catering' ? 'MENU ITEM' : 'ITEM';
+        const qtyColumnLabel = (serviceType === 'venue' || serviceType === 'venues') ? 'Hr' : 'QTY';
 
-        // Service Header Row with type
-        const serviceRow = [
-            {
-                content: `${serviceTypeLabel} - ${(service.serviceName || service.name || 'Service').toUpperCase()}`,
-                colSpan: 4,
-                styles: { fillColor: [248, 250, 252], fontStyle: 'bold', textColor: PRIMARY_DARK }
-            }
-        ];
-
-        // Get normalized items for this service (pass guest count for catering)
         const items = getServiceItems(service, tableGuestCount);
+        const serviceTotal = Number(service.totalPrice) || items.reduce((sum: number, item: any) => sum + (Number(item.total) || 0), 0);
 
-        // Item Rows - simplified to match OrderItemsBreakdown
-        // Column order: ITEM, UNIT PRICE, QTY, TOTAL
-        const itemRows = items.map(item => {
-            return [
-                item.name,
-                `$${item.price.toFixed(2)}`,
-                item.quantity.toString(),
-                `$${item.total.toFixed(2)}`
-            ];
+        const rowHeight = 6;
+        const itemRowsCount = Math.max(items.length, 1);
+        const cardHeight = 30 + (itemRowsCount * rowHeight);
+        ensurePageSpace(cardHeight + 4);
+
+        doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(contentLeft, cursorY, contentWidth, cardHeight, 2, 2, 'FD');
+
+        doc.setFillColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+        doc.roundedRect(contentLeft, cursorY, contentWidth, 10, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${serviceTypeLabel} - ${(service.serviceName || service.name || 'Service').toUpperCase()}`, contentLeft + cardPadding, cursorY + 7);
+
+        const itemX = contentLeft + cardPadding;
+        const unitX = contentRight - 52;
+        const qtyX = contentRight - 30;
+        const totalX = contentRight - cardPadding;
+
+        let rowY = cursorY + 16;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
+        doc.text(itemColumnLabel, itemX, rowY);
+        doc.text('PRICE', unitX, rowY, { align: 'right' });
+        doc.text(qtyColumnLabel, qtyX, rowY, { align: 'center' });
+        doc.text('TOTAL', totalX, rowY, { align: 'right' });
+        rowY += 5;
+
+        items.forEach((item: any) => {
+            if (item.rowType === 'comboSection' || item.rowType === 'comboSubHeader') {
+                const isPremiumSubHeader = item.rowType === 'comboSubHeader' && String(item.name || '').toLowerCase().includes('premium');
+                const isSimpleSubHeader = item.rowType === 'comboSubHeader' && String(item.name || '').toLowerCase().includes('simple');
+
+                const fill = item.rowType === 'comboSection'
+                    ? [255, 247, 237]
+                    : isPremiumSubHeader
+                        ? [245, 243, 255]
+                        : isSimpleSubHeader
+                            ? [240, 253, 244]
+                            : [248, 250, 252];
+
+                doc.setFillColor(fill[0], fill[1], fill[2]);
+                doc.rect(contentLeft + 1, rowY - 4, contentWidth - 2, 6, 'F');
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+
+                if (item.rowType === 'comboSection') {
+                    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+                } else if (isPremiumSubHeader) {
+                    doc.setTextColor(PREMIUM_PURPLE[0], PREMIUM_PURPLE[1], PREMIUM_PURPLE[2]);
+                } else if (isSimpleSubHeader) {
+                    doc.setTextColor(SIMPLE_GREEN[0], SIMPLE_GREEN[1], SIMPLE_GREEN[2]);
+                } else {
+                    doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+                }
+
+                doc.text(item.name, itemX, rowY);
+                rowY += rowHeight;
+                return;
+            }
+
+            if (item.rowType === 'comboHeader') {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+                doc.text(truncateText(item.name || 'Combo'), itemX, rowY);
+
+                const comboBasePrice = Number(item.price || 0);
+                const comboPeople = Number(item.quantity || 0);
+                if (comboBasePrice > 0 && comboPeople > 0) {
+                    doc.text(
+                        '$' + comboBasePrice.toFixed(2) + ' x ' + comboPeople + ' peoples',
+                        unitX,
+                        rowY,
+                        { align: 'right' },
+                    );
+                }
+
+                if (Number(item.total || 0) > 0) {
+                    doc.text('$' + Number(item.total || 0).toFixed(2), totalX, rowY, { align: 'right' });
+                }
+                rowY += rowHeight;
+                return;
+            }
+
+            const isPremium = item.rowType === 'comboPremiumItem';
+            const isSimple = item.rowType === 'comboSimpleItem';
+            const itemName = truncateText(item.name || 'Item');
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            if (isPremium) {
+                doc.setTextColor(PREMIUM_PURPLE[0], PREMIUM_PURPLE[1], PREMIUM_PURPLE[2]);
+            } else if (isSimple) {
+                doc.setTextColor(SIMPLE_GREEN[0], SIMPLE_GREEN[1], SIMPLE_GREEN[2]);
+            } else {
+                doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+            }
+            doc.text(itemName, itemX, rowY);
+
+            const unitText = (isPremium ? '+$' : '$') + Number(item.price || 0).toFixed(2);
+            const totalText = (isPremium ? '+$' : '$') + Number(item.total || 0).toFixed(2);
+
+            doc.text(unitText, unitX, rowY, { align: 'right' });
+            if (isSimple) {
+                // For simple combo items, only show the price.
+                doc.text('', qtyX, rowY, { align: 'center' });
+                doc.text('', totalX, rowY, { align: 'right' });
+            } else {
+                doc.text(String(item.quantity || 0), qtyX, rowY, { align: 'center' });
+                doc.text(totalText, totalX, rowY, { align: 'right' });
+            }
+            rowY += rowHeight;
         });
 
-        return [serviceRow, ...itemRows];
+        doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+        doc.line(contentLeft + cardPadding, rowY, contentRight - cardPadding, rowY);
+        rowY += 6;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+        doc.text('Service Total', itemX, rowY);
+        doc.text(formatMoney(serviceTotal), totalX, rowY, { align: 'right' });
+
+        cursorY += cardHeight + 4;
     });
 
-    // Calculate where the table starts based on content above
-    const tableStartY = invoice.eventLocation ? startY + 40 : startY + 35;
-
-    autoTable(doc, {
-        startY: tableStartY,
-        head: [['ITEM', 'UNIT PRICE', 'QTY', 'TOTAL']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: {
-            fillColor: BRAND_ORANGE, // Brand Orange Header
-            textColor: [255, 255, 255],
-            fontSize: 11,
-            fontStyle: 'bold',
-            halign: 'left',
-            cellPadding: 8
-        },
-        styles: {
-            fontSize: 9,
-            cellPadding: 6,
-            lineColor: BORDER_GRAY,
-            lineWidth: 0.1,
-            textColor: PRIMARY_DARK
-        },
-        columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 'auto' }, // ITEM - auto width for name
-            1: { halign: 'right', cellWidth: 40 }, // UNIT PRICE - right aligned
-            2: { halign: 'center', cellWidth: 30 }, // QTY - centered
-            3: { halign: 'right', fontStyle: 'bold', cellWidth: 40 } // TOTAL - right aligned, bold
-        },
-        alternateRowStyles: {
-            fillColor: [255, 255, 255]
-        },
-        margin: { top: 20, right: 14, bottom: 40, left: 14 }
-    });
-
-    // ============================================
-    // TOTALS SECTION
-    // ============================================
-
-    const finalY = (doc as any).lastAutoTable.finalY + 15;
-
-    // ✅ USE API-CALCULATED TOTALS (same as order summary page)
+    let finalY = cursorY + 6;
+    if (finalY + 28 > pageHeight - 20) {
+        doc.addPage();
+        finalY = 20;
+    }
+    // ? USE API-CALCULATED TOTALS (same as order summary page)
     // Priority: 1. pricing_snapshot (if available), 2. Sum of service.totalPrice, 3. Manual calculation
     let subtotal = 0;
     let serviceFee = 0;
@@ -511,94 +612,116 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
         doc.text(splitNotes, notesX + 5, finalY + 7);
     }
 
-    // ============================================
+        // ============================================
     // TOTALS BREAKDOWN (RIGHT SIDE)
     // ============================================
 
-    // Background for totals
-    doc.setFillColor(248, 250, 252); // Slate 50
-    doc.roundedRect(totalsX - 5, finalY - 5, totalsWidth + 5, 58, 2, 2, 'F');
-
-    let currentTotalY = finalY;
     const lineHeight = 7;
+    const subtotalForDisplay = subtotal + deliveryFee + adjustmentsTotal;
+    const serviceFeeRate = waiveServiceFee ? 0 : 0.05;
+    const serviceFeeForDisplay = Number((subtotalForDisplay * serviceFeeRate).toFixed(2));
+    const taxForDisplay = (!isTaxExempt && taxRate > 0)
+        ? Number((subtotalForDisplay * taxRate).toFixed(2))
+        : 0;
+    const totalForDisplay = Number((subtotalForDisplay + serviceFeeForDisplay + taxForDisplay).toFixed(2));
 
-    // Helper for total lines
-    const addTotalLine = (label: string, value: number, isBold = false, isTotal = false, isDiscount = false) => {
-        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-        doc.setFontSize(isTotal ? 12 : 10);
-        doc.setTextColor(
-            isTotal ? BRAND_ORANGE[0] : isDiscount ? 34 : PRIMARY_DARK[0],
-            isTotal ? BRAND_ORANGE[1] : isDiscount ? 197 : PRIMARY_DARK[1],
-            isTotal ? BRAND_ORANGE[2] : isDiscount ? 94 : PRIMARY_DARK[2]
-        );
+    const summaryRows: Array<{ label: string; value: number; mode?: 'discount' | 'normal' | 'subtotal' | 'total' }> = [];
 
-        doc.text(label, totalsX, currentTotalY);
-        const prefix = isDiscount ? '-$' : '$';
-        doc.text(`${prefix}${value.toFixed(2)}`, pageWidth - 14, currentTotalY, { align: 'right' });
-        currentTotalY += lineHeight;
-    };
-
-    addTotalLine('Subtotal:', subtotal);
-    
-    // Show adjustments breakdown
     if (adjustmentsBreakdown.length > 0) {
         adjustmentsBreakdown.forEach((adj: any) => {
             if (adj.mode === 'discount') {
-                addTotalLine(`${adj.label}:`, adj.amount, false, false, true);
+                summaryRows.push({ label: `${adj.label}:`, value: Number(adj.amount) || 0, mode: 'discount' });
             } else if (adj.mode === 'surcharge') {
-                addTotalLine(`${adj.label}:`, adj.amount);
+                summaryRows.push({ label: `${adj.label}:`, value: Number(adj.amount) || 0, mode: 'normal' });
             }
         });
-    } else if (adjustmentsTotal !== 0) {
-        // Fallback: Show net adjustments if breakdown not available
-        if (totalDiscounts > 0) {
-            addTotalLine('Discounts:', totalDiscounts, false, false, true);
-        }
-        if (totalSurcharges > 0) {
-            addTotalLine('Surcharges:', totalSurcharges);
-        }
+    } else {
+        if (totalDiscounts > 0) summaryRows.push({ label: 'Discount:', value: totalDiscounts, mode: 'discount' });
+        if (totalSurcharges > 0) summaryRows.push({ label: 'Surcharge:', value: totalSurcharges, mode: 'normal' });
     }
 
-    const serviceFeeRate = waiveServiceFee ? 0 : 0.05;
-    addTotalLine(`Service Fee (${(serviceFeeRate * 100).toFixed(0)}%):`, serviceFee);
-    addTotalLine('Delivery Fee:', deliveryFee);
+    summaryRows.push({ label: 'Delivery Fee:', value: deliveryFee, mode: 'normal' });
+    summaryRows.push({ label: 'Subtotal:', value: subtotalForDisplay, mode: 'subtotal' });
+    summaryRows.push({ label: `Service Fee (${(serviceFeeRate * 100).toFixed(0)}%):`, value: serviceFeeForDisplay, mode: 'normal' });
 
-    // Tax Fee - show if tax is calculated
-    if (isTaxExempt) {
-        // Show tax exempt badge
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(34, 197, 94); // Green color
-        doc.text('Tax:', totalsX, currentTotalY);
-        doc.setFontSize(8);
-        doc.text('TAX EXEMPT', pageWidth - 14, currentTotalY, { align: 'right' });
-        currentTotalY += lineHeight;
-    } else if (tax > 0) {
-        // Format tax percentage - remove unnecessary decimal zeros
+    if (!isTaxExempt && taxForDisplay > 0) {
         const taxPercentageValue = taxRate * 100;
         const taxPercentage = taxPercentageValue % 1 === 0
             ? taxPercentageValue.toFixed(0)
             : taxPercentageValue.toFixed(3).replace(/\.?0+$/, '');
-
-        addTotalLine(`Tax Fee (${taxPercentage}%):`, tax);
+        summaryRows.push({ label: `Tax Fee (${taxPercentage}%):`, value: taxForDisplay, mode: 'normal' });
     }
 
-    // Divider line above total
-    currentTotalY += 2;
-    doc.setDrawColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
-    doc.setLineWidth(0.5);
-    doc.line(totalsX, currentTotalY - 2, pageWidth - 14, currentTotalY - 2);
-    currentTotalY += 2;
+    summaryRows.push({ label: 'Total:', value: totalForDisplay, mode: 'total' });
 
-    addTotalLine('Total:', total, true, true);
+    const totalsHeaderH = 10;
+    const totalRowsExtra = summaryRows.some((row) => row.mode === 'total') ? 1 : 0;
+    const totalsBoxHeight = Math.max(
+        46,
+        totalsHeaderH + 6 + (summaryRows.length * lineHeight) + totalRowsExtra + 2,
+    );
 
-    // ============================================
+    // Summary panel container
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+    doc.roundedRect(totalsX - 5, finalY - 5, totalsWidth + 5, totalsBoxHeight, 2, 2, 'FD');
+
+    // Panel header
+    doc.setFillColor(255, 247, 237);
+    doc.roundedRect(totalsX - 5, finalY - 5, totalsWidth + 5, totalsHeaderH, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+    doc.text('PAYMENT SUMMARY', totalsX, finalY + 1.5);
+
+    const totalsValueX = pageWidth - 18;
+    let currentTotalY = finalY + totalsHeaderH + 6;
+
+    summaryRows.forEach((row) => {
+        const isDiscount = row.mode === 'discount';
+        const isSubtotal = row.mode === 'subtotal';
+        const isTotal = row.mode === 'total';
+
+        if (isSubtotal) {
+            doc.setFillColor(239, 246, 255);
+            doc.roundedRect(totalsX - 2, currentTotalY - 4.5, totalsWidth - 2, 6, 1.5, 1.5, 'F');
+        }
+
+        doc.setFont('helvetica', isTotal || isSubtotal ? 'bold' : 'normal');
+        doc.setFontSize(isTotal ? 12 : 10);
+
+        if (isTotal) {
+            doc.setTextColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+        } else if (isSubtotal) {
+            doc.setTextColor(37, 99, 235);
+        } else if (isDiscount) {
+            doc.setTextColor(34, 197, 94);
+        } else {
+            doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+        }
+
+        doc.text(row.label, totalsX, currentTotalY);
+        const prefix = isDiscount ? '-$' : '$';
+        doc.text(`${prefix}${row.value.toFixed(2)}`, totalsValueX, currentTotalY, { align: 'right' });
+        currentTotalY += lineHeight;
+
+        if (isTotal) {
+            currentTotalY += 1;
+        }
+    });
+
+    if (isTaxExempt) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(34, 197, 94);
+        doc.text('TAX EXEMPT', totalsValueX, finalY + totalsBoxHeight - 6, { align: 'right' });
+    }
+// ============================================
     // FOOTER
     // ============================================
 
-    // Position footer with proper spacing from content
-    const contentEndY = Math.max(currentTotalY, finalY + 60);
-    const footerY = Math.max(contentEndY + 15, pageHeight - 25);
+    // Position footer at fixed page-end position
+    const footerY = pageHeight - 25;
 
     doc.setDrawColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
     doc.setLineWidth(0.5);
@@ -608,7 +731,7 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
     doc.setFont('helvetica', 'normal');
     doc.text('Thank you for your business!', 14, footerY + 7);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
     doc.text('Cater Directly - Premium Catering Services', pageWidth - 14, footerY + 7, { align: 'right' });
@@ -616,3 +739,18 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     // Save PDF
     doc.save(`Invoice-${invoice.id.slice(0, 8)}.pdf`);
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

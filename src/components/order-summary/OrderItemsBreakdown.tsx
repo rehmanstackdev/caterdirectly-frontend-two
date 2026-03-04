@@ -146,11 +146,18 @@ const OrderItemsBreakdown = ({
   // Recalculate service fee on (subtotal + delivery + adjustments)
   const serviceFeeBase = subtotal + deliveryFee + adjustmentsTotal;
   const serviceFeePercentage = effectiveSettings.serviceFeePercentage || 0;
-  const serviceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+  const serviceFee = isServiceFeeWaived
+    ? 0
+    : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
 
   // Recalculate tax on same base as service fee
-  const taxRateValue = (pricingSnapshot ? pricingSnapshot.taxRate : calculatedTotals?.taxData?.rate) ?? 0;
-  const recalculatedTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRateValue).toFixed(2));
+  const taxRateValue =
+    (pricingSnapshot
+      ? pricingSnapshot.taxRate
+      : calculatedTotals?.taxData?.rate) ?? 0;
+  const recalculatedTax = isTaxExempt
+    ? 0
+    : parseFloat((serviceFeeBase * taxRateValue).toFixed(2));
 
   const preTaxTotal = subtotal + serviceFee + deliveryFee + taxableAdjustments;
 
@@ -168,6 +175,9 @@ const OrderItemsBreakdown = ({
     parseInt(String(formData?.headcount || formData?.guestCount || "1")) || 1;
 
   // Calculate catering breakdowns for each catering service
+  const totalVendorEarnings = services.reduce((sum, service) => {
+    return sum + (Number((service as any).vendorEarnings) || 0);
+  }, 0);
   const cateringCalculations = useMemo(() => {
     const calculations: Record<
       string,
@@ -262,7 +272,10 @@ const OrderItemsBreakdown = ({
         }> = [];
 
         // Track combo base items from cateringItems (for name & price lookup)
-        const comboBaseItems: Record<string, { name: string; price: number; quantity: number; image?: string }> = {};
+        const comboBaseItems: Record<
+          string,
+          { name: string; price: number; quantity: number; image?: string }
+        > = {};
 
         if (apiComboCategoryItems.length > 0 || apiCateringItems.length > 0) {
           // Preserve comboId when mapping combo category items
@@ -289,14 +302,16 @@ const OrderItemsBreakdown = ({
             const itemId = item.id || item.cateringId;
             const cateringId = item.cateringId || item.id;
             const quantity = selectedItems[itemId] || item.quantity || 0;
-            const isComboBase = item.isCombo || comboIds.has(itemId) || comboIds.has(cateringId);
+            const isComboBase =
+              item.isCombo || comboIds.has(itemId) || comboIds.has(cateringId);
 
             if (isComboBase) {
               // This is a combo base item - store for name/price lookup
               // Key by cateringId so comboGroups lookup by comboId works
               const baseData = {
                 name: item.name || item.menuItemName || "Combo",
-                price: parseFloat(String(item.price || item.pricePerPerson)) || 0,
+                price:
+                  parseFloat(String(item.price || item.pricePerPerson)) || 0,
                 quantity: quantity || 1,
                 image: item.image || item.imageUrl || "",
               };
@@ -397,7 +412,9 @@ const OrderItemsBreakdown = ({
             basePrice: baseItem?.price || 0,
             quantity: baseItem?.quantity || guestCount,
             simpleItems: items
-              .filter((item) => !item.additionalCharge || item.additionalCharge === 0)
+              .filter(
+                (item) => !item.additionalCharge || item.additionalCharge === 0,
+              )
               .map((item) => ({
                 name: item.name,
                 quantity: item.quantity,
@@ -405,7 +422,9 @@ const OrderItemsBreakdown = ({
                 image: item.image || "",
               })),
             premiumItems: items
-              .filter((item) => item.additionalCharge && item.additionalCharge > 0)
+              .filter(
+                (item) => item.additionalCharge && item.additionalCharge > 0,
+              )
               .map((item) => ({
                 name: item.name,
                 quantity: item.quantity,
@@ -678,107 +697,67 @@ const OrderItemsBreakdown = ({
                           )}
 
                         {/* 2. Per-Combo Sections - Each combo shown separately */}
-                        {cateringCalc.combos && cateringCalc.combos.length > 0 ? (
-                          cateringCalc.combos.map((combo) => {
-                            const comboTotal =
-                              combo.basePrice * combo.quantity +
-                              combo.premiumItems.reduce(
-                                (sum, item) => sum + item.additionalCharge * combo.quantity,
-                                0,
-                              );
-                            return (
-                              <div key={combo.comboId} className="bg-gray-50 rounded-lg p-4 space-y-3">
-                                {/* Combo Header */}
-                                <div>
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-sm font-semibold text-gray-900">
-                                      {combo.comboName}
-                                    </span>
-                                    <span className="text-lg font-bold text-gray-900">
-                                      {formatCurrency(comboTotal)}
-                                    </span>
+                        {cateringCalc.combos && cateringCalc.combos.length > 0
+                          ? cateringCalc.combos.map((combo) => {
+                              const comboTotal =
+                                combo.basePrice * combo.quantity +
+                                combo.premiumItems.reduce(
+                                  (sum, item) =>
+                                    sum +
+                                    item.additionalCharge * combo.quantity,
+                                  0,
+                                );
+                              return (
+                                <div
+                                  key={combo.comboId}
+                                  className="bg-gray-50 rounded-lg p-4 space-y-3"
+                                >
+                                  {/* Combo Header */}
+                                  <div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-semibold text-gray-900">
+                                        {combo.comboName}
+                                      </span>
+                                      <span className="text-lg font-bold text-gray-900">
+                                        {formatCurrency(comboTotal)}
+                                      </span>
+                                    </div>
+                                    {combo.basePrice > 0 && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {formatCurrency(combo.basePrice)} x{" "}
+                                        {combo.quantity}{" "}
+                                        {combo.quantity === 1
+                                          ? "person"
+                                          : "peoples"}
+                                      </div>
+                                    )}
                                   </div>
-                                  {combo.basePrice > 0 && (
-                                    <div className="text-xs text-gray-500 mt-1">
-                                      {formatCurrency(combo.basePrice)} x{" "}
-                                      {combo.quantity}{" "}
-                                      {combo.quantity === 1 ? "person" : "peoples"}
-                                    </div>
-                                  )}
-                                </div>
 
-                                {/* Combo Items */}
-                                {(combo.simpleItems.length > 0 || combo.premiumItems.length > 0) && (
-                                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                                    {/* Simple Items */}
-                                    <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-gray-600 uppercase">
-                                          Simple Items
-                                        </span>
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-100"
-                                        >
-                                          Included
-                                        </Badge>
-                                      </div>
-
-                                      {combo.simpleItems.length > 0 ? (
-                                        combo.simpleItems.map((item, idx) => (
-                                          <div
-                                            key={`simple-${combo.comboId}-${idx}`}
-                                            className="flex items-center justify-between gap-2 py-2 border-t border-gray-100 first:border-t-0 first:pt-0"
+                                  {/* Combo Items */}
+                                  {(combo.simpleItems.length > 0 ||
+                                    combo.premiumItems.length > 0) && (
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                      {/* Simple Items */}
+                                      <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-semibold text-gray-600 uppercase">
+                                            Simple Items
+                                          </span>
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-100"
                                           >
-                                            <div className="flex items-center gap-2 min-w-0">
-                                              <Avatar className="h-11 w-11 shrink-0 rounded-md">
-                                                <AvatarImage
-                                                  src={item.image}
-                                                  alt={item.name}
-                                                  className="object-cover"
-                                                />
-                                                <AvatarFallback className="bg-gray-200 text-gray-500 rounded-md">
-                                                  <ImageIcon className="h-4 w-4" />
-                                                </AvatarFallback>
-                                              </Avatar>
-                                              <div className="min-w-0">
-                                                <div className="text-gray-800 font-medium text-sm truncate">
-                                                  {item.name}
-                                                </div>
-                                                <Badge className="mt-1 h-5 text-[10px] bg-green-100 text-green-700 border border-green-200 hover:bg-green-100">
-                                                  {formatCurrency(item.price)}
-                                                </Badge>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div className="text-xs text-gray-500 py-2">
-                                          No simple items selected
+                                            Included
+                                          </Badge>
                                         </div>
-                                      )}
-                                    </div>
 
-                                    {/* Premium Items */}
-                                    <div className="bg-white rounded-lg border border-purple-200 p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-purple-700 uppercase">
-                                          Premium Items
-                                        </span>
-                                        <Badge className="text-[10px] bg-purple-600 text-white hover:bg-purple-600">
-                                          Premium
-                                        </Badge>
-                                      </div>
-
-                                      {combo.premiumItems.length > 0 ? (
-                                        combo.premiumItems.map((item, idx) => {
-                                          const itemTotal = item.additionalCharge * combo.quantity;
-                                          return (
+                                        {combo.simpleItems.length > 0 ? (
+                                          combo.simpleItems.map((item, idx) => (
                                             <div
-                                              key={`premium-${combo.comboId}-${idx}`}
-                                              className="space-y-1 border-t border-purple-100 first:border-t-0 first:pt-0"
+                                              key={`simple-${combo.comboId}-${idx}`}
+                                              className="flex items-center justify-between gap-2 py-2 border-t border-gray-100 first:border-t-0 first:pt-0"
                                             >
-                                              <div className="flex items-center gap-2 min-w-0 pt-2">
+                                              <div className="flex items-center gap-2 min-w-0">
                                                 <Avatar className="h-11 w-11 shrink-0 rounded-md">
                                                   <AvatarImage
                                                     src={item.image}
@@ -793,72 +772,142 @@ const OrderItemsBreakdown = ({
                                                   <div className="text-gray-800 font-medium text-sm truncate">
                                                     {item.name}
                                                   </div>
-                                                       <div className="text-xs text-gray-500">
-                                                ({formatCurrency(item.additionalCharge)}) x{" "}
-                                                {combo.quantity}{" "}
-                                                {combo.quantity === 1 ? "person" : "peoples"}
-                                              </div>
+                                                  <Badge className="mt-1 h-5 text-[10px] bg-green-100 text-green-700 border border-green-200 hover:bg-green-100">
+                                                    {formatCurrency(item.price)}
+                                                  </Badge>
                                                 </div>
                                               </div>
-                                         
-                                              <div className="text-right">
-                                                <span className="text-orange-600 font-semibold text-sm">
-                                                  {formatCurrency(itemTotal)}
-                                                </span>
-                                              </div>
                                             </div>
-                                          );
-                                        })
-                                      ) : (
-                                        <div className="text-xs text-gray-500 py-2">
-                                          No premium items selected
+                                          ))
+                                        ) : (
+                                          <div className="text-xs text-gray-500 py-2">
+                                            No simple items selected
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Premium Items */}
+                                      <div className="bg-white rounded-lg border border-purple-200 p-3 space-y-2 max-h-[350px] overflow-y-auto no-scrollbar">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-semibold text-purple-700 uppercase">
+                                            Premium Items
+                                          </span>
+                                          <Badge className="text-[10px] bg-purple-600 text-white hover:bg-purple-600">
+                                            Premium
+                                          </Badge>
                                         </div>
-                                      )}
+
+                                        {combo.premiumItems.length > 0 ? (
+                                          combo.premiumItems.map(
+                                            (item, idx) => {
+                                              const itemTotal =
+                                                item.additionalCharge *
+                                                combo.quantity;
+                                              return (
+                                                <div
+                                                  key={`premium-${combo.comboId}-${idx}`}
+                                                  className="space-y-1 border-t border-purple-100 first:border-t-0 first:pt-0"
+                                                >
+                                                  <div className="flex items-center gap-2 min-w-0 pt-2">
+                                                    <Avatar className="h-11 w-11 shrink-0 rounded-md">
+                                                      <AvatarImage
+                                                        src={item.image}
+                                                        alt={item.name}
+                                                        className="object-cover"
+                                                      />
+                                                      <AvatarFallback className="bg-gray-200 text-gray-500 rounded-md">
+                                                        <ImageIcon className="h-4 w-4" />
+                                                      </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0">
+                                                      <div className="text-gray-800 font-medium text-sm truncate">
+                                                        {item.name}
+                                                      </div>
+                                                      <div className="text-xs text-gray-500">
+                                                        (
+                                                        {formatCurrency(
+                                                          item.additionalCharge,
+                                                        )}
+                                                        ) x {combo.quantity}{" "}
+                                                        {combo.quantity === 1
+                                                          ? "person"
+                                                          : "peoples"}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="text-right">
+                                                    <span className="text-orange-600 font-semibold text-sm">
+                                                      {formatCurrency(
+                                                        itemTotal,
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              );
+                                            },
+                                          )
+                                        ) : (
+                                          <div className="text-xs text-gray-500 py-2">
+                                            No premium items selected
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
-                        ) : (
-                          /* Fallback: show old base price section if no combos but basePricePerPerson exists */
-                          cateringCalc.basePricePerPerson > 0 && (
-                            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                              <span className="text-sm font-semibold text-gray-500 uppercase">
-                                Base Price
-                              </span>
-                              <div className="text-xs text-gray-500">
-                                {formatCurrency(cateringCalc.basePricePerPerson)} x{" "}
-                                {guestCount}{" "}
-                                {guestCount === 1 ? "person" : "persons"}
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="font-semibold text-gray-900 text-base">
-                                  Base Total
+                                  )}
+                                </div>
+                              );
+                            })
+                          : /* Fallback: show old base price section if no combos but basePricePerPerson exists */
+                            cateringCalc.basePricePerPerson > 0 && (
+                              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                <span className="text-sm font-semibold text-gray-500 uppercase">
+                                  Base Price
                                 </span>
-                                <span className="text-xl font-bold text-gray-900">
-                                  {formatCurrency(cateringCalc.basePriceTotal)}
-                                </span>
+                                <div className="text-xs text-gray-500">
+                                  {formatCurrency(
+                                    cateringCalc.basePricePerPerson,
+                                  )}{" "}
+                                  x {guestCount}{" "}
+                                  {guestCount === 1 ? "person" : "persons"}
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="font-semibold text-gray-900 text-base">
+                                    Base Total
+                                  </span>
+                                  <span className="text-xl font-bold text-gray-900">
+                                    {formatCurrency(
+                                      cateringCalc.basePriceTotal,
+                                    )}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          )
-                        )}
+                            )}
                         {/* Service Total */}
                         {(() => {
                           // Compute total from combos (base × persons + premium × persons) + menu items
-                          const combosTotal = (cateringCalc.combos || []).reduce((sum, combo) => {
+                          const combosTotal = (
+                            cateringCalc.combos || []
+                          ).reduce((sum, combo) => {
                             const base = combo.basePrice * combo.quantity;
                             const premium = combo.premiumItems.reduce(
-                              (s, item) => s + item.additionalCharge * combo.quantity, 0
+                              (s, item) =>
+                                s + item.additionalCharge * combo.quantity,
+                              0,
                             );
                             return sum + base + premium;
                           }, 0);
-                          const menuTotal = (cateringCalc.menuItems || []).reduce(
-                            (sum, item) => sum + item.additionalCharge * item.quantity, 0
+                          const menuTotal = (
+                            cateringCalc.menuItems || []
+                          ).reduce(
+                            (sum, item) =>
+                              sum + item.additionalCharge * item.quantity,
+                            0,
                           );
-                          const computedTotal = combosTotal > 0
-                            ? combosTotal + menuTotal
-                            : cateringCalc.finalTotal;
+                          const computedTotal =
+                            combosTotal > 0
+                              ? combosTotal + menuTotal
+                              : cateringCalc.finalTotal;
                           return (
                             <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                               <span className="font-semibold text-gray-900">
@@ -900,7 +949,10 @@ const OrderItemsBreakdown = ({
                             </div>
                             <div className="col-span-2 text-center">
                               <span className="text-sm font-semibold text-gray-600 uppercase">
-                                {(service.serviceType || service.type || "") === "venues" ? "Hours" : "Qty"}
+                                {(service.serviceType || service.type || "") ===
+                                "venues"
+                                  ? "Hours"
+                                  : "Qty"}
                               </span>
                             </div>
                             <div className="col-span-2 text-right">
