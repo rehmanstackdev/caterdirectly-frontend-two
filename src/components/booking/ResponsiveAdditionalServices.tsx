@@ -32,10 +32,14 @@ function ResponsiveAdditionalServices({
   guestCount = 1,
 }: ResponsiveAdditionalServicesProps) {
   const hasSelectedServices = selectedServices.length > 0;
-  
+
   // Check if services have items OR if they are non-catering services (which don't need items)
   const hasSelectedItems = selectedServices.some((service) => {
-    const serviceType = (service.serviceType || service.type || "").toLowerCase();
+    const serviceType = (
+      service.serviceType ||
+      service.type ||
+      ""
+    ).toLowerCase();
     // Non-catering services don't require item selection
     if (serviceType !== "catering") {
       return true;
@@ -43,7 +47,7 @@ function ResponsiveAdditionalServices({
     // Catering services need items
     return getSelectedItemsCountForService(service, selectedItems) > 0;
   });
-  
+
   const servicesMissing = !hasSelectedServices;
   const itemsMissing = hasSelectedServices && !hasSelectedItems;
 
@@ -79,12 +83,6 @@ function ResponsiveAdditionalServices({
               ? "Add services first to build your cart summary."
               : "Choose items from your selected services to see totals here."}
           </p>
-
-          <div className="mt-3 inline-flex items-center gap-1 text-xs text-orange-600 font-medium bg-orange-100 px-2.5 py-1 rounded-full">
-            {servicesMissing
-              ? "Start by adding a service"
-              : "Select items from the left Side Menus And Combos"}
-          </div>
         </div>
       )}
 

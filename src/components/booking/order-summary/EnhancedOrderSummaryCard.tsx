@@ -617,15 +617,16 @@ const EnhancedOrderSummaryCard = React.memo(
                                     {/* Combo header */}
                                     <div>
                                       <div className="flex justify-between items-center">
-                                        <span className="font-semibold text-gray-900">
+                                        <span className="font-semibold text-gray-900 truncate ">
                                           {combo.comboName}
                                         </span>
                                         <span className="text-lg font-bold text-orange-600">
                                           {formatCurrency(
-                                            combo.basePrice * combo.headcount,
+                                            itemsPerPerson * combo.headcount,
                                           )}
                                         </span>
                                       </div>
+
                                       <div className="flex items-center justify-between">
                                         <div className="text-xs text-gray-500">
                                           {formatCurrency(combo.basePrice)} x{" "}
@@ -637,7 +638,7 @@ const EnhancedOrderSummaryCard = React.memo(
                                         {itemsPerPerson > 0 && (
                                           <Badge
                                             variant="secondary"
-                                            className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100 whitespace-nowrap"
+                                            className="text-[9px] bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-100 whitespace-nowrap"
                                           >
                                             {formatCurrency(itemsPerPerson)} /
                                             Person
@@ -776,8 +777,8 @@ const EnhancedOrderSummaryCard = React.memo(
           {(calculations.adjustmentsBreakdown?.length ?? 0) > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
-                  2
+                <span className="w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
+                  {calculations.adjustmentsBreakdown.length}
                 </span>
                 Adjustments
               </h4>
@@ -1015,5 +1016,6 @@ const EnhancedOrderSummaryCard = React.memo(
 EnhancedOrderSummaryCard.displayName = "EnhancedOrderSummaryCard";
 
 export default EnhancedOrderSummaryCard;
+
 
 

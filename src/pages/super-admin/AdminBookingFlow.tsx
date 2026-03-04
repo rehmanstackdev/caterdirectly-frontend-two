@@ -1998,12 +1998,41 @@ function VendorBookingFlow() {
                                           comboCategoryItems,
                                         );
 
-                                      mappedService.totalPrice =
-                                        cateringCalcResult.finalTotal;
+                                      const comboTotal = Array.isArray(
+                                        (service as any).comboSelectionsList,
+                                      )
+                                        ? (service as any).comboSelectionsList.reduce(
+                                            (sum: number, combo: any) =>
+                                              sum +
+                                              (Number(combo?.totalPrice) || 0),
+                                            0,
+                                          )
+                                        : 0;
+
+                                      const computedServiceTotal =
+                                        additionalChargeItems
+                                          .filter((item: any) => item.isMenuItem)
+                                          .reduce(
+                                            (sum: number, item: any) =>
+                                              sum +
+                                              (Number(item.additionalCharge) ||
+                                                0) *
+                                                (Number(item.quantity) || 0),
+                                            0,
+                                          ) + comboTotal;
+
+                                      const serviceTotal =
+                                        computedServiceTotal ||
+                                        (cateringCalcResult.finalTotal +
+                                          comboTotal);
+
+                                      mappedService.totalPrice = serviceTotal;
+                                      mappedService.cateringServiceTotal =
+                                        serviceTotal;
                                       mappedService.pricePerPerson =
                                         guestCountForService > 0
-                                          ? mappedService.totalPrice / guestCountForService
-                                          : mappedService.totalPrice;
+                                          ? serviceTotal / guestCountForService
+                                          : serviceTotal;
                                     }
                                   }
 
@@ -2149,6 +2178,7 @@ function VendorBookingFlow() {
 }
 
 export default VendorBookingFlow;
+
 
 
 

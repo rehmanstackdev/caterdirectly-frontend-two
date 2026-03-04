@@ -344,6 +344,7 @@ const ComboItemsList = ({
             .map((item) => ({
               itemId: item.id,
               itemName: item.name,
+              image: item.image || item.imageUrl || "",
               additionalPrice: getSelectedItemAmount(item),
               quantity: 1,
               price: parseMoney(item.price),
@@ -513,8 +514,19 @@ const ComboItemsList = ({
                                   return next;
                                 })
                               }
-                              className="h-4 w-4 accent-orange-500 cursor-pointer"
-                              style={{ accentColor: "#f97316" }}
+                              className="h-4 w-4 cursor-pointer appearance-none rounded-full border transition-colors"
+                              style={
+                                checked
+                                  ? {
+                                      backgroundColor: "#f97316",
+                                      borderColor: "#f97316",
+                                      boxShadow: "inset 0 0 0 3px #fff",
+                                    }
+                                  : {
+                                      backgroundColor: "#fff",
+                                      borderColor: "#fdba74",
+                                    }
+                              }
                             />
                           ) : (
                             <Checkbox
@@ -657,9 +669,13 @@ const ComboItemsList = ({
                   <span className="text-gray-700">
                     ({formatCurrency(activeComboPerPersonTotal)} / person)
                   </span>{" "}
-                  {activeComboServes && (
+                  {serviceMinimumGuests && (
                     <span className="text-gray-700">
-                      Serves {activeComboServes}
+                      Minimum
+                      <span className="text-green-500 font-bold mx-1">
+                        {serviceMinimumGuests}
+                      </span>
+                      peoples serves
                     </span>
                   )}
                 </div>
