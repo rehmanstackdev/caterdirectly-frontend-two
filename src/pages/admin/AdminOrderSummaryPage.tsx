@@ -149,6 +149,7 @@ function AdminOrderSummaryPage() {
                   id: item.cateringId || item.id,
                   name: item.menuItemName || item.name,
                   price: parseFloat(item.price || 0),
+                  quantity: item.quantity || 1,
                   category: item.menuName || 'Menu',
                   menuName: item.menuName,
                   menuItemName: item.menuItemName,
@@ -171,7 +172,7 @@ function AdminOrderSummaryPage() {
             }
             
             if (serviceType === 'catering') {
-              const allComboCategoryItems = (invoiceData.services || []).flatMap((s: any) => s.comboCategoryItems || []);
+              const allComboCategoryItems = service.comboCategoryItems || [];
               const comboGroups = new Map();
               
               allComboCategoryItems.forEach((item: any) => {
@@ -183,10 +184,10 @@ function AdminOrderSummaryPage() {
               
               comboGroups.forEach((comboCategoryItems, comboId) => {
                 const existingCombo = menuItems.find(item => item.id === comboId);
-                const comboImage = comboCategoryItems[0]?.image || 
-                  service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId)?.image || '';
+                const matchingCateringItem = service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId);
+                const comboImage = comboCategoryItems[0]?.image || matchingCateringItem?.image || '';
                 if (!existingCombo) {
-                  const comboName = comboId === 'd322b22b-c67a-42c2-b757-5deb9949ccaf' ? 'Desserts' : 'Combo';
+                  const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
                   menuItems.push({
                     id: comboId,
                     name: comboName,
@@ -309,11 +310,15 @@ function AdminOrderSummaryPage() {
                   });
                 });
 
+                // Derive combo name from matching cateringItem
+                const matchingCateringItem = service.cateringItems?.find((ci: any) => (ci.cateringId || ci.id) === comboId);
+                const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
+
                 return {
                   id: comboId,
-                  name: 'Combo',
+                  name: comboName,
                   isCombo: true,
-                  pricePerPerson: 0,
+                  pricePerPerson: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
                   comboCategories: Array.from(categoryMap.values())
                 };
               });
@@ -574,8 +579,14 @@ function AdminOrderSummaryPage() {
       return total + deliveryFee;
     }, 0);
 
-    // Include tax in the total calculation
-    return baseTotals.subtotal + baseTotals.serviceFee + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0) + baseTotals.tax;
+    // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
+    const serviceFeeBase = baseTotals.subtotal + totalDeliveryFees + (baseTotals.adjustmentsTotal || 0);
+    const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
+    const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+    const taxRate = baseTotals.taxData?.rate ?? 0;
+    const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
+
+    return serviceFeeBase + recalcServiceFee + recalcTax;
   };
 
   const handlePaymentSuccess = (orderId: string) => {

@@ -777,9 +777,9 @@ const EnhancedOrderSummaryCard = React.memo(
           {(calculations.adjustmentsBreakdown?.length ?? 0) > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
+                {/* <span className="w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
                   {calculations.adjustmentsBreakdown.length}
-                </span>
+                </span> */}
                 Adjustments
               </h4>
               <div className="bg-white rounded-lg p-4 space-y-2 shadow-sm border border-orange-100">
@@ -808,11 +808,11 @@ const EnhancedOrderSummaryCard = React.memo(
           {totalDeliveryFees > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
+                {/* <span className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
                   {(calculations.adjustmentsBreakdown?.length ?? 0) > 0
                     ? "3"
                     : "2"}
-                </span>
+                </span> */}
                 Delivery Fees
               </h4>
               <div className="bg-white rounded-lg p-4 space-y-2 shadow-sm border border-orange-100">

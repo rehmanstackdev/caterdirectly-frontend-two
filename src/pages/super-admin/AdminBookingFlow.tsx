@@ -984,8 +984,34 @@ function VendorBookingFlow() {
                                         comboCategoryItems,
                                       );
 
-                                    const serviceTotal =
-                                      cateringCalcResult.finalTotal;
+                                    // Calculate combo totals using headcount from comboSelectionsList
+                                    // (same logic as EnhancedOrderSummaryCard)
+                                    let comboTotal = 0;
+                                    const comboSelections = service.comboSelectionsList || [];
+                                    if (Array.isArray(comboSelections)) {
+                                      comboSelections.forEach((combo: any) => {
+                                        const headcount = combo.headcount || guestCount;
+                                        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+                                        const base = basePrice * headcount;
+                                        let premiumTotal = 0;
+                                        if (combo.selections && Array.isArray(combo.selections)) {
+                                          combo.selections.forEach((cat: any) => {
+                                            if (cat.selectedItems && Array.isArray(cat.selectedItems)) {
+                                              cat.selectedItems.forEach((item: any) => {
+                                                const upcharge = parseFloat(String(item.additionalCharge || item.upcharge || 0)) || 0;
+                                                if (upcharge > 0) premiumTotal += upcharge * headcount;
+                                              });
+                                            }
+                                          });
+                                        }
+                                        comboTotal += base + premiumTotal;
+                                      });
+                                    }
+
+                                    // Use combo total if available, otherwise fall back to catering calc
+                                    const serviceTotal = comboTotal > 0
+                                      ? comboTotal + cateringCalcResult.finalTotal
+                                      : cateringCalcResult.finalTotal;
 
                                     if (serviceTotal < minimumOrderAmount) {
                                       toast.error(
@@ -1269,6 +1295,16 @@ function VendorBookingFlow() {
                                         itemId.includes("_") &&
                                         itemId.split("_").length >= 3
                                       ) {
+                                        // Skip combo category items if comboSelectionsList exists
+                                        // They will be handled by the comboSelectionsList loop below
+                                        if (
+                                          service.comboSelectionsList &&
+                                          Array.isArray(service.comboSelectionsList) &&
+                                          service.comboSelectionsList.length > 0
+                                        ) {
+                                          return;
+                                        }
+
                                         const parts = itemId.split("_");
                                         const comboId = parts[0];
                                         const categoryId = parts[1];
@@ -1697,7 +1733,7 @@ function VendorBookingFlow() {
                                             baseTotal + totalUpcharges;
 
                                           const comboQuantity =
-                                            effectiveProteinQuantity;
+                                            combo.headcount || effectiveProteinQuantity;
 
                                           if (import.meta.env.DEV) {
                                           }
@@ -1712,9 +1748,6 @@ function VendorBookingFlow() {
                                             combo?.image ||
                                             combo?.imageUrl ||
                                             "";
-                                          const pricePerCombo =
-                                            comboTotal / comboQuantity;
-
                                           serviceItems.push({
                                             menuName:
                                               combo.comboName ||
@@ -1724,7 +1757,7 @@ function VendorBookingFlow() {
                                               combo.comboName ||
                                               originalComboItem?.name ||
                                               "",
-                                            price: pricePerCombo,
+                                            price: basePrice,
                                             quantity: comboQuantity,
                                             totalPrice: comboTotal,
                                             cateringId:
@@ -1754,6 +1787,7 @@ function VendorBookingFlow() {
                                                         parseFloat(
                                                           String(
                                                             categoryItem.additionalCharge ||
+                                                              categoryItem.additionalPrice ||
                                                               categoryItem.upcharge ||
                                                               0,
                                                           ),
@@ -1776,8 +1810,7 @@ function VendorBookingFlow() {
                                                         "";
 
                                                       const itemQuantity =
-                                                        categoryItem.quantity ||
-                                                        1;
+                                                        comboQuantity || categoryItem.quantity || 1;
                                                       const itemTotalPrice =
                                                         totalPrice *
                                                         itemQuantity;
