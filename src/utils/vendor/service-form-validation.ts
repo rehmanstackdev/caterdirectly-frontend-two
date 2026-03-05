@@ -13,9 +13,10 @@ const validateCateringDetails = (formData: ServiceFormData): boolean => {
 };
 
 const validateCateringBasicInfo = (formData: ServiceFormData): boolean => {
-  if (!formData.cateringDetails) return true; // Allow empty for now
-  const details = formData.cateringDetails;
-  return (!details.serviceStyles || details.serviceStyles.length > 0);
+  if (!formData.cateringDetails) return true;
+  // Do not block wizard navigation on step 2 for legacy edit payloads.
+  // Required fields are validated at submit/API level.
+  return true;
 };
 
 const validateVenueDetails = (formData: ServiceFormData): boolean => {

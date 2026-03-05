@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { X, DollarSign } from 'lucide-react';
 import type { ComboItem } from '@/types/service-types';
 
@@ -20,6 +21,8 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
   onUpdateItem,
   onRemoveItem
 }) => {
+  const isPremiumChecked = Boolean((item as any).isPremium || (item as any).additionalPrice > 0);
+
   return (
     <div className="bg-gray-50 p-3 rounded flex flex-col gap-2">
       <div className="flex justify-between">
@@ -44,28 +47,45 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
         placeholder="Item description (optional)"
         rows={1}
       />
-      <div className="flex items-center">
-        <Label htmlFor={`additionalPrice-${item.id}`} className="mr-2 text-sm">Additional Price:</Label>
-        <div className="relative w-24">
-          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">
-            <DollarSign className="h-3 w-3" />
-          </span>
-          <Input
-            id={`additionalPrice-${item.id}`}
-            type="number"
-            min="0"
-            step="0.01"
-            value={item.additionalPrice || 0}
-            onChange={(e) => onUpdateItem(
-              categoryId, 
-              item.id, 
-              'additionalPrice', 
-              parseFloat(e.target.value) || 0
-            )}
-            className="pl-6"
-          />
-        </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`premium-${item.id}`}
+          checked={isPremiumChecked}
+          onCheckedChange={(checked) => {
+            const enabled = checked === true;
+            onUpdateItem(categoryId, item.id, 'isPremium' as keyof ComboItem, enabled);
+            if (!enabled) {
+              onUpdateItem(categoryId, item.id, 'additionalPrice' as keyof ComboItem, 0);
+            }
+          }}
+        />
+        <Label htmlFor={`premium-${item.id}`} className="text-sm cursor-pointer">Premium Item</Label>
       </div>
+
+      {isPremiumChecked && (
+        <div className="flex items-center">
+          <Label htmlFor={`additionalPrice-${item.id}`} className="mr-2 text-sm">Additional Price:</Label>
+          <div className="relative w-24">
+            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">
+              <DollarSign className="h-3 w-3" />
+            </span>
+            <Input
+              id={`additionalPrice-${item.id}`}
+              type="number"
+              min="0"
+              step="0.01"
+              value={(item as any).additionalPrice || 0}
+              onChange={(e) => onUpdateItem(
+                categoryId,
+                item.id,
+                'additionalPrice' as keyof ComboItem,
+                parseFloat(e.target.value) || 0
+              )}
+              className="pl-6"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

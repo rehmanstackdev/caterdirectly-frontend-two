@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, DollarSign, Image as ImageIcon } from 'lucide-react';
-import type { ComboItem } from '@/types/service-types';
+import type { ComboItem, DietaryFlag, AllergenFlag } from '@/types/service-types';
 import { useImageUpload } from '@/hooks/services/use-image-upload';
 import { toast } from '@/hooks/use-toast';
 import { MENU_IMAGES_BUCKET } from '@/utils/supabase-storage-utils';
@@ -18,6 +17,26 @@ interface ComboItemEditorProps {
   onRemoveItem: (categoryId: string, itemId: string) => void;
 }
 
+const dietaryOptions: DietaryFlag[] = [
+  'vegetarian',
+  'vegan',
+  'gluten_free',
+  'dairy_free',
+  'nut_free',
+  'kosher',
+  'halal',
+];
+
+const allergenOptions: AllergenFlag[] = [
+  'nuts',
+  'dairy',
+  'eggs',
+  'soy',
+  'wheat',
+  'shellfish',
+  'fish',
+];
+
 const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
   item,
   categoryId,
@@ -25,6 +44,39 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
   onRemoveItem
 }) => {
   const [uploading, setUploading] = React.useState(false);
+
+  const dietaryFlags = item.dietaryFlags || [];
+  const allergenFlags = item.allergenFlags || [];
+
+  const updateDietaryFlags = (flags: DietaryFlag[]) => {
+    onUpdateItem(categoryId, item.id, 'dietaryFlags', flags);
+  };
+
+  const updateAllergenFlags = (flags: AllergenFlag[]) => {
+    onUpdateItem(categoryId, item.id, 'allergenFlags', flags);
+  };
+
+  const toggleDietaryFlag = (flag: DietaryFlag, checked: boolean) => {
+    if (checked) {
+      if (!dietaryFlags.includes(flag)) {
+        updateDietaryFlags([...dietaryFlags, flag]);
+      }
+      return;
+    }
+
+    updateDietaryFlags(dietaryFlags.filter((option) => option !== flag));
+  };
+
+  const toggleAllergenFlag = (flag: AllergenFlag, checked: boolean) => {
+    if (checked) {
+      if (!allergenFlags.includes(flag)) {
+        updateAllergenFlags([...allergenFlags, flag]);
+      }
+      return;
+    }
+
+    updateAllergenFlags(allergenFlags.filter((option) => option !== flag));
+  };
   
   const { uploadImage, isUploading, progress } = useImageUpload({
     bucketName: MENU_IMAGES_BUCKET,
@@ -158,8 +210,8 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
             />
           </div>
         </div>
-        
-        <div className="flex items-center">
+
+        {/* <div className="flex items-center">
           <Label htmlFor={`quantity-${item.id}`} className="mr-2 text-sm">Quantity:</Label>
           <Input
             id={`quantity-${item.id}`}
@@ -172,48 +224,105 @@ const ComboItemEditor: React.FC<ComboItemEditorProps> = ({
               item.id, 
               'quantity', 
               parseInt(e.target.value) || 0
-            )}
+              )}
             className="w-16"
           />
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`premium-${item.id}`}
-          checked={item.isPremium || false}
-          onCheckedChange={(checked) => {
-            console.log(`[ComboItemEditor] isPremium changed to:`, checked, 'type:', typeof checked);
-            onUpdateItem(categoryId, item.id, 'isPremium', checked);
-          }}
-        />
-        <Label htmlFor={`premium-${item.id}`} className="text-sm cursor-pointer">Premium Item</Label>
-      </div>
-      
-      {item.isPremium && (
-        <div className="flex items-center">
-          <Label htmlFor={`additionalCharge-${item.id}`} className="mr-2 text-sm">Additional Charge:</Label>
-          <div className="relative w-24">
-            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">
-              <DollarSign className="h-3 w-3" />
-            </span>
-            <Input
-              id={`additionalCharge-${item.id}`}
-              type="number"
-              min="0"
-              step="0.01"
-              value={item.additionalCharge || 0}
-              onChange={(e) => onUpdateItem(
-                categoryId,
-                item.id,
-                'additionalCharge',
-                parseFloat(e.target.value) || 0
-              )}
-              className="pl-6"
+        </div> */}
+
+        <div className="flex items-center justify-between gap-3 min-w-[240px]">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`premium-${item.id}`}
+              checked={item.isPremium || false}
+              onCheckedChange={(checked) => {
+                console.log(`[ComboItemEditor] isPremium changed to:`, checked, 'type:', typeof checked);
+                onUpdateItem(categoryId, item.id, 'isPremium', checked);
+              }}
             />
+            <Label htmlFor={`premium-${item.id}`} className="text-sm cursor-pointer">Premium Item</Label>
           </div>
+
+          {item.isPremium && (
+            <div className="flex items-center">
+              <Label htmlFor={`additionalCharge-${item.id}`} className="mr-2 text-sm whitespace-nowrap">Additional Charge:</Label>
+              <div className="relative w-24">
+                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500">
+                  <DollarSign className="h-3 w-3" />
+                </span>
+                <Input
+                  id={`additionalCharge-${item.id}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.additionalCharge || 0}
+                  onChange={(e) => onUpdateItem(
+                    categoryId,
+                    item.id,
+                    'additionalCharge',
+                    parseFloat(e.target.value) || 0
+                  )}
+                  className="pl-6"
+                />
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="border border-gray-200 rounded-md bg-white p-3 space-y-2 pt-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="block mb-0">Dietary Options <span className="text-red-500">*</span></Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => updateDietaryFlags([])}
+            title="None apply"
+          >
+            None apply
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {dietaryOptions.map((flag) => (
+            <div key={`${item.id}-dietary-${flag}`} className="flex items-center space-x-2">
+              <Checkbox
+                id={`${item.id}-dietary-${flag}`}
+                checked={dietaryFlags.includes(flag)}
+                onCheckedChange={(checked) => toggleDietaryFlag(flag, checked === true)}
+              />
+              <Label htmlFor={`${item.id}-dietary-${flag}`}>{flag.replace('_', ' ')}</Label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-md bg-white p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="block mb-0">Contains Allergens <span className="text-red-500">*</span></Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => updateAllergenFlags([])}
+            title="None apply"
+          >
+            None apply
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {allergenOptions.map((flag) => (
+            <div key={`${item.id}-allergen-${flag}`} className="flex items-center space-x-2">
+              <Checkbox
+                id={`${item.id}-allergen-${flag}`}
+                checked={allergenFlags.includes(flag)}
+                onCheckedChange={(checked) => toggleAllergenFlag(flag, checked === true)}
+              />
+              <Label htmlFor={`${item.id}-allergen-${flag}`}>{flag}</Label>
+            </div>
+          ))}
+        </div>
+      </div>
+      
     </div>
   );
 };
