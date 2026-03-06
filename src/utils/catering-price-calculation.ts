@@ -261,7 +261,16 @@ export const extractCateringItems = (
     if (!item) return;
 
     // Check if this is a combo item
-    const isCombo = item.isCombo || item.comboCategories || item.pricePerPerson !== undefined;
+    const comboItemIds = new Set(
+      (combos || [])
+        .map((c: any) => String(c?.id || c?.itemId || ""))
+        .filter(Boolean),
+    );
+    const hasComboCategories =
+      Array.isArray(item.comboCategories) && item.comboCategories.length > 0;
+    const comboLookupId = String(item?.id || item?.itemId || "");
+    const isCombo =
+      Boolean(item.isCombo) || hasComboCategories || comboItemIds.has(comboLookupId);
     const price = parseFloat(String(item.price || item.pricePerPerson || 0)) || 0;
     const additionalCharge = parseFloat(String(item.additionalCharge || 0)) || 0;
 
@@ -290,3 +299,4 @@ export const extractCateringItems = (
 
   return { baseItems, additionalChargeItems, comboCategoryItems };
 };
+

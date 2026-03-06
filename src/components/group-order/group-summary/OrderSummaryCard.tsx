@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface OrderSummaryCardProps {
@@ -12,17 +11,17 @@ interface OrderSummaryCardProps {
   taxRate?: number;
 }
 
-const OrderSummaryCard = ({ 
-  subtotal, 
-  tax, 
-  deliveryFee, 
+const OrderSummaryCard = ({
+  subtotal,
+  tax,
+  deliveryFee,
   total,
   hostOrderSubtotal,
   guestsTotal,
-  taxRate
+  taxRate,
 }: OrderSummaryCardProps) => {
   const getTaxLabel = () => {
-    return taxRate ? `Tax (${taxRate.toFixed(2)}%)` : 'Tax';
+    return taxRate ? `Tax (${taxRate.toFixed(2)}%)` : "Tax";
   };
   return (
     <Card>

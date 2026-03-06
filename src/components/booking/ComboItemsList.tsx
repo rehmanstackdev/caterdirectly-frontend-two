@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Eye, Users } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ComboItemsListProps {
   items: ComboPackage[];
@@ -38,6 +44,8 @@ interface ComboCategoryItem {
   image?: string;
   imageUrl?: string;
   selectionKey?: string;
+  dietaryFlags?: string[];
+  allergenFlags?: string[];
 }
 
 interface ComboCategory {
@@ -213,7 +221,12 @@ const ComboItemsList = ({
   const getPeopleForCombo = (combo: ComboPackage): number => {
     const minimumGuests = getEffectiveMinimumGuests(combo);
     const maximumGuests = getEffectiveMaximumGuests(combo);
-    const selectedPeople = peopleByCombo[combo.id] || getDefaultPeople(combo);
+    const persistedHeadcount = selectedItems[`meta_${combo.id}_headcount`];
+    const selectedPeople =
+      peopleByCombo[combo.id] ||
+      (typeof persistedHeadcount === "number" && persistedHeadcount > 0
+        ? persistedHeadcount
+        : getDefaultPeople(combo));
     return clampGuestCount(selectedPeople, minimumGuests, maximumGuests);
   };
 
@@ -263,6 +276,145 @@ const ComboItemsList = ({
     }
 
     return 0;
+  };
+
+  const dietaryBadgeMap: Record<
+    string,
+    { short: string; label: string; className: string }
+  > = {
+    gluten_free: {
+      short: "GF",
+      label: "Gluten Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white  ",
+    },
+    dairy_free: {
+      short: "DF",
+      label: "Dairy Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    nut_free: {
+      short: "NF",
+      label: "Nut Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    vegetarian: {
+      short: "V",
+      label: "Vegetarian",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    vegan: {
+      short: "VG",
+      label: "Vegan",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    halal: {
+      short: "H",
+      label: "Halal",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    kosher: {
+      short: "K",
+      label: "Kosher",
+      className:
+        "bg-transparent  h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+  };
+
+  const allergenBadgeMap: Record<
+    string,
+    { short: string; label: string; className: string }
+  > = {
+    nuts: {
+      short: "N",
+      label: "Contains Nuts",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    dairy: {
+      short: "D",
+      label: "Contains Dairy",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    eggs: {
+      short: "E",
+      label: "Contains Eggs",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    shellfish: {
+      short: "SF",
+      label: "Contains Shellfish",
+      className:
+        "bg-transparent  h-3 w-3 text-emerald-700 border-gray hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    wheat: {
+      short: "W",
+      label: "Contains Wheat",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    soy: {
+      short: "S",
+      label: "Contains Soy",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    fish: {
+      short: "F",
+      label: "Contains Fish",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+  };
+
+  const normalizeFlag = (flag: string) =>
+    flag
+      .toLowerCase()
+      .trim()
+      .replace(/[\s-]+/g, "_");
+
+  const getItemFlagBadges = (item: ComboCategoryItem) => {
+    const badges: Array<{
+      key: string;
+      short: string;
+      label: string;
+      className: string;
+    }> = [];
+
+    (item.dietaryFlags || []).forEach((flag) => {
+      const key = normalizeFlag(flag);
+      const mapped = dietaryBadgeMap[key];
+      if (mapped) {
+        badges.push({
+          key: `dietary_${key}`,
+          short: mapped.short,
+          label: mapped.label,
+          className: mapped.className,
+        });
+      }
+    });
+
+    (item.allergenFlags || []).forEach((flag) => {
+      const key = normalizeFlag(flag);
+      const mapped = allergenBadgeMap[key];
+      if (mapped) {
+        badges.push({
+          key: `allergen_${key}`,
+          short: mapped.short,
+          label: mapped.label,
+          className: mapped.className,
+        });
+      }
+    });
+
+    return badges;
   };
 
   const getSelectedExtraPerPerson = (
@@ -431,6 +583,7 @@ const ComboItemsList = ({
                     const premiumCharge =
                       parseMoney(item.additionalCharge) ||
                       parseMoney(item.additionalPrice);
+                    const itemBadges = getItemFlagBadges(item);
 
                     return (
                       <div
@@ -463,7 +616,6 @@ const ComboItemsList = ({
                                 </Badge>
                               )}
                             </div>
-
                             {item.isPremium &&
                             itemBasePrice > 0 &&
                             premiumCharge > 0 ? (
@@ -492,6 +644,30 @@ const ComboItemsList = ({
                               </div>
                             )}
                           </div>
+
+                          {itemBadges.length > 0 && (
+                            <TooltipProvider delayDuration={120}>
+                              <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                {itemBadges.map((badge) => (
+                                  <Tooltip key={badge.key}>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1.5 text-[10px] font-bold ${badge.className}`}
+                                      >
+                                        {badge.short}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="text-xs"
+                                    >
+                                      {badge.label}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                              </div>
+                            </TooltipProvider>
+                          )}
                         </div>
                         <div className="flex-shrink-0">
                           {isSingleSelectCategory ? (

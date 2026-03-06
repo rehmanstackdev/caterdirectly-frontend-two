@@ -65,9 +65,13 @@ import {
   Edit,
   ShoppingCart,
   Loader2,
+  Copy,
+  File,
+  Pencil,
 } from "lucide-react";
 import { generateInvoicePDF } from "@/utils/invoice-pdf-generator";
 import { useNavigate } from "react-router-dom";
+import { toast as sonnerToast } from "sonner";
 import Dashboard from "@/components/dashboard/Dashboard";
 import { Invoice as InvoiceType } from "@/types/invoice-types";
 import InvoicesService from "@/services/api/admin/invoices.Service";
@@ -338,6 +342,16 @@ const InvoiceManagement = () => {
     navigate(`/admin/orders/${invoice.id}`);
   };
 
+  const handleCopyInvoiceLink = async (invoice: InvoiceType) => {
+    try {
+      const invoiceUrl = `${window.location.origin}/order-summary/${invoice.id}`;
+      await navigator.clipboard.writeText(invoiceUrl);
+      sonnerToast.success("Invoice link copied to clipboard");
+    } catch (error) {
+      sonnerToast.error("Unable to copy invoice link");
+    }
+  };
+
   const handleCreateInvoice = (invoice: InvoiceType) => {
     console.log("🔥 handleCreateInvoice called with:", invoice);
     try {
@@ -481,177 +495,6 @@ const InvoiceManagement = () => {
             Create New Invoice
           </MobileOptimizedButton>
         </div>
-
-        {/* Change Requests Alert */}
-        {/* {changeRequests.length > 0 && (
-          <Card className="border-orange-200 bg-orange-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-orange-800 text-lg sm:text-xl">
-                <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                <span className="truncate">Pending Change Requests ({changeRequests.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {changeRequests.slice(0, 3).map((request) => (
-                  <div key={request.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-white rounded border gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">{request.proposal.title}</div>
-                      <div className="text-sm text-gray-600">from {request.client_name}</div>
-                    </div>
-                    <Badge variant="outline" className="self-start sm:self-center">Review Required</Badge>
-                  </div>
-                ))}
-                {changeRequests.length > 3 && (
-                  <p className="text-sm text-orange-700">+{changeRequests.length - 3} more requests...</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )} */}
-
-        {/* Invoice Recovery Tool */}
-        {/* <Card className="border-blue-200 bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-blue-800 text-lg sm:text-xl">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <span>Invoice Recovery Tool</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <p className="text-sm text-blue-700">
-                This tool checks for orders that are missing invoices and automatically creates them with proper tokens and URLs. Use "Rebuild Pricing Snapshots" to fix invoices with incomplete financial data.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={handleRecoverMissingInvoices}
-                  disabled={isRecovering}
-                  variant="outline"
-                  size="sm"
-                  className="border-blue-300 hover:bg-blue-100"
-                >
-                  {isRecovering ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                      Recovering...
-                    </>
-                  ) : (
-                    <>
-                      <FileEdit className="h-4 w-4 mr-2" />
-                      Run Invoice Recovery
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={handleRebuildPricingSnapshots}
-                  disabled={isRebuilding}
-                  variant="outline"
-                  size="sm"
-                  className="border-purple-300 hover:bg-purple-100"
-                >
-                  {isRebuilding ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
-                      Rebuilding...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Rebuild Pricing Snapshots
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {showRecoveryResults && recoveryResults && (
-                <div className="mt-4 p-3 bg-white rounded border border-blue-200">
-                  <h4 className="font-medium mb-2">Recovery Results:</h4>
-                  <div className="space-y-1 text-sm">
-                    <p>✅ Total Orders Checked: {recoveryResults.totalOrphanedOrders || 0}</p>
-                    <p className="text-green-600">✅ Successfully Recovered: {recoveryResults.successCount || 0}</p>
-                    {recoveryResults.failureCount > 0 && (
-                      <p className="text-red-600">❌ Failed: {recoveryResults.failureCount || 0}</p>
-                    )}
-                  </div>
-                  {recoveryResults.results && recoveryResults.results.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
-                        View Details
-                      </summary>
-                      <ScrollArea className="h-48 mt-2">
-                        <div className="space-y-2">
-                          {recoveryResults.results.map((result: any, idx: number) => (
-                            <div key={idx} className="text-xs p-2 bg-gray-50 rounded">
-                              <p><strong>Order:</strong> {result.orderId}</p>
-                              {result.success ? (
-                                <>
-                                  <p className="text-green-600">✅ Invoice created: {result.invoiceId}</p>
-                                  <p><strong>Token:</strong> {result.token}</p>
-                                  <p><strong>Email:</strong> {result.clientEmail}</p>
-                                </>
-                              ) : (
-                                <p className="text-red-600">❌ {result.error}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </details>
-                  )}
-                </div>
-              )}
-
-              {showRebuildResults && rebuildResults && (
-                <div className="mt-4 p-3 bg-white rounded border border-purple-200">
-                  <h4 className="font-medium mb-2">Rebuild Results:</h4>
-                  <div className="space-y-1 text-sm">
-                    <p>✅ Total Invoices Checked: {rebuildResults.results?.total || 0}</p>
-                    <p className="text-green-600">✅ Successfully Updated: {rebuildResults.results?.updated || 0}</p>
-                    {rebuildResults.results?.skipped > 0 && (
-                      <p className="text-yellow-600">⚠️ Skipped: {rebuildResults.results?.skipped || 0}</p>
-                    )}
-                    {rebuildResults.results?.failed > 0 && (
-                      <p className="text-red-600">❌ Failed: {rebuildResults.results?.failed || 0}</p>
-                    )}
-                  </div>
-                  {rebuildResults.results?.details && rebuildResults.results.details.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-purple-600 hover:text-purple-800">
-                        View Details
-                      </summary>
-                      <ScrollArea className="h-48 mt-2">
-                        <div className="space-y-2">
-                          {rebuildResults.results.details.map((result: any, idx: number) => (
-                            <div key={idx} className="text-xs p-2 bg-gray-50 rounded">
-                              <p><strong>Invoice:</strong> {result.id}</p>
-                              {result.status === 'updated' ? (
-                                <>
-                                  <p className="text-green-600">✅ Pricing snapshot rebuilt</p>
-                                  {result.snapshot && (
-                                    <>
-                                      <p><strong>Total:</strong> ${result.snapshot.total.toFixed(2)}</p>
-                                      <p><strong>Tax:</strong> ${result.snapshot.tax.toFixed(2)}</p>
-                                      <p><strong>Service Fee:</strong> ${result.snapshot.serviceFee.toFixed(2)}</p>
-                                    </>
-                                  )}
-                                </>
-                              ) : result.status === 'skipped' ? (
-                                <p className="text-yellow-600">⚠️ {result.reason}</p>
-                              ) : (
-                                <p className="text-red-600">❌ {result.reason}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </details>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card> */}
 
         {/* Search */}
         <div className="flex flex-col justify-between sm:flex-row gap-4 items-stretch sm:items-center">
@@ -1173,6 +1016,38 @@ const InvoiceManagement = () => {
                                     <Eye className="h-4 w-4 mr-2" />
                                     View Invoice
                                   </DropdownMenuItem>
+                                  {[
+                                    "all",
+                                    "pending",
+                                    "drafted",
+                                    "draft",
+                                  ].includes(statusFilter) && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        navigate(
+                                          `/admin/invoices/edit/${invoice.id}`,
+                                        )
+                                      }
+                                    >
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      Edit Invoice
+                                    </DropdownMenuItem>
+                                  )}
+                                  {[
+                                    "all",
+                                    "pending",
+                                    "drafted",
+                                    "draft",
+                                  ].includes(statusFilter) && (
+                                    <DropdownMenuItem
+                                      onSelect={() => {
+                                        void handleCopyInvoiceLink(invoice);
+                                      }}
+                                    >
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Copy invoice link
+                                    </DropdownMenuItem>
+                                  )}
 
                                   {invoice.status === "paid" && (
                                     <DropdownMenuItem

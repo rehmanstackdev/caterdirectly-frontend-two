@@ -160,7 +160,56 @@ const EnhancedOrderSummaryCard = React.memo(
             comboCategoryItems,
           );
 
-          const menuItems = additionalChargeItems
+          const comboIds = new Set<string>();
+          (service.service_details?.catering?.combos || []).forEach(
+            (combo: any) => {
+              const comboId = String(combo?.id || combo?.itemId || "");
+              if (comboId) comboIds.add(comboId);
+            },
+          );
+
+          const serviceMenuCatalog = [
+            ...(service.service_details?.menuItems || []),
+            ...(service.service_details?.catering?.menuItems || []),
+          ];
+          const menuById = new Map<string, any>();
+          serviceMenuCatalog.forEach((item: any) => {
+            const itemId = String(item?.id || item?.itemId || item?.cateringId || "");
+            if (!itemId || comboIds.has(itemId) || menuById.has(itemId)) return;
+            menuById.set(itemId, item);
+          });
+
+          // For menu items, always use selected quantity (never guest count/headcount).
+          const menuItemsFromSelectedQuantities = Array.from(menuById.entries())
+            .map(([itemId, item]) => {
+              const selectedQty = Number(selectedItems[itemId] || 0);
+              if (selectedQty <= 0) return null;
+
+              const price =
+                parseFloat(
+                  String(
+                    item?.additionalCharge ??
+                      item?.price ??
+                      item?.pricePerPerson ??
+                      0,
+                  ),
+                ) || 0;
+
+              return {
+                name: item?.name || item?.itemName || itemId,
+                quantity: selectedQty,
+                price,
+                additionalCharge: price,
+              };
+            })
+            .filter(Boolean) as Array<{
+            name: string;
+            quantity: number;
+            price: number;
+            additionalCharge: number;
+          }>;
+
+          const fallbackMenuItems = additionalChargeItems
             .filter((item) => item.isMenuItem)
             .map((item) => ({
               name: item.name,
@@ -168,6 +217,11 @@ const EnhancedOrderSummaryCard = React.memo(
               price: item.price,
               additionalCharge: item.additionalCharge,
             }));
+
+          const menuItems =
+            menuItemsFromSelectedQuantities.length > 0
+              ? menuItemsFromSelectedQuantities
+              : fallbackMenuItems;
 
           const simpleItems = comboCategoryItems.filter(
             (item) => !item.additionalCharge || item.additionalCharge === 0,
@@ -995,6 +1049,4 @@ const EnhancedOrderSummaryCard = React.memo(
 EnhancedOrderSummaryCard.displayName = "EnhancedOrderSummaryCard";
 
 export default EnhancedOrderSummaryCard;
-
-
 
