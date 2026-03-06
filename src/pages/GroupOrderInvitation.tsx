@@ -1,7 +1,6 @@
 ﻿
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { APP_LOGO } from "@/constants/app-assets";
 import GuestOrderForm from "@/components/group-order/GuestOrderForm";
 import { groupOrderService } from "@/services/groupOrderService";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
@@ -10,6 +9,8 @@ import { Loader } from 'lucide-react';
 import { toast } from "sonner";
 import EnhancedOrderSummaryCard from "@/components/booking/order-summary/EnhancedOrderSummaryCard";
 import { ServiceSelection } from "@/types/order";
+import Header from "@/components/cater-directly/Header";
+import Footer from "@/components/cater-directly/Footer";
 
 interface TokenData {
   email?: string;
@@ -174,31 +175,18 @@ const GroupOrderInvitation = () => {
   );
   
   return (
-    <div className="min-h-screen h-screen bg-[#f7f3ee] overflow-x-hidden flex flex-col">
-      <div className="relative shrink-0">
-        <div className="absolute inset-x-0 top-0 h-56 bg-[radial-gradient(circle_at_top,_#ffb26b,_#f58a2f_60%,_#e5661d)]" />
-        <div className="relative container mx-auto px-4 pt-10 pb-6">
-          <div className="text-center text-white">
-            <img
-              src={APP_LOGO.url}
-              className={APP_LOGO.className.mobile}
-              alt={APP_LOGO.alt}
-            />
-            <p className="mt-4 text-sm uppercase tracking-[0.2em] text-white/80">
-              Group Order Invitation
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold">
-              Select Your Menu Items
-            </h1>
-            <p className="mt-2 text-sm md:text-base text-white/90">
-              {orderData.eventName} . {orderData.eventLocation}
-            </p>
-          </div>
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* Header with dark background */}
+      <div className="relative bg-gradient-to-br from-slate-900 to-slate-800">
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="relative z-10">
+          <Header />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto mt-4">
-      <div className="mx-auto w-full max-w-[1260px] px-4 -mt-10 pb-10 pt-10 md:pt-14">
+      {/* Main content */}
+      <main className="flex-1 py-8 px-4">
+      <div className="mx-auto w-full max-w-[1260px]">
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,1fr)]">
           <div className="space-y-4">
             <Card className="border-black/10 shadow-sm">
@@ -270,8 +258,8 @@ const GroupOrderInvitation = () => {
             {!showNeedHelpOnRight && needHelpCard}
           </div>
 
-          <div className="space-y-4">
-            <Card className="border-black/10 shadow-sm">
+          <div className="lg:sticky lg:top-4 space-y-4 max-h-[calc(100vh-2rem)] flex flex-col">
+            <Card className="border-black/10 shadow-sm shrink-0">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -301,9 +289,9 @@ const GroupOrderInvitation = () => {
             </Card>
 
             {isAccepted && !hasSubmittedOrder && !isSubmissionComplete && (
-              <Card className="border-black/10 shadow-sm">
-                <CardContent className="p-5">
-                  <div className="mt-4">
+              <Card className="border-black/10 shadow-sm min-h-0 flex flex-col overflow-hidden">
+                <CardContent className="p-5 overflow-y-auto">
+                  <div>
                     <EnhancedOrderSummaryCard
                       selectedServices={selectedServices}
                       selectedItems={selectedItems}
@@ -316,14 +304,17 @@ const GroupOrderInvitation = () => {
             )}
 
             {!isSubmissionComplete && (
-              <div id="group-order-your-information" className="space-y-4" />
+              <div id="group-order-your-information" className="space-y-4 shrink-0" />
             )}
 
             {showNeedHelpOnRight && needHelpCard}
           </div>
         </div>
       </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

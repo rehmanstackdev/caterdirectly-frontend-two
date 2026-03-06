@@ -17,13 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye, Users } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Eye, Users } from "lucide-react";
 
 interface ComboItemsListProps {
   items: ComboPackage[];
@@ -32,6 +32,8 @@ interface ComboItemsListProps {
   onComboSelection?: (comboSelections: any) => void;
   serviceMinimumGuests?: number | string;
   serviceMaximumGuests?: number | string;
+  guestBudget?: number;
+  currentNonComboSubtotal?: number;
 }
 
 interface ComboCategoryItem {
@@ -87,6 +89,8 @@ const ComboItemsList = ({
   onComboSelection,
   serviceMinimumGuests,
   serviceMaximumGuests,
+  guestBudget,
+  currentNonComboSubtotal = 0,
 }: ComboItemsListProps) => {
   const [activeComboId, setActiveComboId] = useState<string | null>(null);
   const [peopleByCombo, setPeopleByCombo] = useState<Record<string, number>>(
@@ -461,6 +465,17 @@ const ComboItemsList = ({
   const commitDraftSelections = () => {
     if (!activeCombo) return;
 
+    // Budget check: combo total + existing non-combo items must not exceed budget
+    if (guestBudget && guestBudget > 0) {
+      const comboGrandTotal = activeComboGrandTotal;
+      if (currentNonComboSubtotal + comboGrandTotal > guestBudget) {
+        toast.error(
+          `This combo package (${formatCurrency(comboGrandTotal)}) exceeds your remaining budget of ${formatCurrency(guestBudget - currentNonComboSubtotal)}.`,
+        );
+        return;
+      }
+    }
+
     // Update individual item keys in selectedItems
     getComboItemKeys(activeCombo).forEach((key) => {
       const currentQty = selectedItems[key] || 0;
@@ -540,10 +555,10 @@ const ComboItemsList = ({
           {combo.comboCategories.map((category) => {
             const categoryItems = category.items || [];
 
+            const rawMax = Number(category.maxSelections);
             const maxSelections =
-              typeof category.maxSelections === "number" &&
-              category.maxSelections > 0
-                ? category.maxSelections
+              Number.isFinite(rawMax) && rawMax > 0
+                ? rawMax
                 : Math.max(1, categoryItems.length);
             const isSingleSelectCategory = maxSelections === 1;
 

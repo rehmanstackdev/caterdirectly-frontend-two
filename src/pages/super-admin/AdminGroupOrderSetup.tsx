@@ -1390,50 +1390,6 @@ function AdminGroupOrderSetup() {
         return mappedService;
       };
 
-      // Format order deadline as ISO string from orderDeadlineDate and orderDeadlineTime
-      // Format: "2025-12-30T23:59:59.000Z"
-      const formatOrderDeadline = (date: string, time: string): string => {
-        if (!date) return "";
-        try {
-          // Parse time - should be in HH:MM format from time input
-          let timeString = "23:59:59";
-          if (time) {
-            // If it's in HH:MM format, add seconds
-            if (time.match(/^\d{2}:\d{2}$/)) {
-              timeString = `${time}:59`;
-            }
-            // If it's already in HH:MM:SS format, use it
-            else if (time.match(/^\d{2}:\d{2}:\d{2}$/)) {
-              timeString = time;
-            }
-          }
-
-          // Combine date and time
-          const dateTimeString = `${date}T${timeString}`;
-          const dateObj = new Date(dateTimeString);
-
-          // If timezone offset causes issues, ensure we have a valid date
-          if (isNaN(dateObj.getTime())) {
-            // Fallback: parse date manually
-            const [year, month, day] = date.split("-");
-            const [hours, minutes, seconds] = timeString.split(":");
-            const fallbackDate = new Date(
-              parseInt(year),
-              parseInt(month) - 1,
-              parseInt(day),
-              parseInt(hours || "23"),
-              parseInt(minutes || "59"),
-              parseInt(seconds || "59"),
-              0
-            );
-            return fallbackDate.toISOString();
-          }
-          return dateObj.toISOString();
-        } catch {
-          return "";
-        }
-      };
-
       // Get primary service type for selectItem
       const primaryServiceType =
         state.selectedServices[0]?.serviceType ||
@@ -1478,10 +1434,6 @@ function AdminGroupOrderSetup() {
         budget: guestCount * budgetPerPerson,
         selectItem: normalizedServiceType,
         quantity: guestCount,
-        orderDeadline: formatOrderDeadline(
-          state.orderInfo.orderDeadlineDate || "",
-          state.orderInfo.orderDeadlineTime || ""
-        ),
         inviteFriends: state.invitedGuests.map((email) => ({
           email,
           acceptanceStatus: "pending",

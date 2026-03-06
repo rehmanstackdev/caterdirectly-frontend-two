@@ -145,49 +145,73 @@ export const groupOrderService = {
    * Submit a guest order for a group order
    */
   async submitGuestOrder(
-    token: string, 
-    guestInfo: any, 
-    selectedItems: any[]
+    token: string,
+    guestInfo: any,
+    selectedItems: any[],
+    total?: number
   ): Promise<boolean> {
-    try {
-      const response = await fetch(`${API_URL}invoices/guest-order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          token,
-          guestName: guestInfo.name,
-          guestEmail: guestInfo.email,
-          phone: guestInfo.phone,
-          dietaryRestrictions: guestInfo.dietaryRestrictions,
-          items: selectedItems.map(item => ({
-            id: item.id,
-            name: item.name,
-            quantity: item.quantity
-          }))
-        })
-      });
+    const normalizeItem = (item: any) => {
+      const rawId = String(item?.id || item?.cateringId || "").trim();
+      const quantity = Math.max(0, Math.floor(Number(item?.quantity || 0)));
+      const name = String(item?.menuItemName || item?.name || "Menu Item").trim();
+      const menuName = String(item?.menuName || "Menu").trim();
+      const price = Number(item?.price ?? 0);
+      const totalPrice = Number(item?.totalPrice ?? price * quantity);
+      const isComboCategoryItem = Boolean(item?.isComboCategoryItem || item?.comboId);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let message = errorText || 'Failed to submit guest order';
-        try {
-          const parsed = JSON.parse(errorText);
-          if (parsed?.message) {
-            message = parsed.message;
-          }
-        } catch {
-          // ignore parse error
+      return {
+        id: rawId,
+        name,
+        quantity,
+        menuName,
+        menuItemName: name,
+        price,
+        totalPrice,
+        cateringId: String(item?.cateringId || rawId),
+        serviceId: item?.serviceId ? String(item.serviceId) : undefined,
+        isComboCategoryItem,
+        comboId: item?.comboId ? String(item.comboId) : undefined,
+        image: item?.image || undefined,
+        premiumCharge:
+          item?.premiumCharge != null ? Number(item.premiumCharge) : undefined,
+      };
+    };
+
+    const normalizedItems = (selectedItems || [])
+      .map(normalizeItem)
+      .filter((item) => item.id && item.quantity > 0);
+
+    const response = await fetch(`${API_URL}invoices/guest-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        token,
+        guestName: guestInfo.name,
+        guestEmail: guestInfo.email,
+        phone: guestInfo.phone,
+        dietaryRestrictions: guestInfo.dietaryRestrictions,
+        total,
+        items: normalizedItems,
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let message = errorText || 'Failed to submit guest order';
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed?.message) {
+          message = parsed.message;
         }
-        throw new Error(message);
+      } catch {
+        // ignore parse error
       }
-
-      return true;
-    } catch (error) {
-      console.log('API Call Error: SUBMIT_GUEST_ORDER', { token, error });
-      return false;
+      throw new Error(message);
     }
+
+    return true;
   },
 
   /**

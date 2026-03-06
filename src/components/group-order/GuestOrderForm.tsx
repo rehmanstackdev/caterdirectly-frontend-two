@@ -45,6 +45,7 @@ interface GuestOrderFormProps {
 
 interface InvitationServiceSummaryItem {
   id: string;
+  serviceId?: string;
   payloadItemId?: string;
   name: string;
   menuName?: string;
@@ -113,12 +114,82 @@ interface SelectedServiceRaw {
 interface InvitationOrderInfo {
   serviceDetails?: Array<{
     id?: string;
+    serviceId?: string;
     serviceName?: string;
     name?: string;
     serviceType?: string;
     type?: string;
+    cateringItems?: Array<{
+      id?: string;
+      menuName?: string;
+      menuItemName?: string;
+      name?: string;
+      price?: string | number;
+      quantity?: number;
+      totalPrice?: number;
+      cateringId?: string;
+      image?: string;
+      imageUrl?: string;
+    }>;
+    comboCategoryItems?: Array<{
+      id?: string;
+      menuName?: string;
+      menuItemName?: string;
+      name?: string;
+      price?: string | number;
+      quantity?: number;
+      totalPrice?: number;
+      serviceId?: string;
+      cateringId?: string;
+      comboId?: string;
+      image?: string;
+      imageUrl?: string;
+      premiumCharge?: number;
+    }>;
+    service_details?: {
+      catering?: {
+        menuPhoto?: string;
+        minimumGuests?: number | string;
+        maximumGuests?: number | string;
+        menuItems?: Array<{
+          id?: string;
+          name?: string;
+          description?: string;
+          price?: string | number;
+          imageUrl?: string;
+          imageUri?: string;
+          minimumOrderQuantity?: number;
+        }>;
+        combos?: Array<{
+          id?: string;
+          name?: string;
+          description?: string;
+          category?: string;
+          pricePerPerson?: string | number;
+          imageUrl?: string | null;
+          imageUri?: string | null;
+          comboCategories?: Array<{
+            id?: string;
+            name?: string;
+            items?: Array<{
+              id?: string;
+              name?: string;
+              price?: number;
+              quantity?: number;
+              isPremium?: boolean;
+              additionalCharge?: number;
+              imageUrl?: string;
+              imageUri?: string;
+              image?: string;
+            }>;
+          }>;
+        }>;
+      };
+    };
     catering?: {
       menuPhoto?: string;
+      minimumGuests?: number | string;
+      maximumGuests?: number | string;
       menuItems?: Array<{
         id?: string;
         name?: string;
@@ -229,21 +300,104 @@ const GuestOrderForm = ({
     const loadMenuItems = async () => {
       setLoading(true);
       try {
+        const parsePositiveNumber = (value: unknown): number | undefined => {
+          if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+            return value;
+          }
+          if (typeof value === "string") {
+            const parsed = Number(value);
+            if (Number.isFinite(parsed) && parsed > 0) return parsed;
+          }
+          return undefined;
+        };
+
         if (orderInfo?.serviceDetails && Array.isArray(orderInfo.serviceDetails) && orderInfo.serviceDetails.length > 0) {
           const catalog: Record<string, InvitationServiceSummaryItem> = {};
 
           const mappedServices: ServiceSelection[] = orderInfo.serviceDetails
             .filter((detail) => (detail.serviceType || detail.type) === "catering")
             .map((detail, serviceIndex) => {
-              const serviceId = String(detail.id || `service-detail-${serviceIndex}`);
-              const catering = detail.catering || {};
-              const menuItems = Array.isArray(catering.menuItems) ? catering.menuItems : [];
-              const combos = Array.isArray(catering.combos) ? catering.combos : [];
+              const serviceId = String(
+                detail.serviceId || detail.id || `service-detail-${serviceIndex}`,
+              );
+              const catering = detail.catering || detail.service_details?.catering || {};
+              const minimumGuests = parsePositiveNumber((catering as any).minimumGuests);
+              const maximumGuests = parsePositiveNumber((catering as any).maximumGuests);
+              const menuItemsFromSeparated = Array.isArray(detail.cateringItems)
+                ? detail.cateringItems.map((item, idx) => ({
+                    id: item.cateringId || item.id || `${serviceId}_menu_${idx}`,
+                    name: item.menuItemName || item.name || "Menu Item",
+                    description: item.menuName || "",
+                    price: Number(item.price || 0),
+                    imageUrl: item.image || item.imageUrl || "",
+                    minimumOrderQuantity: Number(item.quantity || 0) || undefined,
+                  }))
+                : [];
+              const menuItems = menuItemsFromSeparated.length > 0
+                ? menuItemsFromSeparated
+                : (Array.isArray(catering.menuItems) ? catering.menuItems : []);
+
+              const groupedCombosFromSeparated = (() => {
+                const comboItems = Array.isArray(detail.comboCategoryItems)
+                  ? detail.comboCategoryItems
+                  : [];
+                if (comboItems.length === 0) return [];
+
+                const combosById = new Map<string, any>();
+                comboItems.forEach((item, comboIndex) => {
+                  const menuLabel = String(item.menuName || "").trim();
+                  const parts = menuLabel.split(" - ");
+                  const comboName = (parts[0] || "Combo Package").trim();
+                  const comboId = String(
+                    item.comboId ||
+                      `${serviceId}_${comboName.toLowerCase().replace(/[^a-z0-9]+/g, "_") || comboIndex}`,
+                  );
+                  const categoryName = (parts[1] || parts[0] || "Category").trim();
+                  const categoryId = `${comboId}_${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
+
+                  if (!combosById.has(comboId)) {
+                    combosById.set(comboId, {
+                      id: comboId,
+                      name: comboName,
+                      description: "",
+                      category: "Combo",
+                      pricePerPerson: 0,
+                      imageUrl: item.image || item.imageUrl || "",
+                      comboCategories: [],
+                    });
+                  }
+
+                  const combo = combosById.get(comboId);
+                  let category = (combo.comboCategories || []).find((cat: any) => cat.id === categoryId);
+                  if (!category) {
+                    category = { id: categoryId, name: categoryName, items: [] };
+                    combo.comboCategories.push(category);
+                  }
+
+                  category.items.push({
+                    id: item.cateringId || item.id || `${categoryId}_item`,
+                    name: item.menuItemName || item.name || "Combo Item",
+                    price: Number(item.price || 0),
+                    quantity: Number(item.quantity || 0) || 1,
+                    additionalCharge: Number(item.premiumCharge || 0),
+                    isPremium: Number(item.premiumCharge || 0) > 0,
+                    image: item.image || item.imageUrl || "",
+                    imageUrl: item.image || item.imageUrl || "",
+                  });
+                });
+
+                return Array.from(combosById.values());
+              })();
+
+              const combos = groupedCombosFromSeparated.length > 0
+                ? groupedCombosFromSeparated
+                : (Array.isArray(catering.combos) ? catering.combos : []);
 
               const normalizedMenuItems = menuItems.map((item, itemIndex) => {
                 const itemId = String(item.id || `${serviceId}_menu_${itemIndex}`);
                 const normalized: InvitationServiceSummaryItem = {
                   id: itemId,
+                  serviceId,
                   payloadItemId: itemId,
                   name: item.name || "Menu Item",
                   menuName: item.description || "",
@@ -269,6 +423,7 @@ const GuestOrderForm = ({
 
                 catalog[comboPkgId] = {
                   id: comboPkgId,
+                  serviceId,
                   payloadItemId: comboId,
                   name: combo.name || "Combo Package",
                   menuName: "Combo Package",
@@ -283,6 +438,7 @@ const GuestOrderForm = ({
                   return {
                     id: categoryId,
                     name: category.name || "Category",
+                    ...(category.maxSelections != null ? { maxSelections: Number(category.maxSelections) } : {}),
                     items: (category.items || []).map((categoryItem, itemIndex) => {
                       const categoryItemId = String(categoryItem.id || `item-${itemIndex}`);
                       // Use legacy/simple key format in UI: <comboId>_<categoryId>_<itemId>
@@ -290,6 +446,7 @@ const GuestOrderForm = ({
                       const additionalCharge = Number(categoryItem.additionalCharge || 0);
                       catalog[selectionKey] = {
                         id: selectionKey,
+                        serviceId,
                         payloadItemId: categoryItemId,
                         name: categoryItem.name || "Combo Item",
                         menuName: `${combo.name || "Combo"} - ${category.name || "Category"}`,
@@ -334,9 +491,13 @@ const GuestOrderForm = ({
                 name: detail.serviceName || detail.name || `Service ${serviceIndex + 1}`,
                 serviceType: "catering",
                 type: "catering",
+                ...(minimumGuests ? { minimumGuests } : {}),
+                ...(maximumGuests ? { maximumGuests } : {}),
                 service_details: {
                   catering: {
                     menuPhoto: catering.menuPhoto || "",
+                    ...(minimumGuests ? { minimumGuests } : {}),
+                    ...(maximumGuests ? { maximumGuests } : {}),
                     menuItems: normalizedMenuItems,
                     combos: normalizedCombos,
                   },
@@ -377,6 +538,32 @@ const GuestOrderForm = ({
     return undefined;
   }, [itemCatalog]);
 
+  // Calculate combo total from comboSelectionsList on services
+  const comboTotal = useMemo(() => {
+    let total = 0;
+    for (const service of invitationServices) {
+      const csl = (service as any).comboSelectionsList;
+      if (!Array.isArray(csl)) continue;
+      for (const combo of csl) {
+        const headcount = combo.headcount || 1;
+        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+        let premiumTotal = 0;
+        if (Array.isArray(combo.selections)) {
+          for (const cat of combo.selections) {
+            if (Array.isArray(cat.selectedItems)) {
+              for (const item of cat.selectedItems) {
+                const upcharge = parseFloat(String(item.additionalCharge || item.additionalPrice || item.upcharge || 0)) || 0;
+                if (upcharge > 0) premiumTotal += upcharge * headcount;
+              }
+            }
+          }
+        }
+        total += basePrice * headcount + premiumTotal;
+      }
+    }
+    return total;
+  }, [invitationServices]);
+
   // Handle quantity changes from booking-style item selector
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
     setSelectedItemQuantities((prev) => {
@@ -384,22 +571,15 @@ const GuestOrderForm = ({
       const item = resolveCatalogItem(itemId);
       if (!item) return prev;
 
-      if (
-        item.maxQuantity !== undefined &&
-        item.maxQuantity !== null &&
-        normalizedQuantity > item.maxQuantity
-      ) {
-        toast.error("Selected item quantity exceeds available quantity.");
-        return prev;
-      }
-
       const currentSubtotalExcludingItem = Object.entries(prev).reduce((sum, [id, qty]) => {
-        if (id === itemId || qty <= 0) return sum;
+        if (id === itemId || id.startsWith("meta_") || qty <= 0) return sum;
         const catalogItem = resolveCatalogItem(id);
+        if (catalogItem?.comboId) return sum; // combo category items are in comboTotal
         return sum + (catalogItem?.price || 0) * qty;
       }, 0);
 
-      if (guestBudget && currentSubtotalExcludingItem + item.price * normalizedQuantity > guestBudget) {
+      const totalWithCombo = currentSubtotalExcludingItem + comboTotal + item.price * normalizedQuantity;
+      if (guestBudget && totalWithCombo > guestBudget) {
         toast.error("Selected items exceed guest budget.");
         return prev;
       }
@@ -415,6 +595,34 @@ const GuestOrderForm = ({
     });
   };
 
+  // Handle combo package selection (headcount, base price, category items)
+  const handleComboSelection = useCallback((payload: any) => {
+    if (!payload || !("serviceId" in payload) || !("selections" in payload)) return;
+    const { serviceId, selections } = payload;
+
+    setInvitationServices((prevServices) =>
+      prevServices.map((service) => {
+        const svcId = service.id || service.serviceId;
+        if (svcId !== serviceId) return service;
+
+        const existingCombos = (service as any).comboSelectionsList || [];
+        const existingIndex = existingCombos.findIndex(
+          (combo: any) => combo.comboItemId === selections.comboItemId,
+        );
+
+        let updatedCombos;
+        if (existingIndex >= 0) {
+          updatedCombos = [...existingCombos];
+          updatedCombos[existingIndex] = selections;
+        } else {
+          updatedCombos = [...existingCombos, selections];
+        }
+
+        return { ...service, comboSelectionsList: updatedCombos };
+      }),
+    );
+  }, []);
+
   // Format price in dollars
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -425,7 +633,7 @@ const GuestOrderForm = ({
 
   const selectedItems = useMemo(() => {
     return Object.entries(selectedItemQuantities)
-      .filter(([, quantity]) => quantity > 0)
+      .filter(([id, quantity]) => quantity > 0 && !id.startsWith("meta_"))
       .map(([id, quantity]) => {
         const item = resolveCatalogItem(id);
         return {
@@ -437,10 +645,142 @@ const GuestOrderForm = ({
       });
   }, [selectedItemQuantities, resolveCatalogItem]);
 
-  // Calculate subtotal
-  const subtotal = selectedItems.reduce((total, item) => {
+  const toSimpleGuestItemId = useCallback((itemId: string): string => {
+    const normalized = String(itemId || "").trim();
+    if (!normalized) return normalized;
+
+    if (normalized.startsWith("combo_pkg_")) {
+      return normalized.replace("combo_pkg_", "");
+    }
+
+    // combo_<comboId>_<categoryId>_<itemId> -> <itemId>
+    if (normalized.startsWith("combo_")) {
+      const parts = normalized.split("_");
+      if (parts.length >= 4) {
+        return parts[parts.length - 1];
+      }
+    }
+
+    // Generic fallback: if key is underscored and ends with UUID, use UUID tail.
+    if (normalized.includes("_")) {
+      const parts = normalized.split("_");
+      const tail = parts[parts.length - 1];
+      const uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (uuidPattern.test(tail)) {
+        return tail;
+      }
+    }
+
+    return normalized;
+  }, []);
+
+  const buildGuestOrderPayloadItems = useCallback(() => {
+    // Build a map of comboId → headcount from comboSelectionsList
+    const comboHeadcountMap: Record<string, number> = {};
+    for (const service of invitationServices) {
+      const csl = (service as any).comboSelectionsList;
+      if (!Array.isArray(csl)) continue;
+      for (const combo of csl) {
+        if (combo.comboItemId && combo.headcount) {
+          comboHeadcountMap[combo.comboItemId] = combo.headcount;
+        }
+      }
+    }
+
+    // 1. Build combo category items from selectedItems
+    const categoryItems = selectedItems
+      .map((item) => {
+        const catalogItem = resolveCatalogItem(item.id);
+        const canonicalId = catalogItem?.payloadItemId || toSimpleGuestItemId(item.id);
+        const unitPrice = Number(catalogItem?.price || item.price || 0);
+        const isComboItem = !!catalogItem?.comboId;
+        // For combo category items, use the headcount from the dropdown
+        const quantity = isComboItem && catalogItem?.comboId
+          ? (comboHeadcountMap[catalogItem.comboId] || Math.max(0, Math.floor(Number(item.quantity) || 0)))
+          : Math.max(0, Math.floor(Number(item.quantity) || 0));
+        const menuItemName = (catalogItem?.name || item.name || "Menu Item").trim();
+        const menuName = (catalogItem?.menuName || "Menu").trim();
+        return {
+          id: canonicalId,
+          name: menuItemName,
+          quantity,
+          menuName,
+          menuItemName,
+          price: unitPrice,
+          totalPrice: unitPrice * quantity,
+          cateringId: catalogItem?.cateringId || canonicalId,
+          serviceId: catalogItem?.serviceId,
+          isComboCategoryItem: isComboItem,
+          comboId: catalogItem?.comboId,
+          image: catalogItem?.image,
+          premiumCharge: catalogItem?.premiumCharge ?? undefined,
+        };
+      })
+      .filter((item) => item.id && item.quantity > 0);
+
+    // 2. Build combo parent items from comboSelectionsList (aligned with create invoice flow)
+    const comboParentItems: typeof categoryItems = [];
+    for (const service of invitationServices) {
+      const serviceId = service.id || service.serviceId || "";
+      const csl = (service as any).comboSelectionsList;
+      if (!Array.isArray(csl)) continue;
+
+      const combos = service.service_details?.catering?.combos || [];
+
+      for (const combo of csl) {
+        if (!combo.comboItemId) continue;
+        const headcount = combo.headcount || 1;
+        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+
+        // Calculate upcharges (same as comboTotal calculation)
+        let totalUpcharges = 0;
+        if (Array.isArray(combo.selections)) {
+          for (const cat of combo.selections) {
+            if (Array.isArray(cat.selectedItems)) {
+              for (const item of cat.selectedItems) {
+                const upcharge = parseFloat(String(item.additionalCharge || item.additionalPrice || item.upcharge || 0)) || 0;
+                if (upcharge > 0) totalUpcharges += upcharge * headcount;
+              }
+            }
+          }
+        }
+
+        const comboTotalPrice = basePrice * headcount + totalUpcharges;
+
+        // Find original combo for image/name
+        const originalCombo = combos.find(
+          (c: any) => c.comboId === combo.comboItemId || c.id === combo.comboItemId,
+        );
+
+        comboParentItems.push({
+          id: combo.comboItemId,
+          name: combo.comboName || originalCombo?.name || "Combo Package",
+          quantity: headcount,
+          menuName: combo.comboName || originalCombo?.name || "Combo Items",
+          menuItemName: combo.comboName || originalCombo?.name || "Combo Package",
+          price: basePrice,
+          totalPrice: comboTotalPrice,
+          cateringId: combo.comboItemId,
+          serviceId: serviceId || undefined,
+          isComboCategoryItem: false,
+          comboId: undefined,
+          image: originalCombo?.imageUrl || originalCombo?.image || combo.image || undefined,
+          premiumCharge: undefined,
+        });
+      }
+    }
+
+    return [...comboParentItems, ...categoryItems];
+  }, [selectedItems, resolveCatalogItem, toSimpleGuestItemId, invitationServices]);
+
+  // Calculate subtotal (regular menu items only, excluding combo category items)
+  const menuItemsSubtotal = selectedItems.reduce((total, item) => {
+    const catalogItem = resolveCatalogItem(item.id);
+    if (catalogItem?.comboId) return total; // combo category items are in comboTotal
     return total + item.price * item.quantity;
   }, 0);
+  const subtotal = menuItemsSubtotal + comboTotal;
 
   const remainingBudget = guestBudget ? Math.max(guestBudget - subtotal, 0) : null;
 
@@ -463,30 +803,29 @@ const GuestOrderForm = ({
     setIsSubmitting(true);
     try {
       if (token) {
+        const payloadItems = buildGuestOrderPayloadItems();
+        console.log('[GuestOrderForm] Payload items:', payloadItems, 'Subtotal:', subtotal);
+        if (payloadItems.length === 0) {
+          toast.error("Please select at least one item");
+          setIsSubmitting(false);
+          return;
+        }
+
         // Submit real guest order
-        const success = await groupOrderService.submitGuestOrder(
+        await groupOrderService.submitGuestOrder(
           token,
           {
             name: values.name,
             email: values.email,
             phone: values.phone,
           },
-          selectedItems.map((item) => ({
-            // Always send canonical/simple item ID in payload.
-            id: resolveCatalogItem(item.id)?.payloadItemId || item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-          }))
+          payloadItems,
+          subtotal
         );
 
-        if (success) {
-          setSubmitted(true);
-          onSubmitSuccess?.();
-          toast.success("Your order has been submitted successfully!");
-        } else {
-          toast.error("Failed to submit your order. Please try again.");
-        }
+        setSubmitted(true);
+        onSubmitSuccess?.();
+        toast.success("Your order has been submitted successfully!");
       } else {
         console.log("Submitting regular order:", {
           guest: values,
@@ -593,9 +932,13 @@ const GuestOrderForm = ({
                   serviceDetails={service}
                   selectedItems={selectedItemQuantities}
                   onItemQuantityChange={handleUpdateQuantity}
+                  onComboSelection={handleComboSelection}
                   showChangeService={false}
                   canRemove={false}
                   serviceIndex={serviceIndex}
+                  guestBudget={guestBudget}
+                  currentNonComboSubtotal={menuItemsSubtotal + comboTotal}
+                  skipMinimumGuests
                 />
               ))}
             </div>

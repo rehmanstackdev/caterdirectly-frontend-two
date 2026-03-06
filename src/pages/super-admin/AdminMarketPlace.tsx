@@ -139,10 +139,10 @@ const VendorMarketPlace = () => {
           <h1 className="text-2xl font-bold">
             {isVendorMode ? "Create Invoice - Select Services" : "Marketplace"}
           </h1>
-          <Button onClick={() => setShowGroupOrderModal(true)} className="gap-2">
+          {/* <Button onClick={() => setShowGroupOrderModal(true)} className="gap-2">
             <Plus className="h-4 w-4" />
             Add Group Order
-          </Button>
+          </Button> */}
         </div>
         {MarketplaceContent}
       </div>

@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "@/components/dashboard/Dashboard";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import BookingForm from "@/components/booking/BookingForm";
+import OrderTypeHeader from "@/components/group-order/OrderTypeHeader";
 import { Button } from "@/components/ui/button";
 import AdditionalServices from "@/components/booking/AdditionalServices";
 import AddServiceButton from "@/components/booking/order-summary/AddServiceButton";
@@ -824,6 +825,16 @@ function VendorBookingFlow() {
                   className="mb-4"
                 />
               </div>
+
+              <div className="w-full max-w-full overflow-x-hidden">
+                <OrderTypeHeader
+                  isGroupOrder={isGroupOrder}
+                  onOrderTypeChange={handleOrderTypeChange}
+                  isInvoiceMode={isInvoiceMode}
+                />
+              </div>
+
+              <div className="h-px w-full bg-border"></div>
 
               <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
                 <div className="xl:col-span-6">
