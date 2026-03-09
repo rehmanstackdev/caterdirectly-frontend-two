@@ -331,6 +331,9 @@ function mapInvoiceToOrderSummaryData(invoice: any) {
         type: serviceType,
         description: "",
         vendor_id: service.vendorId || undefined,
+        vendor: service.vendorName || service.businessName || "",
+        vendorName: service.vendorName || service.businessName || "",
+        vendorEarnings: parseFloat(service.vendorEarnings || "0") || 0,
         priceType: service.priceType || "flat",
         price_type: service.priceType || "flat",
         service_details: serviceDetails,
@@ -549,13 +552,6 @@ function AdminInvoiceDetailsPage() {
       return dateString;
     }
   };
-
-  const totalVendorEarnings = (invoiceData?.services || []).reduce(
-    (sum: number, service: any) =>
-      sum + (parseFloat(service?.vendorEarnings || "0") || 0),
-    0,
-  );
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -730,13 +726,6 @@ function AdminInvoiceDetailsPage() {
           </CardContent>
         </Card>
 
-        {totalVendorEarnings > 0 && (
-          <div className="pt-2">
-            <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200">
-              Vendor Earnings: {formatCurrency(totalVendorEarnings)}
-            </Badge>
-          </div>
-        )}
 
         <OrderItemsBreakdown
           services={selectedServices}
@@ -745,6 +734,7 @@ function AdminInvoiceDetailsPage() {
           isTaxExempt={Boolean(invoiceData.taxExemptStatus)}
           isServiceFeeWaived={Boolean(invoiceData.waiveServiceFee)}
           pricingSnapshot={(invoiceData as any).pricing_snapshot || null}
+          showVendorEarningsBadge={true}
         />
       </div>
     </Dashboard>

@@ -174,6 +174,17 @@ const ServiceDetailsActions = ({
           menuItems: normalizedMenuItems,
         };
 
+        const normalizedServiceType = String(
+          service.type || service.serviceType || "",
+        ).toLowerCase();
+        const isItemizedService =
+          normalizedServiceType === "catering" ||
+          normalizedServiceType === "events_staff" ||
+          normalizedServiceType === "staff" ||
+          normalizedServiceType === "party_rentals" ||
+          normalizedServiceType === "party-rentals" ||
+          normalizedServiceType === "party-rental";
+
         const formattedService = {
           id: service.id,
           serviceId: service.id,
@@ -181,7 +192,7 @@ const ServiceDetailsActions = ({
           serviceName: service.name,
           price: service.price || 0,
           servicePrice: service.price || 0,
-          totalPrice: service.price || 0,
+          totalPrice: isItemizedService ? 0 : service.price || 0,
           quantity: 1,
           duration: 0,
           serviceType: service.type || service.serviceType,
@@ -197,52 +208,9 @@ const ServiceDetailsActions = ({
           serviceImage: service.image || ''
         };
 
-        // Extract item selections (including combo metadata) and add to selectedItems
+        // For edit-order add flow, do not preselect catalog/menu quantities.
+        // Admin should explicitly choose items on the edit invoice page.
         const newSelectedItems: Record<string, number> = {};
-        normalizedMenuItems.forEach((menuItem: any) => {
-          const menuItemId = menuItem.id || menuItem.cateringId;
-          const menuQty = Number(menuItem.quantity || 0);
-          if (menuItemId && menuQty > 0) {
-            newSelectedItems[String(menuItemId)] = menuQty;
-          }
-
-          const isComboItem =
-            Boolean(menuItem.isCombo) ||
-            (Array.isArray(menuItem.comboCategories) && menuItem.comboCategories.length > 0) ||
-            (Array.isArray(menuItem.comboCategoryItems) && menuItem.comboCategoryItems.length > 0);
-
-          if (isComboItem && menuItemId) {
-            const headcount = Number(menuItem.quantity || menuItem.headcount || 0);
-            if (headcount > 0) {
-              newSelectedItems[`meta_${menuItemId}_headcount`] = headcount;
-            }
-
-            const basePrice = Number(menuItem.pricePerPerson || menuItem.price || 0);
-            if (basePrice > 0) {
-              newSelectedItems[`meta_${menuItemId}_basePrice`] = Math.round(basePrice * 100);
-            }
-          }
-
-          (menuItem.comboCategories || []).forEach((category: any) => {
-            const categoryId = category.id || category.categoryId || category.name || 'combo-category';
-            (category.items || []).forEach((comboItem: any) => {
-              const comboItemId = comboItem.id || comboItem.itemId || comboItem.cateringId;
-              const qty = Number(comboItem.quantity || 0);
-              if (!comboItemId || qty <= 0) return;
-              newSelectedItems[`${menuItemId}_${categoryId}_${comboItemId}`] = qty;
-              newSelectedItems[`${menuItemId}_combo-category_${comboItemId}`] = qty;
-            });
-          });
-
-          (menuItem.comboCategoryItems || []).forEach((comboItem: any) => {
-            const comboItemId = comboItem.id || comboItem.cateringId;
-            const categoryId = comboItem.menuName || 'combo-category';
-            const qty = Number(comboItem.quantity || 0);
-            if (!comboItemId || qty <= 0) return;
-            newSelectedItems[`${menuItemId}_${categoryId}_${comboItemId}`] = qty;
-            newSelectedItems[`${menuItemId}_combo-category_${comboItemId}`] = qty;
-          });
-        });
 
         // Store both the service and selected items
         sessionStorage.setItem('cartServices', JSON.stringify([formattedService]));
@@ -365,7 +333,4 @@ const ServiceDetailsActions = ({
 };
 
 export default ServiceDetailsActions;
-
-
-
 

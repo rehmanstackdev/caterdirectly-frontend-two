@@ -98,6 +98,8 @@ const ComboItemsList = ({
   );
   const [isDialogScrolled, setIsDialogScrolled] = useState(false);
   const [isDialogAtBottom, setIsDialogAtBottom] = useState(false);
+  const [isCustomPeopleInput, setIsCustomPeopleInput] = useState(false);
+  const [customPeopleInput, setCustomPeopleInput] = useState("");
   const [draftSelections, setDraftSelections] = useState<
     Record<string, number>
   >({});
@@ -245,7 +247,19 @@ const ComboItemsList = ({
     comboId: string,
     categoryId: string,
     item: ComboCategoryItem,
-  ) => item.selectionKey || `${comboId}_${categoryId}_${item.id}`;
+  ) => {
+    // Only trust precomputed keys when they are combo-scoped.
+    // Plain IDs can collide with menu item IDs and cause double counting.
+    if (
+      item.selectionKey &&
+      item.selectionKey.includes("_") &&
+      item.selectionKey.startsWith(`${comboId}_`)
+    ) {
+      return item.selectionKey;
+    }
+
+    return `${comboId}_${categoryId}_${item.id}`;
+  };
 
   const getComboItemKeys = (combo: ComboPackage): string[] => {
     if (!combo.comboCategories || combo.comboCategories.length === 0) return [];
@@ -449,6 +463,12 @@ const ComboItemsList = ({
     activeComboBasePrice + activeComboExtraPrice;
 
   const activeComboServes = activeCombo ? getComboServes(activeCombo) : null;
+  const activeComboMinimumGuests = activeCombo
+    ? getEffectiveMinimumGuests(activeCombo)
+    : null;
+  const activeComboMaximumGuests = activeCombo
+    ? getEffectiveMaximumGuests(activeCombo)
+    : null;
   const activeComboPeopleOptions = activeCombo
     ? getPeopleOptionsForCombo(activeCombo)
     : [1];
@@ -461,6 +481,17 @@ const ComboItemsList = ({
       })()
     : 5;
   const activeComboGrandTotal = activeComboPerPersonTotal * activeComboPeople;
+
+  useEffect(() => {
+    if (!activeCombo) {
+      setIsCustomPeopleInput(false);
+      setCustomPeopleInput("");
+      return;
+    }
+
+    const people = getPeopleForCombo(activeCombo);
+    setCustomPeopleInput(String(people));
+  }, [activeComboId]);
 
   const commitDraftSelections = () => {
     if (!activeCombo) return;
@@ -538,6 +569,8 @@ const ComboItemsList = ({
     setActiveComboId(null);
     setIsDialogScrolled(false);
     setIsDialogAtBottom(false);
+    setIsCustomPeopleInput(false);
+    setCustomPeopleInput("");
     setDraftSelections({});
   };
 
@@ -837,6 +870,8 @@ const ComboItemsList = ({
             setActiveComboId(null);
             setIsDialogScrolled(false);
             setIsDialogAtBottom(false);
+            setIsCustomPeopleInput(false);
+            setCustomPeopleInput("");
             setDraftSelections({});
           }
         }}
@@ -875,23 +910,91 @@ const ComboItemsList = ({
               <div className="px-5 pt-3 pb-2">
                 <label className="mb-1 block text-sm font-bold text-gray-700">
                   Select quantity:
-                </label>
-                <Select
-                  value={String(activeComboPeople)}
+                </label>                <Select
+                  value={
+                    isCustomPeopleInput ? "custom" : String(activeComboPeople)
+                  }
                   onValueChange={(value) => {
-                    handlePeopleChange(activeCombo.id, Number(value));
+                    if (value === "custom") {
+                      setIsCustomPeopleInput(true);
+                      setCustomPeopleInput(String(activeComboPeople));
+                      return;
+                    }
+
+                    const parsedValue = Number(value);
+                    if (!Number.isFinite(parsedValue)) return;
+
+                    setIsCustomPeopleInput(false);
+                    setCustomPeopleInput(String(parsedValue));
+                    handlePeopleChange(activeCombo.id, parsedValue);
                   }}
                 >
                   <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full">
                       <Users className="h-4 w-4 text-orange-500" />
-                      <SelectValue>
-                        {activeComboPeople}{" "}
-                        {activeComboPeople === 1 ? "person" : "people"}
-                      </SelectValue>
+                      {isCustomPeopleInput ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={activeComboMinimumGuests || 1}
+                            max={activeComboMaximumGuests || undefined}
+                            step={1}
+                            value={customPeopleInput}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setCustomPeopleInput(next);
+
+                              const parsed = Number(next);
+                              if (!Number.isFinite(parsed) || parsed <= 0) return;
+
+                              const clamped = clampGuestCount(
+                                parsed,
+                                activeComboMinimumGuests,
+                                activeComboMaximumGuests,
+                              );
+                              handlePeopleChange(activeCombo.id, clamped);
+                            }}
+                            onBlur={() => {
+                              const parsed = Number(customPeopleInput);
+                              const fallback = getPeopleForCombo(activeCombo);
+                              const nextValue =
+                                Number.isFinite(parsed) && parsed > 0
+                                  ? parsed
+                                  : fallback;
+                              const clamped = clampGuestCount(
+                                nextValue,
+                                activeComboMinimumGuests,
+                                activeComboMaximumGuests,
+                              );
+                              setCustomPeopleInput(String(clamped));
+                              handlePeopleChange(activeCombo.id, clamped);
+                            }}
+                            className="h-8 w-full rounded-md border border-orange-200 px-2 text-sm text-gray-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                            placeholder="Custom people"
+                          />
+                          <span className="text-xs text-gray-600 whitespace-nowrap">
+                            people
+                          </span>
+                        </div>
+                      ) : (
+                        <SelectValue>
+                          {activeComboPeople}{" "}
+                          {activeComboPeople === 1 ? "person" : "people"}
+                        </SelectValue>
+                      )}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="max-h-60 mt-1">
+                    <SelectItem
+                      value="custom"
+                      className="focus:bg-orange-50 focus:text-orange-700"
+                    >
+                      Custom input
+                    </SelectItem>
                     {activeComboPeopleOptions.map((count) => (
                       <SelectItem
                         key={count}

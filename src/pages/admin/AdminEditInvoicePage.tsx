@@ -77,6 +77,10 @@ function AdminEditInvoicePage() {
             setSelectedItems(combinedSelectedItems);
             setOrderData(parsedEditState.orderData || {});
             setFormInputs(parsedEditState.formInputs || {});
+            setCustomAdjustments(parsedEditState.customAdjustments || []);
+            setIsTaxExempt(parsedEditState.isTaxExempt ?? false);
+            setIsServiceFeeWaived(parsedEditState.isServiceFeeWaived ?? false);
+            setAdminNotes(parsedEditState.adminNotes || "");
             hasProcessedSessionRef.current = true;
 
             sessionStorage.removeItem("editOrderState");
@@ -157,29 +161,91 @@ function AdminEditInvoicePage() {
             const serviceType = service.serviceType || "";
             const vendorCatalogServices =
               vendorCateringCatalog.get(String(service.vendorId || "")) || [];
-            const vendorCatalogCombos = vendorCatalogServices.flatMap(
-              (svc: any) => {
-                const direct = svc?.catering?.combos;
-                const nested = svc?.service_details?.catering?.combos;
-                const top = svc?.combos;
-                if (Array.isArray(direct)) return direct;
-                if (Array.isArray(nested)) return nested;
-                if (Array.isArray(top)) return top;
-                return [];
-              },
-            );
+
+            const getCatalogCombos = (svc: any): any[] => {
+              if (!svc) return [];
+              return [
+                ...(Array.isArray(svc?.catering?.combos) ? svc.catering.combos : []),
+                ...(Array.isArray(svc?.service_details?.catering?.combos)
+                  ? svc.service_details.catering.combos
+                  : []),
+                ...(Array.isArray(svc?.combos) ? svc.combos : []),
+              ];
+            };
+
+            const referencedComboIds = new Set<string>([
+              ...(service.comboCategoryItems || []).map((item: any) =>
+                String(item?.comboId || ""),
+              ),
+              ...((service.cateringItems || [])
+                .filter((item: any) => item?.comboId)
+                .map((item: any) => String(item.comboId || ""))),
+            ].filter(Boolean));
+
+            const normalizedServiceName = String(
+              service?.serviceName || service?.name || "",
+            )
+              .trim()
+              .toLowerCase();
+
+            let matchedVendorCatalogService: any = null;
+            let bestMatchScore = -1;
+
+            vendorCatalogServices.forEach((svc: any) => {
+              const svcCatering = svc?.catering || svc?.service_details?.catering;
+              if (!svcCatering) return;
+
+              let score = 0;
+              const svcId = String(svc?.id || svc?.serviceId || "");
+              const invoiceServiceRefId = String(service?.serviceId || "");
+              if (invoiceServiceRefId && svcId && svcId === invoiceServiceRefId) {
+                score += 1000;
+              }
+
+              const svcName = String(svc?.name || "")
+                .trim()
+                .toLowerCase();
+              if (normalizedServiceName && svcName && svcName === normalizedServiceName) {
+                score += 200;
+              }
+
+              if (referencedComboIds.size > 0) {
+                const svcComboIds = new Set(
+                  getCatalogCombos(svc)
+                    .map((combo: any) => String(combo?.id || combo?.itemId || ""))
+                    .filter(Boolean),
+                );
+                let overlap = 0;
+                referencedComboIds.forEach((comboId) => {
+                  if (svcComboIds.has(comboId)) overlap += 1;
+                });
+                score += overlap * 50;
+              }
+
+              if (score > bestMatchScore) {
+                bestMatchScore = score;
+                matchedVendorCatalogService = svc;
+              }
+            });
+
+            if (!matchedVendorCatalogService) {
+              matchedVendorCatalogService = vendorCatalogServices.find(
+                (svc: any) => svc?.catering || svc?.service_details?.catering,
+              );
+            }
+
+            const catalogCatering =
+              matchedVendorCatalogService?.catering ||
+              matchedVendorCatalogService?.service_details?.catering ||
+              {};
+
+            const serviceCatalogCombos = getCatalogCombos(matchedVendorCatalogService);
+
             const comboCatalogById = new Map<string, any>();
-            vendorCatalogCombos.forEach((combo: any) => {
-              const comboId = String(combo?.id || "");
+            serviceCatalogCombos.forEach((combo: any) => {
+              const comboId = String(combo?.id || combo?.itemId || "");
               if (comboId) comboCatalogById.set(comboId, combo);
             });
-            const catalogCatering =
-              vendorCatalogServices.find((svc: any) => svc?.catering)
-                ?.catering ||
-              vendorCatalogServices.find(
-                (svc: any) => svc?.service_details?.catering,
-              )?.service_details?.catering ||
-              {};
             const resolvedMinimumGuests =
               Number(
                 service.minimumGuests ??
@@ -205,7 +271,21 @@ function AdminEditInvoicePage() {
             let rentalItems: any[] = [];
             let staffItems: any[] = [];
             let venueItems: any[] = [];
-            const serviceComboCategoryItems = (service.comboCategoryItems || [])
+            const comboCategoryItemsFromCatering = (service.cateringItems || [])
+              .filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id))
+              .map((item: any) => ({
+                ...item,
+                comboId: item.comboId,
+                cateringId: item.cateringId || item.id,
+                menuItemName: item.menuItemName || item.name,
+                menuName: item.menuName || "Combo Items",
+                premiumCharge: item.premiumCharge || item.additionalCharge || item.additionalPrice || 0,
+              }));
+
+            const serviceComboCategoryItems = [
+              ...(service.comboCategoryItems || []),
+              ...comboCategoryItemsFromCatering,
+            ]
               .filter(
                 (item: any) => item?.comboId && (item?.cateringId || item?.id),
               )
@@ -343,8 +423,9 @@ function AdminEditInvoicePage() {
             };
 
             if (service.cateringItems && service.cateringItems.length > 0) {
-              serviceItems = service.cateringItems;
-              menuItems = service.cateringItems.map((item: any) => {
+              const nonComboCategoryCateringItems = service.cateringItems.filter((item: any) => !item?.comboId && !item?.isComboCategoryItem);
+              serviceItems = nonComboCategoryCateringItems;
+              menuItems = nonComboCategoryCateringItems.map((item: any) => {
                 const comboCategoryItems = (
                   serviceComboCategoryItems || []
                 ).filter(
@@ -467,6 +548,138 @@ function AdminEditInvoicePage() {
                   }
                 }
               });
+              const catalogMenuItemsRaw =
+                catalogCatering?.menuItems ||
+                catalogCatering?.menus ||
+                catalogCatering?.items ||
+                [];
+
+              catalogMenuItemsRaw.forEach((catalogItem: any) => {
+                const catalogItemId = String(
+                  catalogItem?.id || catalogItem?.cateringId || "",
+                );
+                if (!catalogItemId) return;
+
+                const selectedComboCategories = buildComboCategories(
+                  (serviceComboCategoryItems || []).filter(
+                    (comboItem: any) =>
+                      String(comboItem.comboId) === catalogItemId,
+                  ),
+                );
+
+                const mergedComboCategories = mergeComboCategories(
+                  catalogItem?.comboCategories ||
+                    comboCatalogById.get(catalogItemId)?.comboCategories ||
+                    [],
+                  selectedComboCategories,
+                );
+
+                const existingItem = menuItems.find(
+                  (item: any) => String(item.id) === catalogItemId,
+                );
+
+                const mappedCatalogItem = {
+                  id: catalogItemId,
+                  name:
+                    catalogItem?.name ||
+                    catalogItem?.menuItemName ||
+                    catalogItem?.title ||
+                    "Menu Item",
+                  price: parseFloat(
+                    String(catalogItem?.pricePerPerson || catalogItem?.price || 0),
+                  ) || 0,
+                  category: catalogItem?.menuName || "Menu",
+                  menuName: catalogItem?.menuName,
+                  menuItemName:
+                    catalogItem?.menuItemName ||
+                    catalogItem?.name ||
+                    catalogItem?.title,
+                  isCombo:
+                    Boolean(catalogItem?.isCombo) || mergedComboCategories.length > 0,
+                  comboCategories: mergedComboCategories,
+                  comboCategoryItems: (serviceComboCategoryItems || []).filter(
+                    (comboItem: any) =>
+                      String(comboItem.comboId) === catalogItemId,
+                  ),
+                  priceType: catalogItem?.priceType || "fixed",
+                  image: catalogItem?.image || catalogItem?.imageUrl || "",
+                  imageUrl: catalogItem?.imageUrl || catalogItem?.image || "",
+                  description: catalogItem?.description || "",
+                };
+
+                if (!existingItem) {
+                  menuItems.push(mappedCatalogItem);
+                  return;
+                }
+
+                existingItem.name = existingItem.name || mappedCatalogItem.name;
+                existingItem.price =
+                  existingItem.price && existingItem.price > 0
+                    ? existingItem.price
+                    : mappedCatalogItem.price;
+                existingItem.category = existingItem.category || mappedCatalogItem.category;
+                existingItem.menuName = existingItem.menuName || mappedCatalogItem.menuName;
+                existingItem.menuItemName =
+                  existingItem.menuItemName || mappedCatalogItem.menuItemName;
+                existingItem.isCombo =
+                  Boolean(existingItem.isCombo) || Boolean(mappedCatalogItem.isCombo);
+                existingItem.comboCategories = mergeComboCategories(
+                  existingItem.comboCategories || [],
+                  mappedCatalogItem.comboCategories || [],
+                );
+                existingItem.comboCategoryItems = [
+                  ...(existingItem.comboCategoryItems || []),
+                  ...(mappedCatalogItem.comboCategoryItems || []),
+                ].filter(
+                  (item: any, index: number, arr: any[]) =>
+                    arr.findIndex(
+                      (x: any) =>
+                        String(x.comboId || "") === String(item.comboId || "") &&
+                        String(x.cateringId || x.id || "") ===
+                          String(item.cateringId || item.id || "") &&
+                        String(x.menuName || "Combo Items") ===
+                          String(item.menuName || "Combo Items"),
+                    ) === index,
+                );
+                existingItem.image = existingItem.image || mappedCatalogItem.image;
+                existingItem.imageUrl = existingItem.imageUrl || mappedCatalogItem.imageUrl;
+                existingItem.description =
+                  existingItem.description || mappedCatalogItem.description;
+              });
+
+              (serviceCatalogCombos || []).forEach((combo: any) => {
+                const comboId = String(combo?.id || combo?.itemId || "");
+                if (!comboId) return;
+                if (menuItems.some((item: any) => String(item.id) === comboId)) return;
+
+                const selectedComboCategories = buildComboCategories(
+                  (serviceComboCategoryItems || []).filter(
+                    (comboItem: any) => String(comboItem.comboId) === comboId,
+                  ),
+                );
+
+                menuItems.push({
+                  id: comboId,
+                  name: combo?.name || combo?.menuItemName || "Combo",
+                  price:
+                    parseFloat(String(combo?.pricePerPerson || combo?.price || 0)) || 0,
+                  category: "Combo Packages",
+                  menuName: "Combo Packages",
+                  menuItemName: combo?.name || combo?.menuItemName || "Combo",
+                  isCombo: true,
+                  comboCategories: mergeComboCategories(
+                    combo?.comboCategories || [],
+                    selectedComboCategories,
+                  ),
+                  comboCategoryItems: (serviceComboCategoryItems || []).filter(
+                    (comboItem: any) => String(comboItem.comboId) === comboId,
+                  ),
+                  priceType: combo?.priceType || "fixed",
+                  image: combo?.image || combo?.imageUrl || "",
+                  imageUrl: combo?.imageUrl || combo?.image || "",
+                  description: combo?.description || "",
+                });
+              });
             }
 
             if (
@@ -580,7 +793,11 @@ function AdminEditInvoicePage() {
               serviceName: service.serviceName,
               price: parseFloat(service.price) || 0,
               servicePrice: service.price,
-              totalPrice: parseFloat(service.price) || 0,
+              totalPrice: (parseFloat(service.totalPrice) || 0) > 0
+                ? parseFloat(service.totalPrice)
+                : ["catering", "party_rentals", "party-rentals", "party-rental", "staff", "events_staff"].includes(serviceType)
+                  ? 0
+                  : parseFloat(service.price) || 0,
               quantity: service.quantity || 1,
               duration: service.staffItems?.[0]?.hours || 0,
               serviceType: serviceType,
@@ -603,11 +820,25 @@ function AdminEditInvoicePage() {
           const mappedSelectedItems: Record<string, number> = {};
           (invoiceServices || []).forEach((service: any) => {
             if (service.cateringItems) {
+              const comboIdSet = new Set(
+                [
+                  ...(service.comboCategoryItems || []),
+                  ...((service.cateringItems || []).filter(
+                    (item: any) =>
+                      item?.comboId &&
+                      (item?.isComboCategoryItem || item?.cateringId || item?.id),
+                  )),
+                ].map((item: any) => String(item.comboId || "")),
+              );
+
               service.cateringItems.forEach((item: any) => {
+                if (item?.comboId || item?.isComboCategoryItem) return;
                 const itemId = item.cateringId || item.id;
                 if (itemId) {
+                  const isComboBase = comboIdSet.has(String(itemId));
+                  const quantityToMap = isComboBase ? 1 : item.quantity || 1;
                   mappedSelectedItems[itemId] =
-                    (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
+                    (mappedSelectedItems[itemId] || 0) + quantityToMap;
                 }
               });
             }
@@ -647,22 +878,28 @@ function AdminEditInvoicePage() {
           });
 
           // Add combo category items to selectedItems
-          const allComboCategoryItems = (invoiceServices || []).flatMap(
-            (s: any) => s.comboCategoryItems || [],
-          );
+          const allComboCategoryItems = (invoiceServices || []).flatMap((s: any) => {
+            const direct = s.comboCategoryItems || [];
+            const fromCatering = (s.cateringItems || [])
+              .filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id))
+              .map((item: any) => ({
+                ...item,
+                comboId: item.comboId,
+                cateringId: item.cateringId || item.id,
+                menuName: item.menuName || "combo-category",
+              }));
+            return [...direct, ...fromCatering];
+          });
           allComboCategoryItems.forEach((item: any) => {
             const categoryKey = item.menuName || "combo-category";
             const itemKey =
-              item.comboId + "_" + categoryKey + "_" + item.cateringId;
-            const fallbackKey =
-              item.comboId + "_combo-category_" + item.cateringId;
-            mappedSelectedItems[itemKey] = item.quantity;
-            mappedSelectedItems[fallbackKey] = item.quantity;
+              item.comboId + "_" + categoryKey + "_" + (item.cateringId || item.id);
+            mappedSelectedItems[itemKey] = Number(item.quantity || 0) > 0 ? 1 : 0;
           });
 
           (invoiceServices || []).forEach((service: any) => {
             const comboIdSet = new Set(
-              (service.comboCategoryItems || []).map((item: any) =>
+              [...(service.comboCategoryItems || []), ...((service.cateringItems || []).filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id)))].map((item: any) =>
                 String(item.comboId || ""),
               ),
             );
@@ -904,6 +1141,29 @@ function AdminEditInvoicePage() {
                             comboItem.imageUrl ||
                             itemImageMap.get(comboItem.id) ||
                             "";
+                          const premiumCharge =
+                            parseFloat(
+                              String(
+                                comboItem.premiumCharge ??
+                                  comboItem.additionalCharge ??
+                                  comboItem.additionalPrice ??
+                                  0,
+                              ),
+                            ) || 0;
+                          const comboHeadcount =
+                            Number(
+                              selectedItems[`meta_${item.id}_headcount`] ||
+                                selectedItems[`meta_${item.cateringId}_headcount`] ||
+                                0,
+                            ) ||
+                            Number(baseQuantity || 0) ||
+                            Number(formInputs?.guestCount || 0) ||
+                            1;
+
+                          // Combo category rows should contribute premium delta only.
+                          const effectiveQuantity =
+                            premiumCharge > 0 ? comboHeadcount : quantity;
+
                           cateringItems.push({
                             menuName: category.name || "Combo Deal",
                             menuItemName:
@@ -913,27 +1173,9 @@ function AdminEditInvoicePage() {
                             image: comboItemImage,
                             price:
                               parseFloat(String(comboItem.price || 0)) || 0,
-                            premiumCharge:
-                              parseFloat(
-                                String(
-                                  comboItem.premiumCharge ??
-                                    comboItem.additionalCharge ??
-                                    comboItem.additionalPrice ??
-                                    0,
-                                ),
-                              ) || 0,
-                            quantity,
-                            totalPrice:
-                              ((parseFloat(String(comboItem.price || 0)) || 0) +
-                                (parseFloat(
-                                  String(
-                                    comboItem.premiumCharge ??
-                                      comboItem.additionalCharge ??
-                                      comboItem.additionalPrice ??
-                                      0,
-                                  ),
-                                ) || 0)) *
-                              quantity,
+                            premiumCharge,
+                            quantity: effectiveQuantity,
+                            totalPrice: premiumCharge * effectiveQuantity,
                             serviceId: service.id,
                             cateringId: comboItem.id || comboItem.itemId,
                             comboId: item.id,
@@ -1169,6 +1411,10 @@ function AdminEditInvoicePage() {
         selectedItems: selectedItems,
         orderData: orderData,
         formInputs: formInputs,
+        customAdjustments: customAdjustments,
+        isTaxExempt: isTaxExempt,
+        isServiceFeeWaived: isServiceFeeWaived,
+        adminNotes: adminNotes,
       }),
     );
 
@@ -1218,7 +1464,7 @@ function AdminEditInvoicePage() {
               : [];
             const withoutCurrentCombo = existing.filter(
               (entry: any) =>
-                String(entry?.comboId) !== String(selections?.comboId),
+                String(entry?.comboItemId ?? entry?.comboId) !== String(selections?.comboItemId ?? selections?.comboId),
             );
             return {
               ...service,
@@ -1356,6 +1602,7 @@ function AdminEditInvoicePage() {
                             );
                           }}
                           showChangeService={false}
+                          guestCount={Number(formInputs?.guestCount || 1) || 1}
                         />
                       </div>
                     );
@@ -1689,6 +1936,10 @@ function AdminEditInvoicePage() {
 }
 
 export default AdminEditInvoicePage;
+
+
+
+
 
 
 

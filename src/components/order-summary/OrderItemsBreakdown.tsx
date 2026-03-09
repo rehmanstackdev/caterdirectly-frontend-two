@@ -44,7 +44,8 @@ interface OrderItemsBreakdownProps {
   isTaxExempt?: boolean;
   isServiceFeeWaived?: boolean;
   onDeliveryFeeCalculated?: (deliveryFee: number) => void;
-  // ✅ NEW: Accept pre-calculated pricing snapshot (SSOT)
+  showVendorEarningsBadge?: boolean;
+  // NEW: Accept pre-calculated pricing snapshot (SSOT)
   pricingSnapshot?: {
     subtotal: number;
     serviceFee: number;
@@ -67,6 +68,7 @@ const OrderItemsBreakdown = ({
   isTaxExempt = false,
   isServiceFeeWaived = false,
   pricingSnapshot = null,
+  showVendorEarningsBadge = false,
 }: OrderItemsBreakdownProps) => {
   const { settings } = useAdminSettings();
   const { distancesByService } = useServiceDistances(
@@ -82,7 +84,7 @@ const OrderItemsBreakdown = ({
       serviceFeeType: "percentage",
     };
 
-  // ✅ SSOT: If pricing snapshot provided, use it directly (no recalculation)
+  // SSOT: If pricing snapshot provided, use it directly (no recalculation)
   // Otherwise, calculate live using unified system
   const calculatedTotals = pricingSnapshot
     ? null
@@ -166,7 +168,7 @@ const OrderItemsBreakdown = ({
     .filter((adj) => adj.taxable === false)
     .reduce((sum, adj) => sum + adj.amount, 0);
 
-  // ✅ Update final total to exclude tax
+  // Update final total to exclude tax
   const finalTotal =
     pricingSnapshot?.total ?? preTaxTotal + nonTaxableAdjustments;
 
@@ -523,6 +525,8 @@ const OrderItemsBreakdown = ({
                   service,
                   selectedItems,
                 );
+                const serviceVendorEarnings =
+                  Number((service as any).vendorEarnings) || 0;
 
                 // Calculate actual staff count and duration from selectedItems for display
                 const serviceId = service.id || service.serviceId;
@@ -613,16 +617,22 @@ const OrderItemsBreakdown = ({
                     cateringCalc.finalTotal > 0 ? (
                       <div className="space-y-3">
                         {/* Service Name Header */}
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-gray-800">
-                            {serviceName}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {service.vendorName || service.vendor}
-                          </span>
+                        <div className="space-y-2 gap-3">
+                          <div>
+                            <span className="font-medium text-gray-800">
+                              {serviceName}
+                            </span>
+                          </div>
+                          {showVendorEarningsBadge &&
+                            serviceVendorEarnings > 0 && (
+                              <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200">
+                                Vendor Earnings:{" "}
+                                {formatCurrency(serviceVendorEarnings)}
+                              </Badge>
+                            )}
                         </div>
 
-                        {/* 1. Menu Items (individual items) - Price × Quantity ONLY (NO guest count) */}
+                        {/* 1. Menu Items (individual items) - Price x Quantity ONLY (NO guest count) */}
                         {cateringCalc.menuItems &&
                           cateringCalc.menuItems.length > 0 && (
                             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
@@ -885,7 +895,7 @@ const OrderItemsBreakdown = ({
                             )}
                         {/* Service Total */}
                         {(() => {
-                          // Compute total from combos (base × persons + premium × persons) + menu items
+                          // Compute total from combos (base x persons + premium x persons) + menu items
                           const combosTotal = (
                             cateringCalc.combos || []
                           ).reduce((sum, combo) => {
@@ -924,13 +934,20 @@ const OrderItemsBreakdown = ({
                       /* Non-catering services: Column-based layout */
                       <div className="space-y-3">
                         {/* Service Name Header */}
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-gray-800">
-                            {serviceName}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {service.vendorName || service.vendor}
-                          </span>
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <span className="font-medium text-gray-800">
+                              {serviceName}
+                            </span>
+                          </div>
+
+                          {showVendorEarningsBadge &&
+                            serviceVendorEarnings > 0 && (
+                              <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200">
+                                Vendor Earnings:{" "}
+                                {formatCurrency(serviceVendorEarnings)}
+                              </Badge>
+                            )}
                         </div>
 
                         {/* Service Details with Columns */}
