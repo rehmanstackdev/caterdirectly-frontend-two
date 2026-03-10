@@ -1021,7 +1021,7 @@ function AdminEditInvoicePage() {
           formInputs.eventLocation ?? orderData.eventLocation ?? "",
         eventDate: formInputs.eventDate ?? orderData.eventDate ?? "",
         serviceTime: formInputs.serviceTime ?? orderData.serviceTime ?? "",
-        guestCount: formInputs.guestCount ?? orderData.guestCount ?? 1,
+        guestCount: Number(formInputs.guestCount) || orderData.guestCount || 1,
         contactName: formInputs.contactName ?? orderData.contactName ?? "",
         phoneNumber: formInputs.phoneNumber ?? orderData.phoneNumber ?? "",
         emailAddress: formInputs.emailAddress ?? orderData.emailAddress ?? "",
