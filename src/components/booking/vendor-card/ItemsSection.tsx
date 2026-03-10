@@ -12,6 +12,8 @@ interface ItemsSectionProps {
   onComboSelection?: (comboSelections: any) => void;
   serviceMinimumGuests?: number | string;
   serviceMaximumGuests?: number | string;
+  guestBudget?: number;
+  currentNonComboSubtotal?: number;
 }
 
 const ItemsSection = React.memo(({
@@ -23,6 +25,8 @@ const ItemsSection = React.memo(({
   onComboSelection,
   serviceMinimumGuests,
   serviceMaximumGuests,
+  guestBudget,
+  currentNonComboSubtotal,
 }: ItemsSectionProps) => {
   const getSectionTitle = (serviceType: string) => {
     switch (serviceType) {
@@ -85,6 +89,8 @@ const ItemsSection = React.memo(({
                 onComboSelection={onComboSelection}
                 serviceMinimumGuests={serviceMinimumGuests}
                 serviceMaximumGuests={serviceMaximumGuests}
+                guestBudget={guestBudget}
+                currentNonComboSubtotal={currentNonComboSubtotal}
               />
             </div>
           )}

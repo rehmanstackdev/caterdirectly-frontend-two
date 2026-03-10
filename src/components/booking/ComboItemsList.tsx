@@ -17,7 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Eye, Users } from "lucide-react";
+import { toast } from "sonner";
 
 interface ComboItemsListProps {
   items: ComboPackage[];
@@ -26,6 +33,8 @@ interface ComboItemsListProps {
   onComboSelection?: (comboSelections: any) => void;
   serviceMinimumGuests?: number | string;
   serviceMaximumGuests?: number | string;
+  guestBudget?: number;
+  currentNonComboSubtotal?: number;
 }
 
 interface ComboCategoryItem {
@@ -38,6 +47,8 @@ interface ComboCategoryItem {
   image?: string;
   imageUrl?: string;
   selectionKey?: string;
+  dietaryFlags?: string[];
+  allergenFlags?: string[];
 }
 
 interface ComboCategory {
@@ -79,6 +90,8 @@ const ComboItemsList = ({
   onComboSelection,
   serviceMinimumGuests,
   serviceMaximumGuests,
+  guestBudget,
+  currentNonComboSubtotal = 0,
 }: ComboItemsListProps) => {
   const [activeComboId, setActiveComboId] = useState<string | null>(null);
   const [peopleByCombo, setPeopleByCombo] = useState<Record<string, number>>(
@@ -86,6 +99,9 @@ const ComboItemsList = ({
   );
   const [isDialogScrolled, setIsDialogScrolled] = useState(false);
   const [isDialogAtBottom, setIsDialogAtBottom] = useState(false);
+  const [isCustomPeopleInput, setIsCustomPeopleInput] = useState(false);
+  const [customPeopleInput, setCustomPeopleInput] = useState("");
+  const [customPeopleError, setCustomPeopleError] = useState("");
   const [draftSelections, setDraftSelections] = useState<
     Record<string, number>
   >({});
@@ -213,7 +229,12 @@ const ComboItemsList = ({
   const getPeopleForCombo = (combo: ComboPackage): number => {
     const minimumGuests = getEffectiveMinimumGuests(combo);
     const maximumGuests = getEffectiveMaximumGuests(combo);
-    const selectedPeople = peopleByCombo[combo.id] || getDefaultPeople(combo);
+    const persistedHeadcount = selectedItems[`meta_${combo.id}_headcount`];
+    const selectedPeople =
+      peopleByCombo[combo.id] ||
+      (typeof persistedHeadcount === "number" && persistedHeadcount > 0
+        ? persistedHeadcount
+        : getDefaultPeople(combo));
     return clampGuestCount(selectedPeople, minimumGuests, maximumGuests);
   };
 
@@ -228,7 +249,19 @@ const ComboItemsList = ({
     comboId: string,
     categoryId: string,
     item: ComboCategoryItem,
-  ) => item.selectionKey || `${comboId}_${categoryId}_${item.id}`;
+  ) => {
+    // Only trust precomputed keys when they are combo-scoped.
+    // Plain IDs can collide with menu item IDs and cause double counting.
+    if (
+      item.selectionKey &&
+      item.selectionKey.includes("_") &&
+      item.selectionKey.startsWith(`${comboId}_`)
+    ) {
+      return item.selectionKey;
+    }
+
+    return `${comboId}_${categoryId}_${item.id}`;
+  };
 
   const getComboItemKeys = (combo: ComboPackage): string[] => {
     if (!combo.comboCategories || combo.comboCategories.length === 0) return [];
@@ -265,6 +298,145 @@ const ComboItemsList = ({
     return 0;
   };
 
+  const dietaryBadgeMap: Record<
+    string,
+    { short: string; label: string; className: string }
+  > = {
+    gluten_free: {
+      short: "GF",
+      label: "Gluten Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white  ",
+    },
+    dairy_free: {
+      short: "DF",
+      label: "Dairy Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    nut_free: {
+      short: "NF",
+      label: "Nut Free",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    vegetarian: {
+      short: "V",
+      label: "Vegetarian",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    vegan: {
+      short: "VG",
+      label: "Vegan",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    halal: {
+      short: "H",
+      label: "Halal",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    kosher: {
+      short: "K",
+      label: "Kosher",
+      className:
+        "bg-transparent  h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+  };
+
+  const allergenBadgeMap: Record<
+    string,
+    { short: string; label: string; className: string }
+  > = {
+    nuts: {
+      short: "N",
+      label: "Contains Nuts",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    dairy: {
+      short: "D",
+      label: "Contains Dairy",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    eggs: {
+      short: "E",
+      label: "Contains Eggs",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    shellfish: {
+      short: "SF",
+      label: "Contains Shellfish",
+      className:
+        "bg-transparent  h-3 w-3 text-emerald-700 border-gray hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    wheat: {
+      short: "W",
+      label: "Contains Wheat",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    soy: {
+      short: "S",
+      label: "Contains Soy",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+    fish: {
+      short: "F",
+      label: "Contains Fish",
+      className:
+        "bg-transparent h-3 w-3 text-emerald-700 border-black hover:bg-orange-400 hover:border-0 hover:text-white",
+    },
+  };
+
+  const normalizeFlag = (flag: string) =>
+    flag
+      .toLowerCase()
+      .trim()
+      .replace(/[\s-]+/g, "_");
+
+  const getItemFlagBadges = (item: ComboCategoryItem) => {
+    const badges: Array<{
+      key: string;
+      short: string;
+      label: string;
+      className: string;
+    }> = [];
+
+    (item.dietaryFlags || []).forEach((flag) => {
+      const key = normalizeFlag(flag);
+      const mapped = dietaryBadgeMap[key];
+      if (mapped) {
+        badges.push({
+          key: `dietary_${key}`,
+          short: mapped.short,
+          label: mapped.label,
+          className: mapped.className,
+        });
+      }
+    });
+
+    (item.allergenFlags || []).forEach((flag) => {
+      const key = normalizeFlag(flag);
+      const mapped = allergenBadgeMap[key];
+      if (mapped) {
+        badges.push({
+          key: `allergen_${key}`,
+          short: mapped.short,
+          label: mapped.label,
+          className: mapped.className,
+        });
+      }
+    });
+
+    return badges;
+  };
+
   const getSelectedExtraPerPerson = (
     combo: ComboPackage,
     sourceSelections: Record<string, number>,
@@ -293,6 +465,12 @@ const ComboItemsList = ({
     activeComboBasePrice + activeComboExtraPrice;
 
   const activeComboServes = activeCombo ? getComboServes(activeCombo) : null;
+  const activeComboMinimumGuests = activeCombo
+    ? getEffectiveMinimumGuests(activeCombo)
+    : null;
+  const activeComboMaximumGuests = activeCombo
+    ? getEffectiveMaximumGuests(activeCombo)
+    : null;
   const activeComboPeopleOptions = activeCombo
     ? getPeopleOptionsForCombo(activeCombo)
     : [1];
@@ -306,8 +484,32 @@ const ComboItemsList = ({
     : 5;
   const activeComboGrandTotal = activeComboPerPersonTotal * activeComboPeople;
 
+  useEffect(() => {
+    if (!activeCombo) {
+      setIsCustomPeopleInput(false);
+      setCustomPeopleInput("");
+      setCustomPeopleError("");
+      return;
+    }
+
+    const people = getPeopleForCombo(activeCombo);
+    setCustomPeopleInput(String(people));
+    setCustomPeopleError("");
+  }, [activeComboId]);
+
   const commitDraftSelections = () => {
     if (!activeCombo) return;
+
+    // Budget check: combo total + existing non-combo items must not exceed budget
+    if (guestBudget && guestBudget > 0) {
+      const comboGrandTotal = activeComboGrandTotal;
+      if (currentNonComboSubtotal + comboGrandTotal > guestBudget) {
+        toast.error(
+          `This combo package (${formatCurrency(comboGrandTotal)}) exceeds your remaining budget of ${formatCurrency(guestBudget - currentNonComboSubtotal)}.`,
+        );
+        return;
+      }
+    }
 
     // Update individual item keys in selectedItems
     getComboItemKeys(activeCombo).forEach((key) => {
@@ -371,6 +573,8 @@ const ComboItemsList = ({
     setActiveComboId(null);
     setIsDialogScrolled(false);
     setIsDialogAtBottom(false);
+    setIsCustomPeopleInput(false);
+    setCustomPeopleInput("");
     setDraftSelections({});
   };
 
@@ -388,10 +592,10 @@ const ComboItemsList = ({
           {combo.comboCategories.map((category) => {
             const categoryItems = category.items || [];
 
+            const rawMax = Number(category.maxSelections);
             const maxSelections =
-              typeof category.maxSelections === "number" &&
-              category.maxSelections > 0
-                ? category.maxSelections
+              Number.isFinite(rawMax) && rawMax > 0
+                ? rawMax
                 : Math.max(1, categoryItems.length);
             const isSingleSelectCategory = maxSelections === 1;
 
@@ -431,6 +635,7 @@ const ComboItemsList = ({
                     const premiumCharge =
                       parseMoney(item.additionalCharge) ||
                       parseMoney(item.additionalPrice);
+                    const itemBadges = getItemFlagBadges(item);
 
                     return (
                       <div
@@ -463,7 +668,6 @@ const ComboItemsList = ({
                                 </Badge>
                               )}
                             </div>
-
                             {item.isPremium &&
                             itemBasePrice > 0 &&
                             premiumCharge > 0 ? (
@@ -492,6 +696,30 @@ const ComboItemsList = ({
                               </div>
                             )}
                           </div>
+
+                          {itemBadges.length > 0 && (
+                            <TooltipProvider delayDuration={120}>
+                              <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                {itemBadges.map((badge) => (
+                                  <Tooltip key={badge.key}>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1.5 text-[10px] font-bold ${badge.className}`}
+                                      >
+                                        {badge.short}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="text-xs"
+                                    >
+                                      {badge.label}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                              </div>
+                            </TooltipProvider>
+                          )}
                         </div>
                         <div className="flex-shrink-0">
                           {isSingleSelectCategory ? (
@@ -646,6 +874,9 @@ const ComboItemsList = ({
             setActiveComboId(null);
             setIsDialogScrolled(false);
             setIsDialogAtBottom(false);
+            setIsCustomPeopleInput(false);
+            setCustomPeopleInput("");
+            setCustomPeopleError("");
             setDraftSelections({});
           }
         }}
@@ -686,21 +917,105 @@ const ComboItemsList = ({
                   Select quantity:
                 </label>
                 <Select
-                  value={String(activeComboPeople)}
+                  value={
+                    isCustomPeopleInput ? "custom" : String(activeComboPeople)
+                  }
                   onValueChange={(value) => {
-                    handlePeopleChange(activeCombo.id, Number(value));
+                    if (value === "custom") {
+                      setIsCustomPeopleInput(true);
+                      setCustomPeopleInput(String(activeComboPeople));
+                      setCustomPeopleError("");
+                      return;
+                    }
+
+                    const parsedValue = Number(value);
+                    if (!Number.isFinite(parsedValue)) return;
+
+                    setIsCustomPeopleInput(false);
+                    setCustomPeopleInput(String(parsedValue));
+                    setCustomPeopleError("");
+                    handlePeopleChange(activeCombo.id, parsedValue);
                   }}
                 >
                   <SelectTrigger className="h-12 w-full border-orange-200 bg-white text-sm text-gray-800 focus:ring-orange-400 focus:ring-offset-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full">
                       <Users className="h-4 w-4 text-orange-500" />
-                      <SelectValue>
-                        {activeComboPeople}{" "}
-                        {activeComboPeople === 1 ? "person" : "people"}
-                      </SelectValue>
+                      {isCustomPeopleInput ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={activeComboMinimumGuests || 1}
+                            max={activeComboMaximumGuests || undefined}
+                            step={1}
+                            value={customPeopleInput}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setCustomPeopleInput(next);
+
+                              const parsed = Number(next);
+                              if (!Number.isFinite(parsed) || parsed <= 0) {
+                                setCustomPeopleError("");
+                                return;
+                              }
+
+                              // Validate against min/max
+                              if (activeComboMinimumGuests && parsed < activeComboMinimumGuests) {
+                                setCustomPeopleError(`Minimum ${activeComboMinimumGuests} people required`);
+                              } else if (activeComboMaximumGuests && parsed > activeComboMaximumGuests) {
+                                setCustomPeopleError(`Maximum ${activeComboMaximumGuests} people allowed`);
+                              } else {
+                                setCustomPeopleError("");
+                              }
+
+                              const clamped = clampGuestCount(
+                                parsed,
+                                activeComboMinimumGuests,
+                                activeComboMaximumGuests,
+                              );
+                              handlePeopleChange(activeCombo.id, clamped);
+                            }}
+                            onBlur={() => {
+                              const parsed = Number(customPeopleInput);
+                              const fallback = getPeopleForCombo(activeCombo);
+                              const nextValue =
+                                Number.isFinite(parsed) && parsed > 0
+                                  ? parsed
+                                  : fallback;
+                              const clamped = clampGuestCount(
+                                nextValue,
+                                activeComboMinimumGuests,
+                                activeComboMaximumGuests,
+                              );
+                              setCustomPeopleInput(String(clamped));
+                              setCustomPeopleError("");
+                              handlePeopleChange(activeCombo.id, clamped);
+                            }}
+                            className="h-8 w-full rounded-md border border-orange-200 px-2 text-sm text-gray-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                            placeholder="Enter number of people"
+                          />
+                          <span className="text-xs text-gray-600 whitespace-nowrap">
+                            people
+                          </span>
+                        </div>
+                      ) : (
+                        <SelectValue>
+                          {activeComboPeople}{" "}
+                          {activeComboPeople === 1 ? "person" : "people"}
+                        </SelectValue>
+                      )}
                     </div>
                   </SelectTrigger>
                   <SelectContent className="max-h-60 mt-1">
+                    <SelectItem
+                      value="custom"
+                      className="focus:bg-orange-50 focus:text-orange-700"
+                    >
+                      Add Custom people
+                    </SelectItem>
                     {activeComboPeopleOptions.map((count) => (
                       <SelectItem
                         key={count}
@@ -712,6 +1027,11 @@ const ComboItemsList = ({
                     ))}
                   </SelectContent>
                 </Select>
+                {customPeopleError && (
+                  <p className="mt-1.5 text-sm text-red-600 font-semibold">
+                    {customPeopleError}
+                  </p>
+                )}
               </div>
 
               <div

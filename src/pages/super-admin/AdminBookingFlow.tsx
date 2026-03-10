@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "@/components/dashboard/Dashboard";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import BookingForm from "@/components/booking/BookingForm";
+import OrderTypeHeader from "@/components/group-order/OrderTypeHeader";
 import { Button } from "@/components/ui/button";
 import AdditionalServices from "@/components/booking/AdditionalServices";
 import AddServiceButton from "@/components/booking/order-summary/AddServiceButton";
@@ -825,6 +826,16 @@ function VendorBookingFlow() {
                 />
               </div>
 
+              <div className="w-full max-w-full overflow-x-hidden">
+                <OrderTypeHeader
+                  isGroupOrder={isGroupOrder}
+                  onOrderTypeChange={handleOrderTypeChange}
+                  isInvoiceMode={isInvoiceMode}
+                />
+              </div>
+
+              <div className="h-px w-full bg-border"></div>
+
               <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
                 <div className="xl:col-span-6">
                   <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
@@ -1282,14 +1293,13 @@ function VendorBookingFlow() {
                                         return;
                                       }
 
-                                      const validQuantity =
-                                        quantity && typeof quantity === "number"
-                                          ? quantity
-                                          : quantity || 1;
-
-                                      if (!validQuantity || validQuantity < 1) {
+                                      // Skip items with 0 or negative quantity
+                                      if (!quantity || quantity <= 0) {
                                         return;
                                       }
+
+                                      const validQuantity =
+                                        typeof quantity === "number" ? quantity : 1;
 
                                       if (
                                         itemId.includes("_") &&

@@ -160,7 +160,56 @@ const EnhancedOrderSummaryCard = React.memo(
             comboCategoryItems,
           );
 
-          const menuItems = additionalChargeItems
+          const comboIds = new Set<string>();
+          (service.service_details?.catering?.combos || []).forEach(
+            (combo: any) => {
+              const comboId = String(combo?.id || combo?.itemId || "");
+              if (comboId) comboIds.add(comboId);
+            },
+          );
+
+          const serviceMenuCatalog = [
+            ...(service.service_details?.menuItems || []),
+            ...(service.service_details?.catering?.menuItems || []),
+          ];
+          const menuById = new Map<string, any>();
+          serviceMenuCatalog.forEach((item: any) => {
+            const itemId = String(item?.id || item?.itemId || item?.cateringId || "");
+            if (!itemId || comboIds.has(itemId) || menuById.has(itemId)) return;
+            menuById.set(itemId, item);
+          });
+
+          // For menu items, always use selected quantity (never guest count/headcount).
+          const menuItemsFromSelectedQuantities = Array.from(menuById.entries())
+            .map(([itemId, item]) => {
+              const selectedQty = Number(selectedItems[itemId] || 0);
+              if (selectedQty <= 0) return null;
+
+              const price =
+                parseFloat(
+                  String(
+                    item?.additionalCharge ??
+                      item?.price ??
+                      item?.pricePerPerson ??
+                      0,
+                  ),
+                ) || 0;
+
+              return {
+                name: item?.name || item?.itemName || itemId,
+                quantity: selectedQty,
+                price,
+                additionalCharge: price,
+              };
+            })
+            .filter(Boolean) as Array<{
+            name: string;
+            quantity: number;
+            price: number;
+            additionalCharge: number;
+          }>;
+
+          const fallbackMenuItems = additionalChargeItems
             .filter((item) => item.isMenuItem)
             .map((item) => ({
               name: item.name,
@@ -168,6 +217,11 @@ const EnhancedOrderSummaryCard = React.memo(
               price: item.price,
               additionalCharge: item.additionalCharge,
             }));
+
+          const menuItems =
+            menuItemsFromSelectedQuantities.length > 0
+              ? menuItemsFromSelectedQuantities
+              : fallbackMenuItems;
 
           const simpleItems = comboCategoryItems.filter(
             (item) => !item.additionalCharge || item.additionalCharge === 0,
@@ -415,6 +469,11 @@ const EnhancedOrderSummaryCard = React.memo(
 
       return calculations;
     }, [selectedServices, selectedItems, guestCount]);
+    const getServiceForLiveCalc = (service: ServiceSelection): ServiceSelection => {
+      const { totalPrice: _ignoredTotalPrice, ...serviceWithoutTotalPrice } =
+        service as any;
+      return serviceWithoutTotalPrice as ServiceSelection;
+    };
 
     const correctedSubtotal = useMemo(() => {
       const hasCateringComputed = Object.values(cateringCalculations).some(
@@ -430,16 +489,13 @@ const EnhancedOrderSummaryCard = React.memo(
           const serviceType = service.serviceType || service.type || "";
           if (serviceType === "catering") return sum;
 
-          const serviceAny = service as any;
-          if (
-            typeof serviceAny.totalPrice === "number" &&
-            serviceAny.totalPrice > 0
-          ) {
-            return sum + serviceAny.totalPrice;
-          }
-
           return (
-            sum + calculateServiceTotal(service, selectedItems, guestCount)
+            sum +
+            calculateServiceTotal(
+              getServiceForLiveCalc(service),
+              selectedItems,
+              guestCount,
+            )
           );
         }, 0);
 
@@ -454,6 +510,37 @@ const EnhancedOrderSummaryCard = React.memo(
       calculations.subtotal,
       guestCount,
     ]);
+
+    const correctedAdjustmentsBreakdown = useMemo(() => {
+      return (customAdjustments || []).map((adjustment) => {
+        const value = Number(adjustment.value) || 0;
+        const rawAmount =
+          adjustment.type === "percentage"
+            ? (correctedSubtotal * value) / 100
+            : value;
+        const amount =
+          adjustment.mode === "discount"
+            ? -Math.abs(rawAmount)
+            : Math.abs(rawAmount);
+
+        return {
+          id: adjustment.id,
+          label: adjustment.label,
+          amount,
+          taxable: adjustment.taxable !== false,
+          mode: adjustment.mode,
+          type: adjustment.type,
+          value,
+        };
+      });
+    }, [customAdjustments, correctedSubtotal]);
+
+    const correctedAdjustmentsTotal = useMemo(() => {
+      return correctedAdjustmentsBreakdown.reduce(
+        (sum, adjustment) => sum + adjustment.amount,
+        0,
+      );
+    }, [correctedAdjustmentsBreakdown]);
 
     const hasItems =
       selectedServices.length > 0 ||
@@ -585,8 +672,7 @@ const EnhancedOrderSummaryCard = React.memo(
                                         <span>
                                           {formatCurrency(
                                             item.additionalCharge,
-                                          )}{" "}
-                                          × {item.quantity}
+                                           )}{" "}x {item.quantity}
                                         </span>
                                         <span className="text-orange-600 font-semibold">
                                           {formatCurrency(
@@ -753,16 +839,16 @@ const EnhancedOrderSummaryCard = React.memo(
             </div>
           )}
 
-          {(calculations.adjustmentsBreakdown?.length ?? 0) > 0 && (
+          {(correctedAdjustmentsBreakdown.length ?? 0) > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
                 {/* <span className="w-5 h-5 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
-                  {calculations.adjustmentsBreakdown.length}
+                  {correctedAdjustmentsBreakdown.length}
                 </span> */}
                 Adjustments
               </h4>
               <div className="bg-white rounded-lg p-4 space-y-2 shadow-sm border border-orange-100">
-                {calculations.adjustmentsBreakdown!.map((adj) => (
+                {correctedAdjustmentsBreakdown.map((adj) => (
                   <div
                     key={adj.id}
                     className="flex justify-between items-center text-sm"
@@ -788,7 +874,7 @@ const EnhancedOrderSummaryCard = React.memo(
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
                 {/* <span className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
-                  {(calculations.adjustmentsBreakdown?.length ?? 0) > 0
+                  {(correctedAdjustmentsBreakdown.length ?? 0) > 0
                     ? "3"
                     : "2"}
                 </span> */}
@@ -851,7 +937,7 @@ const EnhancedOrderSummaryCard = React.memo(
                 <span className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">
                   {(() => {
                     let sectionNum = selectedServices.length > 0 ? 2 : 1;
-                    if ((calculations.adjustmentsBreakdown?.length ?? 0) > 0)
+                    if ((correctedAdjustmentsBreakdown.length ?? 0) > 0)
                       sectionNum++;
                     if (totalDeliveryFees > 0) sectionNum++;
                     return sectionNum;
@@ -865,7 +951,7 @@ const EnhancedOrderSummaryCard = React.memo(
                   <span className="font-semibold text-gray-900">
                     {formatCurrency(
                       correctedSubtotal +
-                        (calculations.adjustmentsTotal || 0) +
+                        (correctedAdjustmentsTotal || 0) +
                         totalDeliveryFees,
                     )}
                   </span>
@@ -944,7 +1030,7 @@ const EnhancedOrderSummaryCard = React.memo(
                 <span className="text-xl font-bold text-orange-600">
                   {formatCurrency(
                     correctedSubtotal +
-                      (calculations.adjustmentsTotal || 0) +
+                      (correctedAdjustmentsTotal || 0) +
                       totalDeliveryFees,
                   )}
                 </span>
@@ -995,6 +1081,3 @@ const EnhancedOrderSummaryCard = React.memo(
 EnhancedOrderSummaryCard.displayName = "EnhancedOrderSummaryCard";
 
 export default EnhancedOrderSummaryCard;
-
-
-

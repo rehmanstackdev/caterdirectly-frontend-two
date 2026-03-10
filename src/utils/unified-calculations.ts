@@ -170,6 +170,30 @@ export const calculateServiceTotal = (
       }, 0);
     }
 
+    // When comboSelectionsList exists, combo total already includes combo base and selected combo category items.
+    // Only add standalone (non-combo) menu items to avoid double counting combo category selections.
+    if (comboTotal > 0) {
+      const standaloneMenuItemsTotal = additionalChargeItems
+        .filter((item) => item.isMenuItem)
+        .reduce((sum, item) => {
+          const qty = Number(item.quantity) || 0;
+          const itemTotal = (Number(item.price) || 0) + (Number(item.additionalCharge) || 0);
+          return sum + itemTotal * qty;
+        }, 0);
+
+      const cateringFinalTotal = comboTotal + standaloneMenuItemsTotal;
+
+      console.debug('[Pricing] Using comboSelectionsList-first catering calculation:', {
+        serviceId,
+        serviceName: service.name || service.serviceName,
+        comboTotal,
+        standaloneMenuItemsTotal,
+        finalTotal: cateringFinalTotal
+      });
+
+      return cateringFinalTotal;
+    }
+
     const cateringFinalTotal = cateringCalculation.finalTotal + comboTotal;
 
     console.debug('[Pricing] Using catering price calculation:', {

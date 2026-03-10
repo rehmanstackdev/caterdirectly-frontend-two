@@ -586,6 +586,110 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     }
 
     // ============================================
+    // CUSTOM LINE ITEMS TABLE
+    // ============================================
+
+    const customLineRows = (invoice.customLineItems || []).map((line: any) => {
+        const label = String(line?.label || 'Custom Line Item');
+        const type = String(line?.type || 'fixed').toLowerCase();
+        const mode = String(line?.mode || 'surcharge').toLowerCase();
+        const rawValue = Number(line?.value) || 0;
+
+        const matchedAdjustment = adjustmentsBreakdown.find((adj: any) =>
+            String(adj?.label || '').trim().toLowerCase() === label.trim().toLowerCase() &&
+            String(adj?.mode || '').toLowerCase() === mode,
+        );
+
+        const fallbackAmount = type === 'percentage'
+            ? subtotal * (rawValue / 100)
+            : rawValue;
+
+        const amount = Number(matchedAdjustment?.amount);
+        const normalizedAmount = Number.isFinite(amount) ? amount : fallbackAmount;
+
+        return {
+            label,
+            type,
+            mode,
+            value: rawValue,
+            amount: normalizedAmount,
+        };
+    });
+
+    if (customLineRows.length > 0) {
+        const customTableX = 14;
+        const customTableW = pageWidth - 28;
+        const customHeaderH = 10;
+        const customRowH = 6;
+        const customTableH = customHeaderH + 8 + (customLineRows.length * customRowH) + 6;
+
+        if (finalY + customTableH > pageHeight - 30) {
+            doc.addPage();
+            finalY = 20;
+        }
+
+        doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(customTableX, finalY, customTableW, customTableH, 2, 2, 'FD');
+
+        doc.setFillColor(BRAND_ORANGE[0], BRAND_ORANGE[1], BRAND_ORANGE[2]);
+        doc.roundedRect(customTableX, finalY, customTableW, customHeaderH, 2, 2, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text('ADJUSTMENTS', customTableX + 4, finalY + 6.8);
+
+        const colLabelX = customTableX + 4;
+        const colTypeX = customTableX + 92;
+        const colModeX = customTableX + 118;
+        const colValueX = customTableX + 142;
+        const colAmountX = customTableX + customTableW - 4;
+
+        let customRowY = finalY + customHeaderH + 5;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(TEXT_GRAY[0], TEXT_GRAY[1], TEXT_GRAY[2]);
+        doc.text('LABEL', colLabelX, customRowY);
+        doc.text('TYPE', colTypeX, customRowY);
+        doc.text('MODE', colModeX, customRowY);
+        doc.text('VALUE', colValueX, customRowY);
+        doc.text('AMOUNT', colAmountX, customRowY, { align: 'right' });
+
+        customRowY += 4;
+        doc.setDrawColor(BORDER_GRAY[0], BORDER_GRAY[1], BORDER_GRAY[2]);
+        doc.line(customTableX + 3, customRowY, customTableX + customTableW - 3, customRowY);
+        customRowY += 4;
+
+        customLineRows.forEach((row) => {
+            const isDiscount = row.mode === 'discount';
+            const valueText = row.type === 'percentage'
+                ? `${row.value.toFixed(2)}%`
+                : `$${row.value.toFixed(2)}`;
+            const amountText = `${isDiscount ? '-' : '+'}$${Number(row.amount || 0).toFixed(2)}`;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+            doc.text(truncateText(row.label, 34), colLabelX, customRowY);
+            doc.text(row.type === 'percentage' ? 'Percentage' : 'Fixed', colTypeX, customRowY);
+            doc.text(isDiscount ? 'Discount' : 'Surcharge', colModeX, customRowY);
+            doc.text(valueText, colValueX, customRowY);
+
+            if (isDiscount) {
+                doc.setTextColor(34, 197, 94);
+            } else {
+                doc.setTextColor(PRIMARY_DARK[0], PRIMARY_DARK[1], PRIMARY_DARK[2]);
+            }
+            doc.text(amountText, colAmountX, customRowY, { align: 'right' });
+
+            customRowY += customRowH;
+        });
+
+        finalY += customTableH + 8;
+    }
+    // ============================================
     // NOTES SECTION (LEFT SIDE)
     // ============================================
 
@@ -626,19 +730,6 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     const totalForDisplay = Number((subtotalForDisplay + serviceFeeForDisplay + taxForDisplay).toFixed(2));
 
     const summaryRows: Array<{ label: string; value: number; mode?: 'discount' | 'normal' | 'subtotal' | 'total' }> = [];
-
-    if (adjustmentsBreakdown.length > 0) {
-        adjustmentsBreakdown.forEach((adj: any) => {
-            if (adj.mode === 'discount') {
-                summaryRows.push({ label: `${adj.label}:`, value: Number(adj.amount) || 0, mode: 'discount' });
-            } else if (adj.mode === 'surcharge') {
-                summaryRows.push({ label: `${adj.label}:`, value: Number(adj.amount) || 0, mode: 'normal' });
-            }
-        });
-    } else {
-        if (totalDiscounts > 0) summaryRows.push({ label: 'Discount:', value: totalDiscounts, mode: 'discount' });
-        if (totalSurcharges > 0) summaryRows.push({ label: 'Surcharge:', value: totalSurcharges, mode: 'normal' });
-    }
 
     summaryRows.push({ label: 'Delivery Fee:', value: deliveryFee, mode: 'normal' });
     summaryRows.push({ label: 'Subtotal:', value: subtotalForDisplay, mode: 'subtotal' });
@@ -739,18 +830,4 @@ export const generateInvoicePDF = async (invoice: Invoice) => {
     // Save PDF
     doc.save(`Invoice-${invoice.id.slice(0, 8)}.pdf`);
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

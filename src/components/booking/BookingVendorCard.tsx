@@ -41,6 +41,9 @@ interface BookingVendorCardProps {
   guestCount?: number;
   calculatedDistance?: number;
   preselectedDeliveryFee?: { range: string; fee: number };
+  guestBudget?: number;
+  currentNonComboSubtotal?: number;
+  skipMinimumGuests?: boolean;
 }
 
 const BookingVendorCard = React.memo(
@@ -67,6 +70,9 @@ const BookingVendorCard = React.memo(
     guestCount = 1,
     calculatedDistance,
     preselectedDeliveryFee,
+    guestBudget,
+    currentNonComboSubtotal,
+    skipMinimumGuests = false,
   }: BookingVendorCardProps) => {
     const navigate = useNavigate();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -87,16 +93,17 @@ const BookingVendorCard = React.memo(
       return null;
     };
 
-    const serviceMinimumGuests =
-      parsePositiveNumber((serviceDetails as any)?.minimumGuests) ??
-      parsePositiveNumber(
-        (serviceDetails as any)?.service_details?.minimumGuests,
-      ) ??
-      parsePositiveNumber(
-        (serviceDetails as any)?.service_details?.catering?.minimumGuests,
-      ) ??
-      parsePositiveNumber((serviceDetails as any)?.catering?.minimumGuests) ??
-      null;
+    const serviceMinimumGuests = skipMinimumGuests
+      ? null
+      : parsePositiveNumber((serviceDetails as any)?.minimumGuests) ??
+        parsePositiveNumber(
+          (serviceDetails as any)?.service_details?.minimumGuests,
+        ) ??
+        parsePositiveNumber(
+          (serviceDetails as any)?.service_details?.catering?.minimumGuests,
+        ) ??
+        parsePositiveNumber((serviceDetails as any)?.catering?.minimumGuests) ??
+        null;
 
     const serviceMaximumGuests =
       parsePositiveNumber((serviceDetails as any)?.maximumGuests) ??
@@ -264,6 +271,8 @@ const BookingVendorCard = React.memo(
                     onComboSelection={wrappedComboSelection}
                     serviceMinimumGuests={serviceMinimumGuests}
                     serviceMaximumGuests={serviceMaximumGuests}
+                    guestBudget={guestBudget}
+                    currentNonComboSubtotal={currentNonComboSubtotal}
                   />
                 </div>
               )}

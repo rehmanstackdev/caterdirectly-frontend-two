@@ -91,7 +91,100 @@ const ServiceDetailsActions = ({
       try {
         const parsedState = JSON.parse(editOrderState);
         
-        // Convert marketplace service to edit order format
+                // Convert marketplace service to edit order format
+        const rawDetails = service.service_details || {};
+                const rawMenuItems =
+          rawDetails?.catering?.menuItems ||
+          rawDetails?.menuItems ||
+          service?.catering?.menuItems ||
+          service?.menuItems ||
+          [];
+        const rawCombos =
+          rawDetails?.catering?.combos ||
+          rawDetails?.combos ||
+          service?.catering?.combos ||
+          service?.combos ||
+          [];
+
+        const normalizedRegularMenuItems = rawMenuItems.map((menuItem: any) => {
+          const normalizedId = menuItem.id || menuItem.cateringId;
+          const comboCategories = Array.isArray(menuItem.comboCategories)
+            ? menuItem.comboCategories
+            : Array.isArray(menuItem.comboCategoryItems)
+              ? [
+                  {
+                    id: "combo-category",
+                    categoryId: "combo-category",
+                    name: "Combo Items",
+                    items: menuItem.comboCategoryItems.map((comboItem: any) => ({
+                      id: comboItem.id || comboItem.cateringId,
+                      itemId: comboItem.id || comboItem.cateringId,
+                      name: comboItem.name || comboItem.menuItemName,
+                      price: Number(comboItem.price || 0),
+                      additionalCharge: Number(
+                        comboItem.additionalCharge || comboItem.premiumCharge || 0,
+                      ),
+                      additionalPrice: Number(
+                        comboItem.additionalPrice || comboItem.premiumCharge || 0,
+                      ),
+                      quantity: Number(comboItem.quantity || 0),
+                      image: comboItem.image || comboItem.imageUrl || "",
+                    })),
+                  },
+                ]
+              : [];
+
+          return {
+            ...menuItem,
+            id: normalizedId,
+            cateringId: normalizedId,
+            comboCategories,
+            comboCategoryItems: menuItem.comboCategoryItems || [],
+          };
+        });
+
+        const normalizedCombos = (rawCombos || []).map((combo: any) => {
+          const comboId = combo.id || combo.comboId;
+          return {
+            ...combo,
+            id: comboId,
+            cateringId: comboId,
+            isCombo: true,
+            price: Number(combo.pricePerPerson || combo.price || 0),
+            pricePerPerson: Number(combo.pricePerPerson || combo.price || 0),
+            comboCategories: combo.comboCategories || combo.categories || [],
+            comboCategoryItems: combo.comboCategoryItems || [],
+          };
+        });
+
+        const seenMenuIds = new Set(
+          normalizedRegularMenuItems.map((item: any) => String(item.id || "")),
+        );
+        const normalizedMenuItems = [
+          ...normalizedRegularMenuItems,
+          ...normalizedCombos.filter((combo: any) => !seenMenuIds.has(String(combo.id || ""))),
+        ];
+
+        const normalizedServiceDetails = {
+          ...rawDetails,
+          catering: {
+            ...(rawDetails?.catering || {}),
+            menuItems: normalizedMenuItems,
+          },
+          menuItems: normalizedMenuItems,
+        };
+
+        const normalizedServiceType = String(
+          service.type || service.serviceType || "",
+        ).toLowerCase();
+        const isItemizedService =
+          normalizedServiceType === "catering" ||
+          normalizedServiceType === "events_staff" ||
+          normalizedServiceType === "staff" ||
+          normalizedServiceType === "party_rentals" ||
+          normalizedServiceType === "party-rentals" ||
+          normalizedServiceType === "party-rental";
+
         const formattedService = {
           id: service.id,
           serviceId: service.id,
@@ -99,7 +192,7 @@ const ServiceDetailsActions = ({
           serviceName: service.name,
           price: service.price || 0,
           servicePrice: service.price || 0,
-          totalPrice: service.price || 0,
+          totalPrice: isItemizedService ? 0 : service.price || 0,
           quantity: 1,
           duration: 0,
           serviceType: service.type || service.serviceType,
@@ -108,26 +201,17 @@ const ServiceDetailsActions = ({
           vendor_id: service.vendor_id,
           priceType: service.priceType || 'flat',
           price_type: service.priceType || 'flat',
-          service_details: service.service_details || {},
+          service_details: normalizedServiceDetails,
           selected_menu_items: [],
           image: service.image || '',
           imageUrl: service.image || '',
           serviceImage: service.image || ''
         };
-        
-        // Extract combo category items and add to selectedItems
-        const newSelectedItems = {};
-        if (service.service_details?.menuItems) {
-          service.service_details.menuItems.forEach(menuItem => {
-            if (menuItem.comboCategoryItems) {
-              menuItem.comboCategoryItems.forEach(comboItem => {
-                const itemKey = `${menuItem.id}_combo-category_${comboItem.cateringId}`;
-                newSelectedItems[itemKey] = comboItem.quantity || 0;
-              });
-            }
-          });
-        }
-        
+
+        // For edit-order add flow, do not preselect catalog/menu quantities.
+        // Admin should explicitly choose items on the edit invoice page.
+        const newSelectedItems: Record<string, number> = {};
+
         // Store both the service and selected items
         sessionStorage.setItem('cartServices', JSON.stringify([formattedService]));
         sessionStorage.setItem('newSelectedItems', JSON.stringify(newSelectedItems));
@@ -249,3 +333,4 @@ const ServiceDetailsActions = ({
 };
 
 export default ServiceDetailsActions;
+
