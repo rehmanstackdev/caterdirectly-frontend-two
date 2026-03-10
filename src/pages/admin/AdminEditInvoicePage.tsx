@@ -165,7 +165,9 @@ function AdminEditInvoicePage() {
             const getCatalogCombos = (svc: any): any[] => {
               if (!svc) return [];
               return [
-                ...(Array.isArray(svc?.catering?.combos) ? svc.catering.combos : []),
+                ...(Array.isArray(svc?.catering?.combos)
+                  ? svc.catering.combos
+                  : []),
                 ...(Array.isArray(svc?.service_details?.catering?.combos)
                   ? svc.service_details.catering.combos
                   : []),
@@ -173,14 +175,16 @@ function AdminEditInvoicePage() {
               ];
             };
 
-            const referencedComboIds = new Set<string>([
-              ...(service.comboCategoryItems || []).map((item: any) =>
-                String(item?.comboId || ""),
-              ),
-              ...((service.cateringItems || [])
-                .filter((item: any) => item?.comboId)
-                .map((item: any) => String(item.comboId || ""))),
-            ].filter(Boolean));
+            const referencedComboIds = new Set<string>(
+              [
+                ...(service.comboCategoryItems || []).map((item: any) =>
+                  String(item?.comboId || ""),
+                ),
+                ...(service.cateringItems || [])
+                  .filter((item: any) => item?.comboId)
+                  .map((item: any) => String(item.comboId || "")),
+              ].filter(Boolean),
+            );
 
             const normalizedServiceName = String(
               service?.serviceName || service?.name || "",
@@ -192,27 +196,38 @@ function AdminEditInvoicePage() {
             let bestMatchScore = -1;
 
             vendorCatalogServices.forEach((svc: any) => {
-              const svcCatering = svc?.catering || svc?.service_details?.catering;
+              const svcCatering =
+                svc?.catering || svc?.service_details?.catering;
               if (!svcCatering) return;
 
               let score = 0;
               const svcId = String(svc?.id || svc?.serviceId || "");
               const invoiceServiceRefId = String(service?.serviceId || "");
-              if (invoiceServiceRefId && svcId && svcId === invoiceServiceRefId) {
+              if (
+                invoiceServiceRefId &&
+                svcId &&
+                svcId === invoiceServiceRefId
+              ) {
                 score += 1000;
               }
 
               const svcName = String(svc?.name || "")
                 .trim()
                 .toLowerCase();
-              if (normalizedServiceName && svcName && svcName === normalizedServiceName) {
+              if (
+                normalizedServiceName &&
+                svcName &&
+                svcName === normalizedServiceName
+              ) {
                 score += 200;
               }
 
               if (referencedComboIds.size > 0) {
                 const svcComboIds = new Set(
                   getCatalogCombos(svc)
-                    .map((combo: any) => String(combo?.id || combo?.itemId || ""))
+                    .map((combo: any) =>
+                      String(combo?.id || combo?.itemId || ""),
+                    )
                     .filter(Boolean),
                 );
                 let overlap = 0;
@@ -239,7 +254,9 @@ function AdminEditInvoicePage() {
               matchedVendorCatalogService?.service_details?.catering ||
               {};
 
-            const serviceCatalogCombos = getCatalogCombos(matchedVendorCatalogService);
+            const serviceCatalogCombos = getCatalogCombos(
+              matchedVendorCatalogService,
+            );
 
             const comboCatalogById = new Map<string, any>();
             serviceCatalogCombos.forEach((combo: any) => {
@@ -272,14 +289,22 @@ function AdminEditInvoicePage() {
             let staffItems: any[] = [];
             let venueItems: any[] = [];
             const comboCategoryItemsFromCatering = (service.cateringItems || [])
-              .filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id))
+              .filter(
+                (item: any) =>
+                  item?.comboId &&
+                  (item?.isComboCategoryItem || item?.cateringId || item?.id),
+              )
               .map((item: any) => ({
                 ...item,
                 comboId: item.comboId,
                 cateringId: item.cateringId || item.id,
                 menuItemName: item.menuItemName || item.name,
                 menuName: item.menuName || "Combo Items",
-                premiumCharge: item.premiumCharge || item.additionalCharge || item.additionalPrice || 0,
+                premiumCharge:
+                  item.premiumCharge ||
+                  item.additionalCharge ||
+                  item.additionalPrice ||
+                  0,
               }));
 
             const serviceComboCategoryItems = [
@@ -423,7 +448,10 @@ function AdminEditInvoicePage() {
             };
 
             if (service.cateringItems && service.cateringItems.length > 0) {
-              const nonComboCategoryCateringItems = service.cateringItems.filter((item: any) => !item?.comboId && !item?.isComboCategoryItem);
+              const nonComboCategoryCateringItems =
+                service.cateringItems.filter(
+                  (item: any) => !item?.comboId && !item?.isComboCategoryItem,
+                );
               serviceItems = nonComboCategoryCateringItems;
               menuItems = nonComboCategoryCateringItems.map((item: any) => {
                 const comboCategoryItems = (
@@ -585,9 +613,12 @@ function AdminEditInvoicePage() {
                     catalogItem?.menuItemName ||
                     catalogItem?.title ||
                     "Menu Item",
-                  price: parseFloat(
-                    String(catalogItem?.pricePerPerson || catalogItem?.price || 0),
-                  ) || 0,
+                  price:
+                    parseFloat(
+                      String(
+                        catalogItem?.pricePerPerson || catalogItem?.price || 0,
+                      ),
+                    ) || 0,
                   category: catalogItem?.menuName || "Menu",
                   menuName: catalogItem?.menuName,
                   menuItemName:
@@ -595,7 +626,8 @@ function AdminEditInvoicePage() {
                     catalogItem?.name ||
                     catalogItem?.title,
                   isCombo:
-                    Boolean(catalogItem?.isCombo) || mergedComboCategories.length > 0,
+                    Boolean(catalogItem?.isCombo) ||
+                    mergedComboCategories.length > 0,
                   comboCategories: mergedComboCategories,
                   comboCategoryItems: (serviceComboCategoryItems || []).filter(
                     (comboItem: any) =>
@@ -617,12 +649,15 @@ function AdminEditInvoicePage() {
                   existingItem.price && existingItem.price > 0
                     ? existingItem.price
                     : mappedCatalogItem.price;
-                existingItem.category = existingItem.category || mappedCatalogItem.category;
-                existingItem.menuName = existingItem.menuName || mappedCatalogItem.menuName;
+                existingItem.category =
+                  existingItem.category || mappedCatalogItem.category;
+                existingItem.menuName =
+                  existingItem.menuName || mappedCatalogItem.menuName;
                 existingItem.menuItemName =
                   existingItem.menuItemName || mappedCatalogItem.menuItemName;
                 existingItem.isCombo =
-                  Boolean(existingItem.isCombo) || Boolean(mappedCatalogItem.isCombo);
+                  Boolean(existingItem.isCombo) ||
+                  Boolean(mappedCatalogItem.isCombo);
                 existingItem.comboCategories = mergeComboCategories(
                   existingItem.comboCategories || [],
                   mappedCatalogItem.comboCategories || [],
@@ -634,15 +669,18 @@ function AdminEditInvoicePage() {
                   (item: any, index: number, arr: any[]) =>
                     arr.findIndex(
                       (x: any) =>
-                        String(x.comboId || "") === String(item.comboId || "") &&
+                        String(x.comboId || "") ===
+                          String(item.comboId || "") &&
                         String(x.cateringId || x.id || "") ===
                           String(item.cateringId || item.id || "") &&
                         String(x.menuName || "Combo Items") ===
                           String(item.menuName || "Combo Items"),
                     ) === index,
                 );
-                existingItem.image = existingItem.image || mappedCatalogItem.image;
-                existingItem.imageUrl = existingItem.imageUrl || mappedCatalogItem.imageUrl;
+                existingItem.image =
+                  existingItem.image || mappedCatalogItem.image;
+                existingItem.imageUrl =
+                  existingItem.imageUrl || mappedCatalogItem.imageUrl;
                 existingItem.description =
                   existingItem.description || mappedCatalogItem.description;
               });
@@ -650,7 +688,8 @@ function AdminEditInvoicePage() {
               (serviceCatalogCombos || []).forEach((combo: any) => {
                 const comboId = String(combo?.id || combo?.itemId || "");
                 if (!comboId) return;
-                if (menuItems.some((item: any) => String(item.id) === comboId)) return;
+                if (menuItems.some((item: any) => String(item.id) === comboId))
+                  return;
 
                 const selectedComboCategories = buildComboCategories(
                   (serviceComboCategoryItems || []).filter(
@@ -662,7 +701,9 @@ function AdminEditInvoicePage() {
                   id: comboId,
                   name: combo?.name || combo?.menuItemName || "Combo",
                   price:
-                    parseFloat(String(combo?.pricePerPerson || combo?.price || 0)) || 0,
+                    parseFloat(
+                      String(combo?.pricePerPerson || combo?.price || 0),
+                    ) || 0,
                   category: "Combo Packages",
                   menuName: "Combo Packages",
                   menuItemName: combo?.name || combo?.menuItemName || "Combo",
@@ -793,11 +834,19 @@ function AdminEditInvoicePage() {
               serviceName: service.serviceName,
               price: parseFloat(service.price) || 0,
               servicePrice: service.price,
-              totalPrice: (parseFloat(service.totalPrice) || 0) > 0
-                ? parseFloat(service.totalPrice)
-                : ["catering", "party_rentals", "party-rentals", "party-rental", "staff", "events_staff"].includes(serviceType)
-                  ? 0
-                  : parseFloat(service.price) || 0,
+              totalPrice:
+                (parseFloat(service.totalPrice) || 0) > 0
+                  ? parseFloat(service.totalPrice)
+                  : [
+                        "catering",
+                        "party_rentals",
+                        "party-rentals",
+                        "party-rental",
+                        "staff",
+                        "events_staff",
+                      ].includes(serviceType)
+                    ? 0
+                    : parseFloat(service.price) || 0,
               quantity: service.quantity || 1,
               duration: service.staffItems?.[0]?.hours || 0,
               serviceType: serviceType,
@@ -823,11 +872,13 @@ function AdminEditInvoicePage() {
               const comboIdSet = new Set(
                 [
                   ...(service.comboCategoryItems || []),
-                  ...((service.cateringItems || []).filter(
+                  ...(service.cateringItems || []).filter(
                     (item: any) =>
                       item?.comboId &&
-                      (item?.isComboCategoryItem || item?.cateringId || item?.id),
-                  )),
+                      (item?.isComboCategoryItem ||
+                        item?.cateringId ||
+                        item?.id),
+                  ),
                 ].map((item: any) => String(item.comboId || "")),
               );
 
@@ -878,30 +929,46 @@ function AdminEditInvoicePage() {
           });
 
           // Add combo category items to selectedItems
-          const allComboCategoryItems = (invoiceServices || []).flatMap((s: any) => {
-            const direct = s.comboCategoryItems || [];
-            const fromCatering = (s.cateringItems || [])
-              .filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id))
-              .map((item: any) => ({
-                ...item,
-                comboId: item.comboId,
-                cateringId: item.cateringId || item.id,
-                menuName: item.menuName || "combo-category",
-              }));
-            return [...direct, ...fromCatering];
-          });
+          const allComboCategoryItems = (invoiceServices || []).flatMap(
+            (s: any) => {
+              const direct = s.comboCategoryItems || [];
+              const fromCatering = (s.cateringItems || [])
+                .filter(
+                  (item: any) =>
+                    item?.comboId &&
+                    (item?.isComboCategoryItem || item?.cateringId || item?.id),
+                )
+                .map((item: any) => ({
+                  ...item,
+                  comboId: item.comboId,
+                  cateringId: item.cateringId || item.id,
+                  menuName: item.menuName || "combo-category",
+                }));
+              return [...direct, ...fromCatering];
+            },
+          );
           allComboCategoryItems.forEach((item: any) => {
             const categoryKey = item.menuName || "combo-category";
             const itemKey =
-              item.comboId + "_" + categoryKey + "_" + (item.cateringId || item.id);
-            mappedSelectedItems[itemKey] = Number(item.quantity || 0) > 0 ? 1 : 0;
+              item.comboId +
+              "_" +
+              categoryKey +
+              "_" +
+              (item.cateringId || item.id);
+            mappedSelectedItems[itemKey] =
+              Number(item.quantity || 0) > 0 ? 1 : 0;
           });
 
           (invoiceServices || []).forEach((service: any) => {
             const comboIdSet = new Set(
-              [...(service.comboCategoryItems || []), ...((service.cateringItems || []).filter((item: any) => item?.comboId && (item?.isComboCategoryItem || item?.cateringId || item?.id)))].map((item: any) =>
-                String(item.comboId || ""),
-              ),
+              [
+                ...(service.comboCategoryItems || []),
+                ...(service.cateringItems || []).filter(
+                  (item: any) =>
+                    item?.comboId &&
+                    (item?.isComboCategoryItem || item?.cateringId || item?.id),
+                ),
+              ].map((item: any) => String(item.comboId || "")),
             );
             (service.cateringItems || []).forEach((item: any) => {
               const comboId = String(item.cateringId || item.id || "");
@@ -1092,10 +1159,10 @@ function AdminEditInvoicePage() {
                   const quantity =
                     item.isCombo && typeof comboHeadcount === "number"
                       ? comboHeadcount
-                      : selectedItems[item.id] ??
+                      : (selectedItems[item.id] ??
                         selectedItems[item.cateringId] ??
                         item.quantity ??
-                        0;
+                        0);
                   if (quantity > 0) {
                     const itemImage =
                       item.image ||
@@ -1153,7 +1220,9 @@ function AdminEditInvoicePage() {
                           const comboHeadcount =
                             Number(
                               selectedItems[`meta_${item.id}_headcount`] ||
-                                selectedItems[`meta_${item.cateringId}_headcount`] ||
+                                selectedItems[
+                                  `meta_${item.cateringId}_headcount`
+                                ] ||
                                 0,
                             ) ||
                             Number(baseQuantity || 0) ||
@@ -1464,7 +1533,8 @@ function AdminEditInvoicePage() {
               : [];
             const withoutCurrentCombo = existing.filter(
               (entry: any) =>
-                String(entry?.comboItemId ?? entry?.comboId) !== String(selections?.comboItemId ?? selections?.comboId),
+                String(entry?.comboItemId ?? entry?.comboId) !==
+                String(selections?.comboItemId ?? selections?.comboId),
             );
             return {
               ...service,
@@ -1936,25 +2006,3 @@ function AdminEditInvoicePage() {
 }
 
 export default AdminEditInvoicePage;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

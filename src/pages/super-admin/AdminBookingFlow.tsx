@@ -1293,14 +1293,13 @@ function VendorBookingFlow() {
                                         return;
                                       }
 
-                                      const validQuantity =
-                                        quantity && typeof quantity === "number"
-                                          ? quantity
-                                          : quantity || 1;
-
-                                      if (!validQuantity || validQuantity < 1) {
+                                      // Skip items with 0 or negative quantity
+                                      if (!quantity || quantity <= 0) {
                                         return;
                                       }
+
+                                      const validQuantity =
+                                        typeof quantity === "number" ? quantity : 1;
 
                                       if (
                                         itemId.includes("_") &&

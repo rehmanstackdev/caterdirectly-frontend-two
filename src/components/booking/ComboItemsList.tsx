@@ -24,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Eye, Users } from "lucide-react";
+import { toast } from "sonner";
 
 interface ComboItemsListProps {
   items: ComboPackage[];
@@ -100,6 +101,7 @@ const ComboItemsList = ({
   const [isDialogAtBottom, setIsDialogAtBottom] = useState(false);
   const [isCustomPeopleInput, setIsCustomPeopleInput] = useState(false);
   const [customPeopleInput, setCustomPeopleInput] = useState("");
+  const [customPeopleError, setCustomPeopleError] = useState("");
   const [draftSelections, setDraftSelections] = useState<
     Record<string, number>
   >({});
@@ -486,11 +488,13 @@ const ComboItemsList = ({
     if (!activeCombo) {
       setIsCustomPeopleInput(false);
       setCustomPeopleInput("");
+      setCustomPeopleError("");
       return;
     }
 
     const people = getPeopleForCombo(activeCombo);
     setCustomPeopleInput(String(people));
+    setCustomPeopleError("");
   }, [activeComboId]);
 
   const commitDraftSelections = () => {
@@ -872,6 +876,7 @@ const ComboItemsList = ({
             setIsDialogAtBottom(false);
             setIsCustomPeopleInput(false);
             setCustomPeopleInput("");
+            setCustomPeopleError("");
             setDraftSelections({});
           }
         }}
@@ -910,7 +915,8 @@ const ComboItemsList = ({
               <div className="px-5 pt-3 pb-2">
                 <label className="mb-1 block text-sm font-bold text-gray-700">
                   Select quantity:
-                </label>                <Select
+                </label>
+                <Select
                   value={
                     isCustomPeopleInput ? "custom" : String(activeComboPeople)
                   }
@@ -918,6 +924,7 @@ const ComboItemsList = ({
                     if (value === "custom") {
                       setIsCustomPeopleInput(true);
                       setCustomPeopleInput(String(activeComboPeople));
+                      setCustomPeopleError("");
                       return;
                     }
 
@@ -926,6 +933,7 @@ const ComboItemsList = ({
 
                     setIsCustomPeopleInput(false);
                     setCustomPeopleInput(String(parsedValue));
+                    setCustomPeopleError("");
                     handlePeopleChange(activeCombo.id, parsedValue);
                   }}
                 >
@@ -949,7 +957,19 @@ const ComboItemsList = ({
                               setCustomPeopleInput(next);
 
                               const parsed = Number(next);
-                              if (!Number.isFinite(parsed) || parsed <= 0) return;
+                              if (!Number.isFinite(parsed) || parsed <= 0) {
+                                setCustomPeopleError("");
+                                return;
+                              }
+
+                              // Validate against min/max
+                              if (activeComboMinimumGuests && parsed < activeComboMinimumGuests) {
+                                setCustomPeopleError(`Minimum ${activeComboMinimumGuests} people required`);
+                              } else if (activeComboMaximumGuests && parsed > activeComboMaximumGuests) {
+                                setCustomPeopleError(`Maximum ${activeComboMaximumGuests} people allowed`);
+                              } else {
+                                setCustomPeopleError("");
+                              }
 
                               const clamped = clampGuestCount(
                                 parsed,
@@ -971,10 +991,11 @@ const ComboItemsList = ({
                                 activeComboMaximumGuests,
                               );
                               setCustomPeopleInput(String(clamped));
+                              setCustomPeopleError("");
                               handlePeopleChange(activeCombo.id, clamped);
                             }}
                             className="h-8 w-full rounded-md border border-orange-200 px-2 text-sm text-gray-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
-                            placeholder="Custom people"
+                            placeholder="Enter number of people"
                           />
                           <span className="text-xs text-gray-600 whitespace-nowrap">
                             people
@@ -993,7 +1014,7 @@ const ComboItemsList = ({
                       value="custom"
                       className="focus:bg-orange-50 focus:text-orange-700"
                     >
-                      Custom input
+                      Add Custom people
                     </SelectItem>
                     {activeComboPeopleOptions.map((count) => (
                       <SelectItem
@@ -1006,6 +1027,11 @@ const ComboItemsList = ({
                     ))}
                   </SelectContent>
                 </Select>
+                {customPeopleError && (
+                  <p className="mt-1.5 text-sm text-red-600 font-semibold">
+                    {customPeopleError}
+                  </p>
+                )}
               </div>
 
               <div

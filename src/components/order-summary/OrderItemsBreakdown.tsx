@@ -1087,7 +1087,7 @@ const OrderItemsBreakdown = ({
           <div className="space-y-3">
             <h4 className="font-semibold text-sm text-gray-800 flex items-center gap-2">
               <span className="w-6 h-6 rounded-full bg-gray-500 text-white flex items-center justify-center text-xs font-bold">
-                2
+                {adjustmentsBreakdown.length}
               </span>
               Adjustments
             </h4>
