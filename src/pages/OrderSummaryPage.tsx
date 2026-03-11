@@ -133,6 +133,8 @@ function OrderSummaryPage() {
 
       for (const item of comboItems) {
         const service = ensureService(item?.serviceId || item?.service_id || item?.serviceID);
+        const premiumCharge = item?.premiumCharge ?? item?.additionalCharge ?? 0;
+        const quantity = Number(item?.quantity || 0);
         service.comboCategoryItems.push({
           ...item,
           price: Number(item?.price || 0),
@@ -140,7 +142,9 @@ function OrderSummaryPage() {
           totalPrice: Number(item?.totalPrice || 0),
           premiumCharge: item?.premiumCharge != null ? Number(item.premiumCharge) : 0,
         });
-        service.totalPrice += Number(item?.totalPrice || 0);
+        if (premiumCharge) {
+          service.totalPrice += Number(premiumCharge) * (quantity || 1);
+        }
         if (!service.image && item?.image) service.image = item.image;
       }
     }
@@ -208,8 +212,75 @@ function OrderSummaryPage() {
           let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
             ? invoiceData.services
             : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
-          if (apiServices.length === 0 && Array.isArray((summaryData as any).guestOrders)) {
-            apiServices = buildServicesFromGuestOrders((summaryData as any).guestOrders);
+          const guestOrders = Array.isArray((summaryData as any).guestOrders)
+            ? (summaryData as any).guestOrders
+            : [];
+          const guestServices = guestOrders.length > 0
+            ? buildServicesFromGuestOrders(guestOrders)
+            : [];
+          if (apiServices.length === 0 && guestServices.length > 0) {
+            apiServices = guestServices;
+          } else if (guestServices.length > 0) {
+            const mergedByServiceId = new Map<string, any>();
+            apiServices.forEach((service) => {
+              const key = String(service.serviceId || service.id || "");
+              mergedByServiceId.set(key, service);
+            });
+            guestServices.forEach((guestService) => {
+              const key = String(guestService.serviceId || guestService.id || "");
+              const existing = mergedByServiceId.get(key);
+              if (!existing) {
+                mergedByServiceId.set(key, guestService);
+                return;
+              }
+              const existingCateringItems = Array.isArray(existing.cateringItems)
+                ? existing.cateringItems
+                : [];
+              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+                ? existing.comboCategoryItems
+                : [];
+              const extraCatering = Array.isArray(guestService.cateringItems)
+                ? guestService.cateringItems
+                : [];
+              const extraCombo = Array.isArray(guestService.comboCategoryItems)
+                ? guestService.comboCategoryItems
+                : [];
+
+              const mergedCateringItems = [
+                ...existingCateringItems,
+                ...extraCatering,
+              ].filter((item) => item);
+              const mergedComboItems = [
+                ...existingComboItems,
+                ...extraCombo,
+              ].filter((item) => item);
+              const cateringKeySet = new Set<string>();
+              const comboKeySet = new Set<string>();
+
+              const dedupedCateringItems = mergedCateringItems.filter((item) => {
+                const id = String(item.cateringId || item.id || "");
+                if (!id || cateringKeySet.has(id)) return false;
+                cateringKeySet.add(id);
+                return true;
+              });
+              const dedupedComboItems = mergedComboItems.filter((item) => {
+                const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
+                if (comboKeySet.has(comboKey)) return false;
+                comboKeySet.add(comboKey);
+                return true;
+              });
+
+              mergedByServiceId.set(key, {
+                ...existing,
+                serviceType: existing.serviceType || guestService.serviceType,
+                serviceName: existing.serviceName || guestService.serviceName,
+                image: existing.image || guestService.image,
+                cateringItems: dedupedCateringItems,
+                comboCategoryItems: dedupedComboItems,
+                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+              });
+            });
+            apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format
@@ -805,8 +876,75 @@ const calculateTotalWithTip = () => {
           let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
             ? invoiceData.services
             : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
-          if (apiServices.length === 0 && Array.isArray((summaryData as any).guestOrders)) {
-            apiServices = buildServicesFromGuestOrders((summaryData as any).guestOrders);
+          const guestOrders = Array.isArray((summaryData as any).guestOrders)
+            ? (summaryData as any).guestOrders
+            : [];
+          const guestServices = guestOrders.length > 0
+            ? buildServicesFromGuestOrders(guestOrders)
+            : [];
+          if (apiServices.length === 0 && guestServices.length > 0) {
+            apiServices = guestServices;
+          } else if (guestServices.length > 0) {
+            const mergedByServiceId = new Map<string, any>();
+            apiServices.forEach((service) => {
+              const key = String(service.serviceId || service.id || "");
+              mergedByServiceId.set(key, service);
+            });
+            guestServices.forEach((guestService) => {
+              const key = String(guestService.serviceId || guestService.id || "");
+              const existing = mergedByServiceId.get(key);
+              if (!existing) {
+                mergedByServiceId.set(key, guestService);
+                return;
+              }
+              const existingCateringItems = Array.isArray(existing.cateringItems)
+                ? existing.cateringItems
+                : [];
+              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+                ? existing.comboCategoryItems
+                : [];
+              const extraCatering = Array.isArray(guestService.cateringItems)
+                ? guestService.cateringItems
+                : [];
+              const extraCombo = Array.isArray(guestService.comboCategoryItems)
+                ? guestService.comboCategoryItems
+                : [];
+
+              const mergedCateringItems = [
+                ...existingCateringItems,
+                ...extraCatering,
+              ].filter((item) => item);
+              const mergedComboItems = [
+                ...existingComboItems,
+                ...extraCombo,
+              ].filter((item) => item);
+              const cateringKeySet = new Set<string>();
+              const comboKeySet = new Set<string>();
+
+              const dedupedCateringItems = mergedCateringItems.filter((item) => {
+                const id = String(item.cateringId || item.id || "");
+                if (!id || cateringKeySet.has(id)) return false;
+                cateringKeySet.add(id);
+                return true;
+              });
+              const dedupedComboItems = mergedComboItems.filter((item) => {
+                const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
+                if (comboKeySet.has(comboKey)) return false;
+                comboKeySet.add(comboKey);
+                return true;
+              });
+
+              mergedByServiceId.set(key, {
+                ...existing,
+                serviceType: existing.serviceType || guestService.serviceType,
+                serviceName: existing.serviceName || guestService.serviceName,
+                image: existing.image || guestService.image,
+                cateringItems: dedupedCateringItems,
+                comboCategoryItems: dedupedComboItems,
+                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+              });
+            });
+            apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format

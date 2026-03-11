@@ -333,8 +333,20 @@ const InvoiceManagement = () => {
   };
 
   const handleViewInvoice = (invoice: InvoiceType) => {
-    // Navigate to dedicated invoice details page
+    // Navigate to group-by invoice page when applicable
+    if ((invoice as any).groupBy) {
+      navigate(`/admin/groupbyinvoices/${invoice.id}`);
+      return;
+    }
     navigate(`/admin/invoices/${invoice.id}`);
+  };
+
+  const handleEditInvoice = (invoice: InvoiceType) => {
+    if ((invoice as any).groupBy) {
+      navigate(`/admin/groupbyinvoices/${invoice.id}`);
+      return;
+    }
+    navigate(`/admin/invoices/edit/${invoice.id}`);
   };
 
   const handleViewOrderDetail = (invoice: InvoiceType) => {
@@ -1023,11 +1035,7 @@ const InvoiceManagement = () => {
                                     "draft",
                                   ].includes(statusFilter) && (
                                     <DropdownMenuItem
-                                      onClick={() =>
-                                        navigate(
-                                          `/admin/invoices/edit/${invoice.id}`,
-                                        )
-                                      }
+                                      onClick={() => handleEditInvoice(invoice)}
                                     >
                                       <Pencil className="h-4 w-4 mr-2" />
                                       Edit Invoice

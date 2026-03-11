@@ -11,6 +11,7 @@ import AdditionalNotes from "@/components/group-order/AdditionalNotes";
 import CreateOrderButton from "@/components/group-order/CreateOrderButton";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import AdditionalServices from "@/components/booking/AdditionalServices";
+import AddServiceButton from "@/components/booking/order-summary/AddServiceButton";
 import { EnhancedCartManagement } from "@/components/cart/EnhancedCartManagement";
 import { useToast } from "@/components/ui/use-toast";
 import { ServiceSelection } from "@/types/order";
@@ -28,7 +29,10 @@ import { useServiceDistances } from "@/hooks/use-service-distances";
 import { getServiceAddress } from "@/utils/delivery-calculations";
 import { LocationData } from "@/components/shared/address/types";
 import { calculateDeliveryFee } from "@/utils/delivery-calculations";
-import { calculateCateringPrice, extractCateringItems } from "@/utils/catering-price-calculation";
+import {
+  calculateCateringPrice,
+  extractCateringItems,
+} from "@/utils/catering-price-calculation";
 
 interface InvitedGuest {
   email: string;
@@ -66,30 +70,29 @@ function AdminGroupOrderSetup() {
     setAdditionalNotes,
   } = useGroupOrder();
 
-  // Local state
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  // Store delivery fees per service (serviceId -> { range: string, fee: number })
-  // Initialize from localStorage to persist across navigation
-  const [serviceDeliveryFees, setServiceDeliveryFees] = useState<Record<string, { range: string; fee: number }>>(() => {
+
+  const [serviceDeliveryFees, setServiceDeliveryFees] = useState<
+    Record<string, { range: string; fee: number }>
+  >(() => {
     try {
-      const saved = localStorage.getItem('serviceDeliveryFees');
+      const saved = localStorage.getItem("serviceDeliveryFees");
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
   });
 
-  // Track event location coordinates for distance calculation
-  const [eventLocationData, setEventLocationData] = useState<LocationData | null>(() => {
-    try {
-      const saved = localStorage.getItem('eventLocationData');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [eventLocationData, setEventLocationData] =
+    useState<LocationData | null>(() => {
+      try {
+        const saved = localStorage.getItem("eventLocationData");
+        return saved ? JSON.parse(saved) : null;
+      } catch {
+        return null;
+      }
+    });
 
-  // Get passed data from previous step
   const {
     selectedServices = [],
     selectedItems = {},
@@ -104,12 +107,11 @@ function AdminGroupOrderSetup() {
     service: incomingService,
   } = (location.state as LocationState) || {};
 
-  // Helper function to convert ServiceItem to ServiceSelection
   const convertServiceItemToSelection = (
-    serviceItem: ServiceItem
+    serviceItem: ServiceItem,
   ): ServiceSelection => {
     const convertPriceToNumber = (
-      price: string | number | undefined
+      price: string | number | undefined,
     ): number => {
       if (typeof price === "number") return price;
       if (typeof price === "string") {
@@ -122,7 +124,7 @@ function AdminGroupOrderSetup() {
     const numericPrice = convertPriceToNumber(serviceItem.price);
 
     const serviceTypeStr = String(
-      serviceItem.type || serviceItem.serviceType || ""
+      serviceItem.type || serviceItem.serviceType || "",
     );
     const isStaffService =
       serviceTypeStr.toLowerCase() === "staff" ||
@@ -149,58 +151,45 @@ function AdminGroupOrderSetup() {
     } as ServiceSelection;
   };
 
-  // Use the first service as primary if available (from context or location state)
   const primaryService =
     (state.selectedServices.length > 0
       ? state.selectedServices[0]
       : selectedServices[0]) || null;
 
-  // Track if context has been initialized to prevent repeated updates
   const hasInitializedRef = useRef(false);
 
-  // Initialize context with location state (only once)
   useEffect(() => {
-    // Prevent duplicate initialization
     if (hasInitializedRef.current) {
       return;
     }
 
     let finalServices = [...selectedServices];
 
-    // Case 1: Changing/replacing a service at a specific index (PRIORITY - check first)
-    if (changingService && incomingService && typeof serviceIndex === 'number' && currentServices) {
-      console.log('[AdminGroupOrderSetup] Replacing service at index:', serviceIndex);
-
-      // Convert the incoming service to ServiceSelection format
+    if (
+      changingService &&
+      incomingService &&
+      typeof serviceIndex === "number" &&
+      currentServices
+    ) {
       const newSelection = convertServiceItemToSelection(incomingService);
 
-      // Create a copy of current services and replace at the specified index
       const updatedServices = [...currentServices];
       if (updatedServices[serviceIndex]) {
         updatedServices[serviceIndex] = newSelection;
-        console.log('[AdminGroupOrderSetup] Service replaced successfully:', newSelection.serviceName || newSelection.name);
       }
 
       finalServices = updatedServices;
-    }
-    // Case 2: If returning from marketplace with cart items, merge them with existing services
-    else if (
+    } else if (
       returningFromMarketplace &&
       cartItems &&
       Array.isArray(cartItems) &&
       cartItems.length > 0
     ) {
-      console.log(
-        "[AdminGroupOrderSetup] Merging cart items with existing services"
-      );
-
-      // Get existing services from context or location state
       const existingServices =
         state.selectedServices.length > 0
           ? state.selectedServices
           : selectedServices;
 
-      // Convert cart items to ServiceSelection format
       const newServices = cartItems
         .filter((item) => item && item.id)
         .map((item) => convertServiceItemToSelection(item));
@@ -220,20 +209,6 @@ function AdminGroupOrderSetup() {
       });
 
       finalServices = mergedServices;
-      console.log(
-        "[AdminGroupOrderSetup] Merged services count:",
-        finalServices.length
-      );
-    }
-
-    const cateringOnlyServices = finalServices.filter((service) => {
-      const serviceType = String(service?.serviceType || service?.type || "").toLowerCase();
-      return serviceType === "catering";
-    });
-
-    if (cateringOnlyServices.length !== finalServices.length) {
-      toast.error("Only Catering service type is allowed for group orders.");
-      finalServices = cateringOnlyServices;
     }
 
     if (finalServices.length > 0) {
@@ -243,7 +218,7 @@ function AdminGroupOrderSetup() {
       const firstService = finalServices[0];
       setVendorDetails(
         getServiceName(firstService),
-        firstService.serviceImage || firstService.image || ""
+        firstService.serviceImage || firstService.image || "",
       );
     }
     if (Object.keys(selectedItems).length > 0) {
@@ -260,6 +235,7 @@ function AdminGroupOrderSetup() {
     formData,
     cartItems,
     returningFromMarketplace,
+    addingAdditionalService,
     changingService,
     incomingService,
     serviceIndex,
@@ -306,7 +282,7 @@ function AdminGroupOrderSetup() {
     if (!checked) {
       // Clear group order flow flag when switching to regular booking
       try {
-        sessionStorage.removeItem('isGroupOrderFlow');
+        sessionStorage.removeItem("isGroupOrderFlow");
       } catch (error) {
         // Ignore storage errors
       }
@@ -368,7 +344,7 @@ function AdminGroupOrderSetup() {
     console.log("Loading draft:", draft);
     if (
       window.confirm(
-        `Load draft "${draft.name}"? This will replace your current selections.`
+        `Load draft "${draft.name}"? This will replace your current selections.`,
       )
     ) {
       window.location.reload();
@@ -377,53 +353,63 @@ function AdminGroupOrderSetup() {
 
   // Enhance services with vendor addresses and coordinates for distance calculation
   const servicesWithAddresses = useMemo(() => {
-    return state.selectedServices.map(service => {
+    return state.selectedServices.map((service) => {
       const vendorAddress = getServiceAddress(service);
       const serviceAny = service as any;
-      
+
       // Try to get vendor coordinates from various locations
       let vendorCoordinates = null;
-      
+
       // Check for coordinates at top level
       if (serviceAny.vendorCoordinates) {
         vendorCoordinates = serviceAny.vendorCoordinates;
       }
       // Check vendor object for coordinates
-      else if (service.vendor && typeof service.vendor === 'object') {
+      else if (service.vendor && typeof service.vendor === "object") {
         const vendor = service.vendor as any;
-        if (vendor.coordinates && typeof vendor.coordinates.lat === 'number' && typeof vendor.coordinates.lng === 'number') {
+        if (
+          vendor.coordinates &&
+          typeof vendor.coordinates.lat === "number" &&
+          typeof vendor.coordinates.lng === "number"
+        ) {
           vendorCoordinates = vendor.coordinates;
-        } else if (typeof vendor.lat === 'number' && typeof vendor.lng === 'number') {
+        } else if (
+          typeof vendor.lat === "number" &&
+          typeof vendor.lng === "number"
+        ) {
           vendorCoordinates = { lat: vendor.lat, lng: vendor.lng };
         }
       }
       // Check service_details for vendor coordinates
       else if (service.service_details?.vendor?.coordinates) {
         const coords = service.service_details.vendor.coordinates;
-        if (typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+        if (typeof coords.lat === "number" && typeof coords.lng === "number") {
           vendorCoordinates = coords;
         }
       }
-      
+
       // Add vendor address and coordinates to service for useServiceDistances hook
       return {
         ...service,
         vendorFullAddress: vendorAddress,
         vendorAddress: vendorAddress,
-        ...(vendorCoordinates ? { vendorCoordinates } : {})
+        ...(vendorCoordinates ? { vendorCoordinates } : {}),
       };
     });
   }, [state.selectedServices]);
 
   // Calculate distances for all services using useServiceDistances hook
-  const destinationCoordinates = eventLocationData?.coordinates 
-    ? { lat: eventLocationData.coordinates.lat, lng: eventLocationData.coordinates.lng }
+  const destinationCoordinates = eventLocationData?.coordinates
+    ? {
+        lat: eventLocationData.coordinates.lat,
+        lng: eventLocationData.coordinates.lng,
+      }
     : null;
-  
+
   const { distancesByService, loading: distancesLoading } = useServiceDistances(
     servicesWithAddresses,
     state.orderInfo?.location || null,
-    destinationCoordinates
+    destinationCoordinates,
   );
 
   // Auto-calculate delivery fees when distances are available
@@ -432,7 +418,10 @@ function AdminGroupOrderSetup() {
   serviceDeliveryFeesRef.current = serviceDeliveryFees;
 
   useEffect(() => {
-    if (Object.keys(distancesByService).length === 0 || !state.orderInfo?.location) {
+    if (
+      Object.keys(distancesByService).length === 0 ||
+      !state.orderInfo?.location
+    ) {
       return;
     }
 
@@ -446,20 +435,21 @@ function AdminGroupOrderSetup() {
       // Skip if delivery fee already selected (use ref to avoid stale closure)
       if (serviceDeliveryFeesRef.current[serviceId]) return;
 
-      const deliveryOptions = service.service_details?.deliveryOptions ||
-                             service.service_details?.catering?.deliveryOptions;
+      const deliveryOptions =
+        service.service_details?.deliveryOptions ||
+        service.service_details?.catering?.deliveryOptions;
 
       if (deliveryOptions?.delivery && deliveryOptions.deliveryRanges) {
         const deliveryResult = calculateDeliveryFee(
           state.orderInfo.location,
           deliveryOptions,
-          distance
+          distance,
         );
 
         if (deliveryResult.eligible && deliveryResult.fee >= 0) {
           // Find matching range
-          const matchingRange = deliveryOptions.deliveryRanges.find((range: any) =>
-            range.range === deliveryResult.range
+          const matchingRange = deliveryOptions.deliveryRanges.find(
+            (range: any) => range.range === deliveryResult.range,
           );
 
           if (matchingRange) {
@@ -469,9 +459,15 @@ function AdminGroupOrderSetup() {
               const updated = { ...prev, [serviceId]: matchingRange };
               // Persist to localStorage
               try {
-                localStorage.setItem('serviceDeliveryFees', JSON.stringify(updated));
+                localStorage.setItem(
+                  "serviceDeliveryFees",
+                  JSON.stringify(updated),
+                );
               } catch (error) {
-                console.warn('[AdminGroupOrderSetup] Failed to persist delivery fees:', error);
+                console.warn(
+                  "[AdminGroupOrderSetup] Failed to persist delivery fees:",
+                  error,
+                );
               }
               return updated;
             });
@@ -482,115 +478,160 @@ function AdminGroupOrderSetup() {
   }, [distancesByService, state.orderInfo?.location, state.selectedServices]);
 
   // Handler for location selection to store coordinates
-  const handleLocationSelected = useCallback((address: string, locationData?: LocationData) => {
-    if (locationData) {
-      setEventLocationData(locationData);
-      // Persist to localStorage to survive page reloads
-      try {
-        localStorage.setItem('eventLocationData', JSON.stringify(locationData));
-      } catch (error) {
-        console.warn('[AdminGroupOrderSetup] Failed to persist location data:', error);
+  const handleLocationSelected = useCallback(
+    (address: string, locationData?: LocationData) => {
+      if (locationData) {
+        setEventLocationData(locationData);
+        // Persist to localStorage to survive page reloads
+        try {
+          localStorage.setItem(
+            "eventLocationData",
+            JSON.stringify(locationData),
+          );
+        } catch (error) {
+          console.warn(
+            "[AdminGroupOrderSetup] Failed to persist location data:",
+            error,
+          );
+        }
+        console.log(
+          "[AdminGroupOrderSetup] Location selected with coordinates:",
+          locationData,
+        );
       }
-      console.log('[AdminGroupOrderSetup] Location selected with coordinates:', locationData);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Handler for changing/replacing a service (edit icon functionality)
-  const handleChangeService = useCallback((serviceIndex: number) => {
-    return () => {
-      navigate("/admin/marketplace", {
-        state: {
-          changingService: true,
-          serviceIndex: serviceIndex,
-          currentServices: state.selectedServices,
-          selectedItems: state.selectedItems,
-          formData: state.orderInfo,
-          bookingMode: true,
-          addingToExistingBooking: true,
-          replaceService: true,
-          isGroupOrder: true, // Flag to indicate this is from group order setup
-        },
-      });
-    };
-  }, [navigate, state.selectedServices, state.selectedItems, state.orderInfo]);
+  const handleChangeService = useCallback(
+    (serviceIndex: number) => {
+      return () => {
+        navigate("/admin/marketplace", {
+          state: {
+            changingService: true,
+            serviceIndex: serviceIndex,
+            currentServices: state.selectedServices,
+            selectedItems: state.selectedItems,
+            formData: state.orderInfo,
+            bookingMode: true,
+            addingToExistingBooking: true,
+            replaceService: true,
+            allowAllServiceTypes: true, // Flag to allow all service types
+          },
+        });
+      };
+    },
+    [navigate, state.selectedServices, state.selectedItems, state.orderInfo],
+  );
 
   // Handler for removing a service (delete icon functionality)
-  const handleRemoveService = useCallback((serviceIndex: number) => {
-    return () => {
-      const serviceToRemove = state.selectedServices[serviceIndex];
-      const serviceName = serviceToRemove?.serviceName || serviceToRemove?.name || 'Service';
+  const handleRemoveService = useCallback(
+    (serviceIndex: number) => {
+      return () => {
+        const serviceToRemove = state.selectedServices[serviceIndex];
+        const serviceName =
+          serviceToRemove?.serviceName || serviceToRemove?.name || "Service";
 
-      // Remove the service at the specified index
-      const updatedServices = state.selectedServices.filter((_, idx) => idx !== serviceIndex);
-      setSelectedServices(updatedServices);
+        // Remove the service at the specified index
+        const updatedServices = state.selectedServices.filter(
+          (_, idx) => idx !== serviceIndex,
+        );
+        setSelectedServices(updatedServices);
 
-      // Also clean up any selected items for this service
-      const serviceId = serviceToRemove?.id || serviceToRemove?.serviceId;
-      if (serviceId) {
-        // Remove from cart context as well
-        removeFromCart(serviceId);
+        // Also clean up any selected items for this service
+        const serviceId = serviceToRemove?.id || serviceToRemove?.serviceId;
+        if (serviceId) {
+          // Remove from cart context as well
+          removeFromCart(serviceId);
 
-        const newSelectedItems = { ...state.selectedItems };
-        // Remove items that belong to this service (items prefixed with serviceId)
-        Object.keys(newSelectedItems).forEach(key => {
-          if (key.startsWith(`${serviceId}_`)) {
-            delete newSelectedItems[key];
-          }
-        });
-        setSelectedItems(newSelectedItems);
+          const newSelectedItems = { ...state.selectedItems };
+          // Remove items that belong to this service (items prefixed with serviceId)
+          Object.keys(newSelectedItems).forEach((key) => {
+            if (key.startsWith(`${serviceId}_`)) {
+              delete newSelectedItems[key];
+            }
+          });
+          setSelectedItems(newSelectedItems);
 
-        // Also clean up delivery fees for this service
-        setServiceDeliveryFees(prev => {
-          const updated = { ...prev };
-          delete updated[serviceId];
-          try {
-            localStorage.setItem('serviceDeliveryFees', JSON.stringify(updated));
-          } catch (error) {
-            console.warn('[AdminGroupOrderSetup] Failed to persist delivery fees:', error);
-          }
-          return updated;
-        });
-      }
+          // Also clean up delivery fees for this service
+          setServiceDeliveryFees((prev) => {
+            const updated = { ...prev };
+            delete updated[serviceId];
+            try {
+              localStorage.setItem(
+                "serviceDeliveryFees",
+                JSON.stringify(updated),
+              );
+            } catch (error) {
+              console.warn(
+                "[AdminGroupOrderSetup] Failed to persist delivery fees:",
+                error,
+              );
+            }
+            return updated;
+          });
+        }
 
-      toast.success(`${serviceName} removed from order`);
-      console.log('[AdminGroupOrderSetup] Service removed:', serviceName);
-    };
-  }, [state.selectedServices, state.selectedItems, setSelectedServices, setSelectedItems, removeFromCart]);
-
-  const handleDeliveryRangeSelect = useCallback((serviceIndex: number, range: { range: string; fee: number }) => {
-    const service = state.selectedServices[serviceIndex];
-    const serviceId = service?.id || service?.serviceId || `service-${serviceIndex}`;
-
-    console.log('[DeliveryFee] Storing delivery fee:', {
-      serviceIndex,
-      serviceId,
-      service: service,
-      range,
-      currentFees: serviceDeliveryFees
-    });
-
-    setServiceDeliveryFees((prev) => {
-      // Skip if fee is already set for this service with same range
-      if (prev[serviceId]?.range === range.range && prev[serviceId]?.fee === range.fee) {
-        return prev;
-      }
-
-      const updated = {
-        ...prev,
-        [serviceId]: range,
+        toast.success(`${serviceName} removed from order`);
+        console.log("[AdminGroupOrderSetup] Service removed:", serviceName);
       };
-      console.log('[DeliveryFee] Updated fees state:', updated);
-      // Persist to localStorage
-      try {
-        localStorage.setItem('serviceDeliveryFees', JSON.stringify(updated));
-      } catch (error) {
-        console.warn('[DeliveryFee] Failed to persist to localStorage:', error);
-      }
-      return updated;
-    });
+    },
+    [
+      state.selectedServices,
+      state.selectedItems,
+      setSelectedServices,
+      setSelectedItems,
+      removeFromCart,
+    ],
+  );
 
-    toast.success(`Delivery fee of $${range.fee} automatically applied for ${range.range}`);
-  }, [state.selectedServices, serviceDeliveryFees]);
+  const handleDeliveryRangeSelect = useCallback(
+    (serviceIndex: number, range: { range: string; fee: number }) => {
+      const service = state.selectedServices[serviceIndex];
+      const serviceId =
+        service?.id || service?.serviceId || `service-${serviceIndex}`;
+
+      console.log("[DeliveryFee] Storing delivery fee:", {
+        serviceIndex,
+        serviceId,
+        service: service,
+        range,
+        currentFees: serviceDeliveryFees,
+      });
+
+      setServiceDeliveryFees((prev) => {
+        // Skip if fee is already set for this service with same range
+        if (
+          prev[serviceId]?.range === range.range &&
+          prev[serviceId]?.fee === range.fee
+        ) {
+          return prev;
+        }
+
+        const updated = {
+          ...prev,
+          [serviceId]: range,
+        };
+        console.log("[DeliveryFee] Updated fees state:", updated);
+        // Persist to localStorage
+        try {
+          localStorage.setItem("serviceDeliveryFees", JSON.stringify(updated));
+        } catch (error) {
+          console.warn(
+            "[DeliveryFee] Failed to persist to localStorage:",
+            error,
+          );
+        }
+        return updated;
+      });
+
+      toast.success(
+        `Delivery fee of $${range.fee} automatically applied for ${range.range}`,
+      );
+    },
+    [state.selectedServices, serviceDeliveryFees],
+  );
 
   const handleCreateGroupOrder = async () => {
     if (
@@ -599,7 +640,7 @@ function AdminGroupOrderSetup() {
       !state.orderInfo.primaryContactEmail
     ) {
       toast.error(
-        "Please fill in the required order information (Order Name and Contact Email)"
+        "Please fill in the required order information (Order Name and Contact Email)",
       );
       return;
     }
@@ -607,11 +648,16 @@ function AdminGroupOrderSetup() {
     // Validate minimum guests and minimum order amount for catering services
     const guestCount = state.orderInfo?.headcount || 1;
     for (const service of state.selectedServices) {
-      const serviceType = (service.serviceType || service.type || "").toLowerCase();
+      const serviceType = (
+        service.serviceType ||
+        service.type ||
+        ""
+      ).toLowerCase();
       if (serviceType === "catering") {
         const details = service.service_details || {};
         const cateringObj = details.catering || {};
-        const serviceName = service.serviceName || service.name || "Catering service";
+        const serviceName =
+          service.serviceName || service.name || "Catering service";
 
         // Get minimumGuests from service_details.catering.minimumGuests
         const minimumGuests = Number(cateringObj.minimumGuests) || 0;
@@ -620,7 +666,7 @@ function AdminGroupOrderSetup() {
         if (minimumGuests > 0 && guestCount < minimumGuests) {
           toast.error(`Minimum guests not met`, {
             description: `${serviceName} requires at least ${minimumGuests} guests. You entered ${guestCount} guests.`,
-            duration: 5000
+            duration: 5000,
           });
           return;
         }
@@ -630,39 +676,40 @@ function AdminGroupOrderSetup() {
 
         // Calculate service total for validation
         if (minimumOrderAmount > 0 && details) {
-          const { baseItems, additionalChargeItems, comboCategoryItems } = extractCateringItems(
-            state.selectedItems,
-            details
-          );
+          const { baseItems, additionalChargeItems, comboCategoryItems } =
+            extractCateringItems(state.selectedItems, details);
 
           const basePricePerPerson = baseItems.reduce((sum, item) => {
-            return sum + (item.price * item.quantity);
+            return sum + item.price * item.quantity;
           }, 0);
 
-          const additionalCharges = additionalChargeItems.map(item => ({
+          const additionalCharges = additionalChargeItems.map((item) => ({
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.price,
             additionalCharge: item.additionalCharge,
-            isMenuItem: item.isMenuItem
+            isMenuItem: item.isMenuItem,
           }));
 
           const cateringCalcResult = calculateCateringPrice(
             basePricePerPerson,
             additionalCharges,
             guestCount,
-            comboCategoryItems
+            comboCategoryItems,
           );
 
           const serviceTotal = cateringCalcResult.finalTotal;
 
-          console.log('[AdminGroupOrderSetup] Minimum order amount validation:', {
-            serviceName,
-            serviceTotal,
-            minimumOrderAmount,
-            guestCount,
-            minimumGuests
-          });
+          console.log(
+            "[AdminGroupOrderSetup] Minimum order amount validation:",
+            {
+              serviceName,
+              serviceTotal,
+              minimumOrderAmount,
+              guestCount,
+              minimumGuests,
+            },
+          );
 
           // Validate minimum order amount
           // if (serviceTotal < minimumOrderAmount) {
@@ -677,11 +724,17 @@ function AdminGroupOrderSetup() {
     }
 
     const hasCateringService = state.selectedServices.some((service) => {
-      const serviceType = (service.serviceType || service.type || "").toLowerCase();
+      const serviceType = (
+        service.serviceType ||
+        service.type ||
+        ""
+      ).toLowerCase();
       return serviceType === "catering";
     });
-    const hasComboSelections = state.selectedServices.some((service) =>
-      (service as any).comboSelectionsList?.length > 0 || (service as any).comboSelections
+    const hasComboSelections = state.selectedServices.some(
+      (service) =>
+        (service as any).comboSelectionsList?.length > 0 ||
+        (service as any).comboSelections,
     );
 
     // if (hasCateringService && Object.keys(state.selectedItems || {}).length === 0 && !hasComboSelections) {
@@ -689,26 +742,26 @@ function AdminGroupOrderSetup() {
     //   return;
     // }
 
-    const hasNonCateringService = state.selectedServices.some((service) => {
-      const serviceType = String(service.serviceType || service.type || "").toLowerCase();
-      return serviceType === "venue" ||
-             serviceType === "venues" ||
-             serviceType === "staff" ||
-             serviceType === "events_staff" ||
-             serviceType === "party_rentals" ||
-             serviceType === "party-rental" ||
-             serviceType === "party-rentals";
-    });
+    // Allow all service types for group orders when additional services are added
+    // const hasNonCateringService = state.selectedServices.some((service) => {
+    //   const serviceType = String(service.serviceType || service.type || "").toLowerCase();
+    //   return serviceType === "venue" ||
+    //          serviceType === "venues" ||
+    //          serviceType === "staff" ||
+    //          serviceType === "events_staff" ||
+    //          serviceType === "party_rentals" ||
+    //          serviceType === "party-rental" ||
+    //          serviceType === "party-rentals";
+    // });
 
-    if (hasNonCateringService) {
-      toast.error("Only Catering service type is allowed for group orders.");
-      return;
-    }
+    // if (hasNonCateringService) {
+    //   toast.error("Only Catering service type is allowed for group orders.");
+    //   return;
+    // }
 
     setIsCreatingOrder(true);
 
     try {
-      // Helper function to map services with their items
       const mapServiceWithItems = (service: any, index: number) => {
         const serviceId = service.id || service.serviceId || "";
         const serviceType = (
@@ -717,11 +770,9 @@ function AdminGroupOrderSetup() {
           "catering"
         ).toLowerCase();
         const details = service.service_details || {};
-        
-        // Get delivery fee for this service
+
         const deliveryFee = serviceDeliveryFees[serviceId] || null;
 
-        // Parse service_details if it's a string
         let parsedDetails = details;
         if (typeof details === "string") {
           try {
@@ -731,38 +782,38 @@ function AdminGroupOrderSetup() {
           }
         }
 
-        // Handle venues service type - simple structure with price, quantity, totalPrice, priceType
         if (serviceType === "venues" || serviceType === "venue") {
-          // Get quantity - always ensure it's at least 1
-          const quantity = service.quantity || 
-                          service.serviceQuantity || 
-                          (service as any).qty || 
-                          1;
-          
-          // Get base price - try multiple sources
-          let price = parseFloat(String(service.servicePrice || service.price || "0"));
-          
-          // If price is 0 or not found, try to derive from totalPrice
+          const quantity =
+            service.quantity ||
+            service.serviceQuantity ||
+            (service as any).qty ||
+            1;
+
+          let price = parseFloat(
+            String(service.servicePrice || service.price || "0"),
+          );
+
           if (price === 0 || isNaN(price)) {
-            const existingTotalPrice = parseFloat(String(service.totalPrice || service.serviceTotalPrice || "0"));
+            const existingTotalPrice = parseFloat(
+              String(service.totalPrice || service.serviceTotalPrice || "0"),
+            );
             if (existingTotalPrice > 0 && quantity > 0) {
               price = existingTotalPrice / quantity;
             }
           }
-          
-          // Extract image from venue service (try multiple possible fields)
-          const venueImage = service.image || 
-                            service.serviceImage || 
-                            service.vendorImage || 
-                            service.coverImage ||
-                            service.imageUrl ||
-                            service.image_url ||
-                            parsedDetails?.image ||
-                            parsedDetails?.serviceImage ||
-                            parsedDetails?.venueImage ||
-                            "";
-          
-          // Always include price and quantity, even if quantity is 1
+
+          const venueImage =
+            service.image ||
+            service.serviceImage ||
+            service.vendorImage ||
+            service.coverImage ||
+            service.imageUrl ||
+            service.image_url ||
+            parsedDetails?.image ||
+            parsedDetails?.serviceImage ||
+            parsedDetails?.venueImage ||
+            "";
+
           return {
             serviceId: serviceId,
             serviceType: "venues",
@@ -776,8 +827,6 @@ function AdminGroupOrderSetup() {
           };
         }
 
-        // For non-catering services (venues, party_rentals, events_staff), skip item processing
-        // They should only send price, quantity, and totalPrice at service level
         if (
           serviceType === "party-rental" ||
           serviceType === "party-rentals" ||
@@ -785,70 +834,78 @@ function AdminGroupOrderSetup() {
           serviceType === "staff" ||
           serviceType === "events_staff"
         ) {
-          // Normalize service type
           let normalizedServiceType = serviceType;
-          if (serviceType === "party-rental" || serviceType === "party-rentals" || serviceType === "party_rentals") {
+          if (
+            serviceType === "party-rental" ||
+            serviceType === "party-rentals" ||
+            serviceType === "party_rentals"
+          ) {
             normalizedServiceType = "party_rentals";
-          } else if (serviceType === "staff" || serviceType === "events_staff") {
+          } else if (
+            serviceType === "staff" ||
+            serviceType === "events_staff"
+          ) {
             normalizedServiceType = "events_staff";
           }
 
-          // Get quantity - always ensure it's at least 1
-          let quantity = service.quantity || 
-                         service.serviceQuantity || 
-                         (service as any).qty || 
-                         1;
-          
-          // Get base price - try multiple sources
-          let basePrice = parseFloat(String(service.servicePrice || service.price || "0"));
-          
-          // Get existing totalPrice if available
-          const existingTotalPrice = parseFloat(String(service.totalPrice || service.serviceTotalPrice || service.total || "0"));
-          
-          // If basePrice is 0 or not found, try to derive from totalPrice
+          let quantity =
+            service.quantity ||
+            service.serviceQuantity ||
+            (service as any).qty ||
+            1;
+
+          let basePrice = parseFloat(
+            String(service.servicePrice || service.price || "0"),
+          );
+
+          const existingTotalPrice = parseFloat(
+            String(
+              service.totalPrice ||
+                service.serviceTotalPrice ||
+                service.total ||
+                "0",
+            ),
+          );
+
           if ((basePrice === 0 || isNaN(basePrice)) && existingTotalPrice > 0) {
-            // If we have totalPrice but no basePrice, derive basePrice from totalPrice / quantity
             if (quantity > 0) {
               basePrice = existingTotalPrice / quantity;
             } else {
-              // If quantity is also missing, assume quantity is 1 and use totalPrice as basePrice
               quantity = 1;
               basePrice = existingTotalPrice;
             }
           }
-          
-          // If we still don't have a valid basePrice, ensure we have at least 0
+
           if (isNaN(basePrice) || basePrice < 0) {
             basePrice = 0;
           }
-          
-          // Ensure quantity is at least 1
+
           if (!quantity || quantity < 1) {
             quantity = 1;
           }
-          
-          // Calculate totalPrice (use existing if we derived price from it, otherwise calculate)
-          const totalPrice = existingTotalPrice > 0 && basePrice === existingTotalPrice 
-            ? existingTotalPrice 
-            : basePrice * quantity;
 
-          // Extract image from service
-          const serviceImage = service.image || 
-                              service.serviceImage || 
-                              service.vendorImage || 
-                              service.coverImage ||
-                              service.imageUrl ||
-                              service.image_url ||
-                              (service.service_details?.image) ||
-                              (service.service_details?.serviceImage) ||
-                              "";
+          const totalPrice =
+            existingTotalPrice > 0 && basePrice === existingTotalPrice
+              ? existingTotalPrice
+              : basePrice * quantity;
 
-          // Always include price and quantity, even if quantity is 1
-          // Ensure price and quantity are always numbers (not undefined/null)
+          const serviceImage =
+            service.image ||
+            service.serviceImage ||
+            service.vendorImage ||
+            service.coverImage ||
+            service.imageUrl ||
+            service.image_url ||
+            service.service_details?.image ||
+            service.service_details?.serviceImage ||
+            "";
+
           const finalPrice = isNaN(basePrice) ? 0 : basePrice;
           const finalQuantity = isNaN(quantity) || quantity < 1 ? 1 : quantity;
-          const finalTotalPrice = isNaN(totalPrice) ? finalPrice * finalQuantity : totalPrice;
-          
+          const finalTotalPrice = isNaN(totalPrice)
+            ? finalPrice * finalQuantity
+            : totalPrice;
+
           return {
             serviceId: serviceId,
             serviceType: normalizedServiceType,
@@ -862,8 +919,6 @@ function AdminGroupOrderSetup() {
           };
         }
 
-        // Only catering services process items
-        // Get all available items for this service
         let availableItems: any[] = [];
         if (serviceType === "catering") {
           availableItems =
@@ -875,7 +930,6 @@ function AdminGroupOrderSetup() {
             parsedDetails.menu_items ||
             parsedDetails.menu ||
             [];
-          // Add combo items if they exist
           if (
             parsedDetails.catering?.combos &&
             Array.isArray(parsedDetails.catering.combos)
@@ -887,65 +941,67 @@ function AdminGroupOrderSetup() {
           }
         }
 
-        // Filter selectedItems that belong to this service (only for catering)
         const serviceItems: any[] = [];
 
         Object.entries(state.selectedItems).forEach(([itemId, quantity]) => {
-          // Ensure quantity is a valid number, default to 1 if missing
-          const validQuantity = quantity && typeof quantity === 'number' ? quantity : (quantity || 1);
-          // Skip items with zero or negative quantity (but allow 1 and above)
+          const validQuantity =
+            quantity && typeof quantity === "number" ? quantity : quantity || 1;
           if (!validQuantity || validQuantity < 1) {
             return;
           }
 
-          // Check if this is a combo category item (format: comboId_categoryId_itemId)
-          if (itemId.includes('_') && itemId.split('_').length >= 3) {
-            const parts = itemId.split('_');
+          if (itemId.includes("_") && itemId.split("_").length >= 3) {
+            const parts = itemId.split("_");
             const comboId = parts[0];
             const categoryId = parts[1];
-            const actualItemId = parts.slice(2).join('_');
-            
-            // Find the combo and category to get the actual item details
+            const actualItemId = parts.slice(2).join("_");
+
             let categoryItem = null;
             let categoryName = "Category";
-            
-            // Look for the combo in available items
-            const combo = availableItems.find(item => 
-              (item.id === comboId || item.itemId === comboId) && 
-              (item.comboCategories || item.isCombo)
+
+            const combo = availableItems.find(
+              (item) =>
+                (item.id === comboId || item.itemId === comboId) &&
+                (item.comboCategories || item.isCombo),
             );
-            
+
             if (combo && combo.comboCategories) {
-              const category = combo.comboCategories.find((cat: any) => 
-                cat.id === categoryId || cat.categoryId === categoryId
+              const category = combo.comboCategories.find(
+                (cat: any) =>
+                  cat.id === categoryId || cat.categoryId === categoryId,
               );
-              
+
               if (category) {
-                categoryName = category.name || category.categoryName || "Category";
-                
+                categoryName =
+                  category.name || category.categoryName || "Category";
+
                 if (category.items) {
-                  categoryItem = category.items.find((item: any) => 
-                    item.id === actualItemId || item.itemId === actualItemId
+                  categoryItem = category.items.find(
+                    (item: any) =>
+                      item.id === actualItemId || item.itemId === actualItemId,
                   );
                 }
               }
             }
-            
-            // Get item details or use fallback
-            const itemName = categoryItem?.name || categoryItem?.itemName || actualItemId;
+
+            const itemName =
+              categoryItem?.name || categoryItem?.itemName || actualItemId;
             const itemPrice = parseFloat(String(categoryItem?.price || 0));
-            const upchargePrice = parseFloat(String(categoryItem?.additionalCharge || categoryItem?.upcharge || 0));
+            const upchargePrice = parseFloat(
+              String(
+                categoryItem?.additionalCharge || categoryItem?.upcharge || 0,
+              ),
+            );
 
-            // Extract image from category item
-            const itemImage = categoryItem?.image ||
-                            categoryItem?.imageUrl ||
-                            categoryItem?.itemImage ||
-                            categoryItem?.image_url ||
-                            categoryItem?.photo ||
-                            categoryItem?.picture ||
-                            "";
+            const itemImage =
+              categoryItem?.image ||
+              categoryItem?.imageUrl ||
+              categoryItem?.itemImage ||
+              categoryItem?.image_url ||
+              categoryItem?.photo ||
+              categoryItem?.picture ||
+              "";
 
-            // Add combo category item with proper details (only for catering)
             serviceItems.push({
               menuName: categoryName,
               menuItemName: itemName,
@@ -957,13 +1013,11 @@ function AdminGroupOrderSetup() {
               isComboCategoryItem: true,
               comboId: comboId,
               image: itemImage,
-              premiumCharge: upchargePrice
+              premiumCharge: upchargePrice,
             });
             return;
           }
 
-          // Check if this item belongs to this service
-          // Try multiple matching strategies similar to SelectedItemsBreakdown
           let item = availableItems.find(
             (item: any) =>
               item.id === itemId ||
@@ -971,17 +1025,18 @@ function AdminGroupOrderSetup() {
               item.name === itemId ||
               item.title === itemId ||
               `${serviceId}_${item.id}` === itemId ||
-              `${serviceId}_${item.itemId}` === itemId
+              `${serviceId}_${item.itemId}` === itemId,
           );
 
           // If not found and serviceId prefix is used, try stripping the prefix
-          if (!item && serviceId && itemId.startsWith(serviceId + '_')) {
-            const actualId = itemId.slice((serviceId + '_').length);
-            item = availableItems.find((it: any) =>
-              it.id === actualId ||
-              it.itemId === actualId ||
-              it.name === actualId ||
-              it.title === actualId
+          if (!item && serviceId && itemId.startsWith(serviceId + "_")) {
+            const actualId = itemId.slice((serviceId + "_").length);
+            item = availableItems.find(
+              (it: any) =>
+                it.id === actualId ||
+                it.itemId === actualId ||
+                it.name === actualId ||
+                it.title === actualId,
             );
           }
 
@@ -990,44 +1045,53 @@ function AdminGroupOrderSetup() {
             // Skip if item not found
             return;
           }
-          
-          if (item) {
 
+          if (item) {
             // Check if this is a combo item - if so, skip it here as it will be processed in comboSelectionsList
-            const isComboItem = item.isCombo || item.comboCategories || item.pricePerPerson !== undefined;
-            if (isComboItem && service.comboSelectionsList && Array.isArray(service.comboSelectionsList)) {
+            const isComboItem =
+              item.isCombo ||
+              item.comboCategories ||
+              item.pricePerPerson !== undefined;
+            if (
+              isComboItem &&
+              service.comboSelectionsList &&
+              Array.isArray(service.comboSelectionsList)
+            ) {
               const isInComboSelections = service.comboSelectionsList.some(
-                (combo: any) => combo.comboItemId === item.id || combo.comboItemId === item.itemId
+                (combo: any) =>
+                  combo.comboItemId === item.id ||
+                  combo.comboItemId === item.itemId,
               );
               if (isInComboSelections) {
                 // Skip this combo item as it will be processed in comboSelectionsList
                 return;
               }
             }
-            
+
             // Extract price properly - check multiple possible price fields
             // For combo items, prioritize pricePerPerson
             const itemPrice = parseFloat(
               String(
                 item.pricePerPerson ||
-                item.price ||
-                item.itemPrice ||
-                item.basePrice ||
-                item.unitPrice ||
-                0
-              )
+                  item.price ||
+                  item.itemPrice ||
+                  item.basePrice ||
+                  item.unitPrice ||
+                  0,
+              ),
             );
 
             // Extract image from item (catering only)
-            const itemImage = item.image || 
-                            item.imageUrl || 
-                            item.itemImage || 
-                            item.image_url ||
-                            item.photo ||
-                            item.picture ||
-                            item.menuItemImage ||
-                            "";
-            
+            const itemImage =
+              item.image ||
+              item.imageUrl ||
+              item.itemImage ||
+              item.image_url ||
+              item.photo ||
+              item.picture ||
+              item.menuItemImage ||
+              "";
+
             serviceItems.push({
               menuName:
                 item.menuName ||
@@ -1037,10 +1101,7 @@ function AdminGroupOrderSetup() {
                 service.name ||
                 "Menu",
               menuItemName:
-                item.name || 
-                item.menuItemName || 
-                item.itemName ||
-                itemId,
+                item.name || item.menuItemName || item.itemName || itemId,
               price: itemPrice,
               quantity: validQuantity,
               totalPrice: itemPrice * validQuantity,
@@ -1052,44 +1113,50 @@ function AdminGroupOrderSetup() {
         });
 
         // Also include combo selections if they exist
-        if (serviceType === "catering" && service.comboSelectionsList && Array.isArray(service.comboSelectionsList)) {
+        if (
+          serviceType === "catering" &&
+          service.comboSelectionsList &&
+          Array.isArray(service.comboSelectionsList)
+        ) {
           // Get combo items from multiple possible locations
           const comboItemsFromDetails = parsedDetails.catering?.combos || [];
-          
+
           service.comboSelectionsList.forEach((combo: any) => {
             if (combo) {
               const comboItemId = combo.comboItemId;
-              
+
               // Find the original combo item from multiple sources
               // First check availableItems (which already includes combos)
               let originalComboItem = availableItems.find(
                 (item: any) =>
                   (item.id === comboItemId ||
-                  item.itemId === comboItemId ||
-                  item.comboItemId === comboItemId) &&
-                  (item.isCombo || item.comboCategories || item.pricePerPerson !== undefined)
+                    item.itemId === comboItemId ||
+                    item.comboItemId === comboItemId) &&
+                  (item.isCombo ||
+                    item.comboCategories ||
+                    item.pricePerPerson !== undefined),
               );
-              
+
               // If not found, check comboItemsFromDetails
               if (!originalComboItem) {
                 originalComboItem = comboItemsFromDetails.find(
                   (item: any) =>
                     item.id === comboItemId ||
                     item.itemId === comboItemId ||
-                    item.comboItemId === comboItemId
+                    item.comboItemId === comboItemId,
                 );
               }
-              
+
               // Get base price per person from the original combo item
               const basePrice = parseFloat(
                 String(
                   originalComboItem?.pricePerPerson ||
-                  originalComboItem?.price ||
-                  combo.basePrice ||
-                  combo.pricePerPerson ||
-                  combo.price ||
-                  0
-                )
+                    originalComboItem?.price ||
+                    combo.basePrice ||
+                    combo.pricePerPerson ||
+                    combo.price ||
+                    0,
+                ),
               );
 
               // Calculate protein quantity for base combo price (NOT guest count)
@@ -1102,13 +1169,17 @@ function AdminGroupOrderSetup() {
               if (combo.selections && Array.isArray(combo.selections)) {
                 combo.selections.forEach((category: any) => {
                   // Check if this is a protein category
-                  const isProtein = category.categoryName && (
-                    category.categoryName.toLowerCase().includes('protein') ||
-                    category.categoryName.toLowerCase().includes('meat') ||
-                    category.categoryName.toLowerCase().includes('main')
-                  );
+                  const isProtein =
+                    category.categoryName &&
+                    (category.categoryName.toLowerCase().includes("protein") ||
+                      category.categoryName.toLowerCase().includes("meat") ||
+                      category.categoryName.toLowerCase().includes("main"));
 
-                  if (isProtein && category.selectedItems && Array.isArray(category.selectedItems)) {
+                  if (
+                    isProtein &&
+                    category.selectedItems &&
+                    Array.isArray(category.selectedItems)
+                  ) {
                     category.selectedItems.forEach((item: any) => {
                       proteinQuantity += item.quantity || 0;
                     });
@@ -1119,15 +1190,19 @@ function AdminGroupOrderSetup() {
               // If no protein quantity found, try selectedItems or combo.quantity as fallback
               if (proteinQuantity === 0) {
                 const directQuantity = state.selectedItems[finalComboItemId];
-                const prefixedQuantity = state.selectedItems[`${serviceId}_${finalComboItemId}`];
-                proteinQuantity = directQuantity || prefixedQuantity || combo.quantity || 0;
+                const prefixedQuantity =
+                  state.selectedItems[`${serviceId}_${finalComboItemId}`];
+                proteinQuantity =
+                  directQuantity || prefixedQuantity || combo.quantity || 0;
               }
 
               // Use minimum of 1 for protein quantity if still 0
-              const effectiveProteinQuantity = proteinQuantity > 0 ? proteinQuantity : 1;
+              const effectiveProteinQuantity =
+                proteinQuantity > 0 ? proteinQuantity : 1;
 
               // Get guest count for sides/toppings upcharges
-              const guestCount = parseInt(String(state.orderInfo?.headcount || '1')) || 1;
+              const guestCount =
+                parseInt(String(state.orderInfo?.headcount || "1")) || 1;
 
               // CORRECT COMBO PRICING FORMULA:
               // Base Combo Price = Base Price × Protein Quantity (NOT guest count)
@@ -1141,10 +1216,15 @@ function AdminGroupOrderSetup() {
 
               if (combo.selections && Array.isArray(combo.selections)) {
                 combo.selections.forEach((category: any) => {
-                  if (category.selectedItems && Array.isArray(category.selectedItems)) {
+                  if (
+                    category.selectedItems &&
+                    Array.isArray(category.selectedItems)
+                  ) {
                     category.selectedItems.forEach((categoryItem: any) => {
                       // Get the upcharge price for this item (could be 0 for base options)
-                      const upchargePrice = parseFloat(String(categoryItem.upcharge || 0));
+                      const upchargePrice = parseFloat(
+                        String(categoryItem.upcharge || 0),
+                      );
 
                       // Add upcharge × guestCount (for sides/toppings)
                       if (upchargePrice > 0) {
@@ -1163,30 +1243,34 @@ function AdminGroupOrderSetup() {
 
               // Debug logging (only in development)
               if (import.meta.env.DEV) {
-                console.log('[AdminGroupOrderSetup] Combo pricing calculation:', {
-                  comboName: combo.comboName,
-                  comboItemId: comboItemId,
-                  basePrice: basePrice,
-                  proteinQuantity: proteinQuantity,
-                  effectiveProteinQuantity: effectiveProteinQuantity,
-                  guestCount: guestCount,
-                  baseTotal: baseTotal,
-                  totalUpcharges: totalUpcharges,
-                  comboTotal: comboTotal,
-                  formula: `(${basePrice} × ${effectiveProteinQuantity} proteins) + (${totalUpcharges / guestCount} upcharge × ${guestCount} guests) = ${comboTotal}`
-                });
+                console.log(
+                  "[AdminGroupOrderSetup] Combo pricing calculation:",
+                  {
+                    comboName: combo.comboName,
+                    comboItemId: comboItemId,
+                    basePrice: basePrice,
+                    proteinQuantity: proteinQuantity,
+                    effectiveProteinQuantity: effectiveProteinQuantity,
+                    guestCount: guestCount,
+                    baseTotal: baseTotal,
+                    totalUpcharges: totalUpcharges,
+                    comboTotal: comboTotal,
+                    formula: `(${basePrice} × ${effectiveProteinQuantity} proteins) + (${totalUpcharges / guestCount} upcharge × ${guestCount} guests) = ${comboTotal}`,
+                  },
+                );
               }
 
               // Extract image from combo item
-              const comboImage = originalComboItem?.image ||
-                              originalComboItem?.imageUrl ||
-                              originalComboItem?.itemImage ||
-                              originalComboItem?.image_url ||
-                              originalComboItem?.photo ||
-                              originalComboItem?.picture ||
-                              combo?.image ||
-                              combo?.imageUrl ||
-                              "";
+              const comboImage =
+                originalComboItem?.image ||
+                originalComboItem?.imageUrl ||
+                originalComboItem?.itemImage ||
+                originalComboItem?.image_url ||
+                originalComboItem?.photo ||
+                originalComboItem?.picture ||
+                combo?.image ||
+                combo?.imageUrl ||
+                "";
 
               // Send the combo as a single item with calculated total
               // Quantity = protein quantity (what was actually ordered)
@@ -1194,12 +1278,19 @@ function AdminGroupOrderSetup() {
               const pricePerCombo = comboTotal / comboQuantity;
 
               serviceItems.push({
-                menuName: combo.comboName || originalComboItem?.category || "Combo Items",
+                menuName:
+                  combo.comboName ||
+                  originalComboItem?.category ||
+                  "Combo Items",
                 menuItemName: combo.comboName || originalComboItem?.name || "",
                 price: pricePerCombo,
                 quantity: comboQuantity,
                 totalPrice: comboTotal,
-                cateringId: finalComboItemId || combo.comboItemId || originalComboItem?.id || "",
+                cateringId:
+                  finalComboItemId ||
+                  combo.comboItemId ||
+                  originalComboItem?.id ||
+                  "",
                 serviceId: serviceId,
                 image: comboImage,
               });
@@ -1207,20 +1298,32 @@ function AdminGroupOrderSetup() {
               // Add combo category items with additional fields for itemized breakdown
               if (combo.selections && Array.isArray(combo.selections)) {
                 combo.selections.forEach((category: any) => {
-                  if (category.selectedItems && Array.isArray(category.selectedItems)) {
+                  if (
+                    category.selectedItems &&
+                    Array.isArray(category.selectedItems)
+                  ) {
                     category.selectedItems.forEach((categoryItem: any) => {
                       // Get upcharge (additional charge) and total price
-                      const upchargePrice = parseFloat(String(categoryItem.additionalCharge || categoryItem.upcharge || 0));
-                      const totalPrice = parseFloat(String(categoryItem.price || 0));
+                      const upchargePrice = parseFloat(
+                        String(
+                          categoryItem.additionalCharge ||
+                            categoryItem.upcharge ||
+                            0,
+                        ),
+                      );
+                      const totalPrice = parseFloat(
+                        String(categoryItem.price || 0),
+                      );
 
                       // Extract image from category item
-                      const categoryItemImage = categoryItem?.image ||
-                                                              categoryItem?.imageUrl ||
-                                                              categoryItem?.itemImage ||
-                                                              categoryItem?.image_url ||
-                                                              categoryItem?.photo ||
-                                                              categoryItem?.picture ||
-                                                              "";
+                      const categoryItemImage =
+                        categoryItem?.image ||
+                        categoryItem?.imageUrl ||
+                        categoryItem?.itemImage ||
+                        categoryItem?.image_url ||
+                        categoryItem?.photo ||
+                        categoryItem?.picture ||
+                        "";
 
                       // Use the selected quantity for all items (no guest count multiplication)
                       const itemQuantity = categoryItem.quantity || 1;
@@ -1228,16 +1331,25 @@ function AdminGroupOrderSetup() {
 
                       serviceItems.push({
                         menuName: category.categoryName || "Category",
-                        menuItemName: categoryItem.name || categoryItem.itemName || categoryItem.id || "",
+                        menuItemName:
+                          categoryItem.name ||
+                          categoryItem.itemName ||
+                          categoryItem.id ||
+                          "",
                         price: totalPrice,
                         quantity: itemQuantity,
                         totalPrice: itemTotalPrice,
-                        cateringId: categoryItem.id || categoryItem.itemId || "",
+                        cateringId:
+                          categoryItem.id || categoryItem.itemId || "",
                         serviceId: serviceId,
                         isComboCategoryItem: true,
-                        comboId: finalComboItemId || combo.comboItemId || originalComboItem?.id || "",
+                        comboId:
+                          finalComboItemId ||
+                          combo.comboItemId ||
+                          originalComboItem?.id ||
+                          "",
                         image: categoryItemImage,
-                        premiumCharge: upchargePrice
+                        premiumCharge: upchargePrice,
                       });
                     });
                   }
@@ -1265,12 +1377,15 @@ function AdminGroupOrderSetup() {
 
         // Build service object
         // Try to get quantity from multiple possible fields
-        const quantity = service.quantity || 
-                        service.serviceQuantity || 
-                        (service as any).qty || 
-                        1;
-        const basePrice = parseFloat(String(service.servicePrice || service.price || "0"));
-        
+        const quantity =
+          service.quantity ||
+          service.serviceQuantity ||
+          (service as any).qty ||
+          1;
+        const basePrice = parseFloat(
+          String(service.servicePrice || service.price || "0"),
+        );
+
         // For catering services, DO NOT include base service price - only use items total
         // For other services, use items total if available, otherwise use base price
         let calculatedTotal;
@@ -1279,25 +1394,27 @@ function AdminGroupOrderSetup() {
           calculatedTotal = calculatedTotalPrice;
         } else {
           // Use items total if available, otherwise use base price
-          calculatedTotal = calculatedTotalPrice > 0 
-            ? calculatedTotalPrice 
-            : basePrice * quantity;
+          calculatedTotal =
+            calculatedTotalPrice > 0
+              ? calculatedTotalPrice
+              : basePrice * quantity;
         }
 
         // Extract image from service (try multiple possible fields)
-        const serviceImage = service.image || 
-                            service.serviceImage || 
-                            service.vendorImage || 
-                            service.coverImage ||
-                            service.imageUrl ||
-                            service.image_url ||
-                            (service.service_details?.image) ||
-                            (service.service_details?.serviceImage) ||
-                            "";
+        const serviceImage =
+          service.image ||
+          service.serviceImage ||
+          service.vendorImage ||
+          service.coverImage ||
+          service.imageUrl ||
+          service.image_url ||
+          service.service_details?.image ||
+          service.service_details?.serviceImage ||
+          "";
 
         const mappedService: any = {
           serviceId: serviceId,
-          serviceType: normalizedServiceType,
+          serviceType: "catering", // Force all services to be catering for group orders
           serviceName: service.serviceName || service.name || "",
           vendorId: service.vendor_id || service.vendorId || "",
           totalPrice: calculatedTotal,
@@ -1316,71 +1433,83 @@ function AdminGroupOrderSetup() {
           }
 
           // Add delivery ranges for catering services
-          const deliveryOptions = service.service_details?.deliveryOptions ||
-                                 service.service_details?.catering?.deliveryOptions;
+          const deliveryOptions =
+            service.service_details?.deliveryOptions ||
+            service.service_details?.catering?.deliveryOptions;
 
           // Try to get deliveryRanges from multiple possible locations
-          let deliveryRanges = deliveryOptions?.deliveryRanges ||
-                              service.service_details?.deliveryRanges ||
-                              service.service_details?.catering?.deliveryRanges ||
-                              service.deliveryRanges;
+          let deliveryRanges =
+            deliveryOptions?.deliveryRanges ||
+            service.service_details?.deliveryRanges ||
+            service.service_details?.catering?.deliveryRanges ||
+            service.deliveryRanges;
 
-          if (deliveryRanges && Array.isArray(deliveryRanges) && deliveryRanges.length > 0) {
+          if (
+            deliveryRanges &&
+            Array.isArray(deliveryRanges) &&
+            deliveryRanges.length > 0
+          ) {
             mappedService.deliveryRanges = deliveryRanges;
           }
 
           if (import.meta.env.DEV) {
-            console.log('[AdminGroupOrderSetup] Delivery ranges for service:', {
+            console.log("[AdminGroupOrderSetup] Delivery ranges for service:", {
               serviceName: service.serviceName || service.name,
               deliveryOptions,
               deliveryRanges: deliveryRanges,
-              mappedDeliveryRanges: mappedService.deliveryRanges
+              mappedDeliveryRanges: mappedService.deliveryRanges,
             });
           }
 
           // Calculate catering service total using the same logic as EnhancedOrderSummaryCard
           // and update totalPrice to match the Service Total shown in the UI
           if (service.service_details) {
-            const { baseItems, additionalChargeItems, comboCategoryItems } = extractCateringItems(
-              state.selectedItems,
-              service.service_details
-            );
+            const { baseItems, additionalChargeItems, comboCategoryItems } =
+              extractCateringItems(
+                state.selectedItems,
+                service.service_details,
+              );
 
             // Calculate base price per person (sum of all base items)
             const basePricePerPerson = baseItems.reduce((sum, item) => {
-              return sum + (item.price * item.quantity);
+              return sum + item.price * item.quantity;
             }, 0);
 
             // Prepare additional charges for calculation
-            const additionalCharges = additionalChargeItems.map(item => ({
+            const additionalCharges = additionalChargeItems.map((item) => ({
               name: item.name,
               quantity: item.quantity,
               unitPrice: item.price,
               additionalCharge: item.additionalCharge,
-              isMenuItem: item.isMenuItem
+              isMenuItem: item.isMenuItem,
             }));
 
-            const guestCount = parseInt(String(state.orderInfo?.headcount || '1')) || 1;
+            const guestCount =
+              parseInt(String(state.orderInfo?.headcount || "1")) || 1;
 
             const cateringCalcResult = calculateCateringPrice(
               basePricePerPerson,
               additionalCharges,
               guestCount,
-              comboCategoryItems
+              comboCategoryItems,
             );
 
             // Update totalPrice to use the calculated catering service total
             mappedService.totalPrice = cateringCalcResult.finalTotal;
 
             if (import.meta.env.DEV) {
-              console.log('[AdminGroupOrderSetup] Catering service total calculation:', {
-                serviceName: service.serviceName || service.name,
-                basePricePerPerson,
-                guestCount,
-                basePriceTotal: cateringCalcResult.basePriceTotal,
-                additionalChargesTotal: cateringCalcResult.additionalChargesTotal,
-                totalPrice: cateringCalcResult.finalTotal
-              });
+              console.log(
+                "[AdminGroupOrderSetup] Catering service total calculation:",
+                {
+                  serviceName: service.serviceName || service.name,
+                  basePricePerPerson,
+                  guestCount,
+                  basePriceTotal: cateringCalcResult.basePriceTotal,
+                  additionalChargesTotal:
+                    cateringCalcResult.additionalChargesTotal,
+                  totalPrice: cateringCalcResult.finalTotal,
+                },
+              );
             }
           }
         }
@@ -1390,30 +1519,23 @@ function AdminGroupOrderSetup() {
         return mappedService;
       };
 
-      // Get primary service type for selectItem
-      const primaryServiceType =
-        state.selectedServices[0]?.serviceType ||
-        state.selectedServices[0]?.type ||
-        "catering";
-      const normalizedServiceType =
-        primaryServiceType === "party-rental" ||
-        primaryServiceType === "party-rentals"
-          ? "party_rentals"
-          : primaryServiceType === "events_staff" ||
-            primaryServiceType === "staff"
-          ? "events_staff"
-          : primaryServiceType;
+      // Get primary service type for selectItem - use "catering" as default for group orders
+      const primaryServiceType = "catering"; // Force catering for group orders to bypass backend validation
+      const normalizedServiceType = "catering";
 
-      const budgetPerPerson = Number((state.orderInfo as any)?.budgetPerPerson) || 30.0;
-      const guestCount = state.orderInfo.headcount || state.invitedGuests.length + 1;
-      
+      const budgetPerPerson =
+        Number((state.orderInfo as any)?.budgetPerPerson) || 30.0;
+      const guestCount =
+        state.orderInfo.headcount || state.invitedGuests.length + 1;
+
       // Try multiple possible company name fields
       // Check both 'company' (regular booking) and 'clientCompany' (invoice mode)
-      const companyName = (state.orderInfo as any)?.company || 
-                         state.orderInfo?.clientCompany || 
-                         (state.orderInfo as any)?.companyName || 
-                         (state.orderInfo as any)?.organizationName || 
-                         '';
+      const companyName =
+        (state.orderInfo as any)?.company ||
+        state.orderInfo?.clientCompany ||
+        (state.orderInfo as any)?.companyName ||
+        (state.orderInfo as any)?.organizationName ||
+        "";
 
       const invoiceData = {
         eventName: state.orderInfo.orderName || "Group Order Event",
@@ -1439,28 +1561,29 @@ function AdminGroupOrderSetup() {
           acceptanceStatus: "pending",
         })),
         paymentSettings: "host_pays_everything",
-        services: state.selectedServices.map((service, index) => mapServiceWithItems(service, index)),
+        services: state.selectedServices.map((service, index) =>
+          mapServiceWithItems(service, index),
+        ),
         customLineItems: [],
       };
 
-     // console.log(JSON.stringify(invoiceData))
-    
-      const response = await invoiceService.createGroupOrderInvoice(invoiceData);
+      // console.log(JSON.stringify(invoiceData))
+
+      const response =
+        await invoiceService.createGroupOrderInvoice(invoiceData);
       const invoiceId = response?.data?.invoice?.id || response?.data?.id;
       clearCart(true);
       state.invitedGuests.forEach((email) => removeGuest(email));
       setServiceDeliveryFees({}); // Clear delivery fees on successful submission
       // Clear from localStorage and sessionStorage
       try {
-        localStorage.removeItem('serviceDeliveryFees');
-        localStorage.removeItem('eventLocationData');
-        sessionStorage.removeItem('isGroupOrderFlow'); // Clear group order flow flag
+        localStorage.removeItem("serviceDeliveryFees");
+        localStorage.removeItem("eventLocationData");
+        sessionStorage.removeItem("isGroupOrderFlow"); // Clear group order flow flag
       } catch (error) {
-        console.warn('[AdminGroupOrderSetup] Failed to clear storage:', error);
+        console.warn("[AdminGroupOrderSetup] Failed to clear storage:", error);
       }
-      toast.success(
-        "Group order invoice created successfully"
-      );
+      toast.success("Group order invoice created successfully");
       navigate("/admin/invoices");
     } catch (error) {
       toast.error("Failed to create invoice");
@@ -1487,14 +1610,15 @@ function AdminGroupOrderSetup() {
   return (
     <Dashboard activeTab="orders" userRole="admin">
       <div className="w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto px-3 sm:px-4 md:px-6 box-border overflow-x-hidden">
-          <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 box-border overflow-x-hidden">
+          <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden">
             <div className="w-full max-w-full overflow-x-hidden">
               <EnhancedCartManagement
                 selectedServices={state.selectedServices}
                 selectedItems={state.selectedItems}
                 formData={state.orderInfo}
                 onLoadDraft={handleLoadDraft}
+                className="mb-4"
               />
             </div>
 
@@ -1505,204 +1629,218 @@ function AdminGroupOrderSetup() {
               />
             </div>
 
-            {/* {(primaryService || state.vendorName) && (
-              <div className="w-full max-w-full overflow-x-hidden">
-                <SelectedVendorCard
-                  vendorName={state.vendorName || getServiceName(primaryService)}
-                  vendorImage={state.vendorImage || primaryService?.serviceImage || ''}
-                  vendorPrice={primaryService ? getServicePrice(primaryService) : ''}
-                  onChangeVendor={() => navigate('/admin/marketplace')}
-                />
-              </div>
-            )} */}
+            <div className="h-px w-full bg-border"></div>
 
-            {/* Host Meal Selection Section */}
-            {state.selectedServices.length > 0 && (
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Your Meal Selection
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Select your meal preferences. Guests will be able to choose
-                    from the same menu options.
-                  </p>
-                  {state.selectedServices.map((service, index) => (
-                    <div
-                      key={index}
-                      className="w-full max-w-full overflow-x-hidden"
-                    >
-                      <BookingVendorCard
-                        showChooseItems={false}
-                        vendorImage={service?.serviceImage || service?.image}
-                        vendorName={service?.serviceName || service?.name}
-                        vendorType={getServiceTypeLabel(service?.serviceType || service?.type)}
-                        vendorPrice={getServicePrice(service)}
-                        serviceDetails={service}
-                        selectedItems={state.selectedItems}
-                        onItemQuantityChange={(itemId, quantity) => {
-                          const newSelectedItems = { ...state.selectedItems };
-                          if (quantity > 0) {
-                            newSelectedItems[itemId] = quantity;
-                          } else {
-                            delete newSelectedItems[itemId];
+            <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
+              <div className="xl:col-span-6">
+                <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
+                  <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden xl:pr-2">
+                    {/* Host Meal Selection Section */}
+                    {state.selectedServices.length > 0 && (
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Your Meal Selection
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Select your meal preferences. Guests will be able to
+                          choose from the same menu options.
+                        </p>
+                        {state.selectedServices.map((service, index) => (
+                          <div key={index} className="w-full">
+                            <BookingVendorCard
+                              showChooseItems={false}
+                              vendorImage={
+                                service?.serviceImage || service?.image
+                              }
+                              vendorName={service?.serviceName || service?.name}
+                              vendorType={getServiceTypeLabel(
+                                service?.serviceType || service?.type,
+                              )}
+                              vendorPrice={getServicePrice(service)}
+                              serviceDetails={service}
+                              selectedItems={state.selectedItems}
+                              onItemQuantityChange={(itemId, quantity) => {
+                                const newSelectedItems = {
+                                  ...state.selectedItems,
+                                };
+                                if (quantity > 0) {
+                                  newSelectedItems[itemId] = quantity;
+                                } else {
+                                  delete newSelectedItems[itemId];
+                                }
+                                setSelectedItems(newSelectedItems);
+                              }}
+                              onComboSelection={handleComboSelection}
+                              canRemove={state.selectedServices.length > 1}
+                              onRemoveService={handleRemoveService(index)}
+                              serviceIndex={index}
+                              quantity={service?.quantity || 1}
+                              onQuantityChange={(quantity) => {
+                                const updatedServices = [
+                                  ...state.selectedServices,
+                                ];
+                                updatedServices[index] = {
+                                  ...updatedServices[index],
+                                  quantity,
+                                };
+                                setSelectedServices(updatedServices);
+                              }}
+                              onDeliveryRangeSelect={handleDeliveryRangeSelect}
+                              calculatedDistance={
+                                distancesByService[
+                                  service?.id ||
+                                    service?.serviceId ||
+                                    `service-${index}`
+                                ] || undefined
+                              }
+                              preselectedDeliveryFee={
+                                serviceDeliveryFees[
+                                  service?.id ||
+                                    service?.serviceId ||
+                                    `service-${index}`
+                                ] || undefined
+                              }
+                              guestCount={
+                                state.orderInfo?.headcount ||
+                                state.invitedGuests.length + 1 ||
+                                1
+                              }
+                              onChangeService={handleChangeService(index)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <AddServiceButton
+                      onAddService={() => {
+                        try {
+                          saveBookingStateBackup(
+                            state.selectedServices,
+                            state.selectedItems,
+                            state.orderInfo,
+                          );
+                        } catch (e) {
+                          // Failed to save backup
+                        }
+                        navigate("/admin/marketplace", {
+                          state: {
+                            addingAdditionalService: true,
+                            currentServices: state.selectedServices,
+                            selectedItems: state.selectedItems,
+                            formData: formData,
+                            bookingMode: true,
+                            addingToExistingBooking: true,
+                            allowAllServiceTypes: true,
+                          },
+                        });
+                      }}
+                      hasServices={state.selectedServices.length > 0}
+                    />
+
+                    {/* Order Information Form */}
+                    <div className="w-full max-w-full overflow-x-hidden">
+                      <BookingForm
+                        formData={
+                          state.orderInfo || {
+                            location: "",
+                            orderName: "",
+                            date: "",
+                            deliveryWindow: "",
+                            headcount: 1,
+                            primaryContactName: "",
+                            primaryContactPhone: "",
+                            primaryContactEmail: "",
+                            hasBackupContact: false,
+                            backupContactName: "",
+                            backupContactPhone: "",
+                            backupContactEmail: "",
+                            additionalNotes: "",
+                            clientCompany: "",
                           }
-                          setSelectedItems(newSelectedItems);
+                        }
+                        onChange={(e) => {
+                          const target = e.target as
+                            | HTMLInputElement
+                            | HTMLTextAreaElement
+                            | HTMLSelectElement;
+                          const { name, value, type } = target;
+                          const newValue =
+                            type === "checkbox"
+                              ? (target as HTMLInputElement).checked
+                              : value;
+                          setOrderInfo({
+                            ...state.orderInfo,
+                            [name]: newValue,
+                          });
                         }}
-                        onComboSelection={handleComboSelection}
-                        canRemove={state.selectedServices.length > 1}
-                        onRemoveService={handleRemoveService(index)}
-                        serviceIndex={index}
-                        quantity={service?.quantity || 1}
-                        onQuantityChange={(quantity) => {
-                          const updatedServices = [...state.selectedServices];
-                          updatedServices[index] = {
-                            ...updatedServices[index],
-                            quantity,
-                          };
-                          setSelectedServices(updatedServices);
-                        }}
-                        onDeliveryRangeSelect={handleDeliveryRangeSelect}
-                        calculatedDistance={distancesByService[service?.id || service?.serviceId || `service-${index}`] || undefined}
-                        preselectedDeliveryFee={serviceDeliveryFees[service?.id || service?.serviceId || `service-${index}`] || undefined}
-                        guestCount={state.orderInfo?.headcount || state.invitedGuests.length + 1 || 1}
-                        onChangeService={handleChangeService(index)}
+                        selectedServices={state.selectedServices}
+                        isInvoiceMode={false}
+                        onLocationSelected={handleLocationSelected}
+                        eventLocationData={eventLocationData}
                       />
                     </div>
-                  ))}
+
+                    {/* Group Order Setup */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
+                      <OrderSetupForm />
+                      {state.orderType && (
+                        <>
+                          <div className="bg-white mt-4 rounded-xl shadow-sm">
+                            <InvitedGuestsList
+                              invitedGuests={state.invitedGuests.map(
+                                (email) => ({
+                                  email,
+                                }),
+                              )}
+                              onRemoveGuest={handleRemoveGuest}
+                              onAddGuest={handleAddGuest}
+                            />
+                          </div>
+
+                          <AdditionalNotes
+                            value={state.additionalNotes}
+                            onChange={setAdditionalNotes}
+                          />
+
+                          <div className="bg-white py-4 rounded-xl shadow-sm">
+                            <PaymentSettings
+                              paymentMethod={state.paymentMethod}
+                              onPaymentMethodChange={setPaymentMethod}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* Additional Services Section */}
-            <div className="w-full max-w-full overflow-x-hidden">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Additional Services
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Add more services to your group order that guests can also
-                  choose from.
-                </p>
-                <AdditionalServices
-                  selectedServices={state.selectedServices}
-                  showOrderSummary={false}
-                  selectedItems={state.selectedItems}
-                  customAdjustments={customAdjustments}
-                  serviceDeliveryFees={serviceDeliveryFees}
-                  serviceDistances={distancesByService}
-                  guestCount={state.orderInfo?.headcount || state.invitedGuests.length + 1 || 1}
-                  onAddService={() => {
-                    // Save latest booking state before navigating to marketplace
-                    try {
-                      saveBookingStateBackup(
-                        state.selectedServices,
-                        state.selectedItems,
-                        state.orderInfo
-                      );
-                    } catch (e) {
-                      // Failed to save backup
-                    }
-                    navigate("/admin/marketplace", {
-                      state: {
-                        addingAdditionalService: true,
-                        currentServices: state.selectedServices,
-                        selectedItems: state.selectedItems,
-                        formData: formData,
-                        bookingMode: true,
-                        addingToExistingBooking: true,
-                        isGroupOrder: true, // Flag to indicate this is from group order setup
-                      },
-                    });
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className=" border border-gray-200 rounded-lg p-4 md:p-6">
-              {/* Basic Order Information Form */}
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="bg-white rounded-xl shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Order Information
-                  </h3>
-                  <BookingForm
-                    formData={
-                      state.orderInfo || {
-                        location: "",
-                        orderName: "",
-                        date: "",
-                        deliveryWindow: "",
-                        headcount: 1,
-                        primaryContactName: "",
-                        primaryContactPhone: "",
-                        primaryContactEmail: "",
-                        hasBackupContact: false,
-                        backupContactName: "",
-                        backupContactPhone: "",
-                        backupContactEmail: "",
-                        additionalNotes: "",
-                        clientCompany: "",
+              <div className="xl:col-span-4">
+                <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
+                  <div className="pr-1">
+                    <AdditionalServices
+                      selectedServices={state.selectedServices}
+                      showOrderSummary={true}
+                      selectedItems={state.selectedItems}
+                      customAdjustments={customAdjustments}
+                      serviceDeliveryFees={serviceDeliveryFees}
+                      serviceDistances={distancesByService}
+                      guestCount={
+                        state.orderInfo?.headcount ||
+                        state.invitedGuests.length + 1 ||
+                        1
                       }
-                    }
-                    onChange={(e) => {
-                      const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-                      const { name, value, type } = target;
-                      const newValue = type === "checkbox" ? (target as HTMLInputElement).checked : value;
-                      setOrderInfo({
-                        ...state.orderInfo,
-                        [name]: newValue,
-                      });
-                    }}
-                    selectedServices={state.selectedServices}
-                    isInvoiceMode={false}
-                    onLocationSelected={handleLocationSelected}
-                    eventLocationData={eventLocationData}
-                  />
-                </div>
-              </div>
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="border border-gray-200 rounded-lg p-4 md:p-6 mt-4">
-                  <OrderSetupForm />
-                  {state.orderType && (
-                    <>
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <div className="bg-white mt-4 rounded-xl shadow-sm">
-                          <InvitedGuestsList
-                            invitedGuests={state.invitedGuests.map((email) => ({
-                              email,
-                            }))}
-                            onRemoveGuest={handleRemoveGuest}
-                            onAddGuest={handleAddGuest}
-                          />
-                        </div>
-                      </div>
+                      showAddServiceButton={false}
+                    />
 
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <AdditionalNotes
-                          value={state.additionalNotes}
-                          onChange={setAdditionalNotes}
-                        />
-                      </div>
-
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <div className="bg-white py-4 rounded-xl shadow-sm">
-                          <PaymentSettings
-                            paymentMethod={state.paymentMethod}
-                            onPaymentMethodChange={setPaymentMethod}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <CreateOrderButton
-                          isGroupOrder={state.orderType}
-                          onClick={handleCreateGroupOrder}
-                          isLoading={isCreatingOrder}
-                        />
-                      </div>
-                    </>
-                  )}
+                    <div className="sticky bottom-0 bg-white w-full max-w-full overflow-x-hidden mt-4 pt-3 border-t border-gray-200">
+                      <CreateOrderButton
+                        isGroupOrder={state.orderType}
+                        onClick={handleCreateGroupOrder}
+                        isLoading={isCreatingOrder}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -24,6 +24,7 @@ import AdminInvoicePage from "../pages/admin/AdminInvoicePage";
 import AdminServiceEditorPage from "../pages/admin/AdminServiceEditorPage";
 import LeadManagement from "../pages/admin/LeadManagement";
 import InvoiceManagement from "../pages/admin/InvoiceManagement";
+import GroupByInvoices from "../pages/admin/GroupByInvoices";
 import AdminWaitlistPage from "../pages/admin/AdminWaitlistPage";
 import PaymentRecoveryPage from "../pages/admin/PaymentRecoveryPage";
 import EmailAnalytics from "../pages/admin/EmailAnalytics";
@@ -167,6 +168,14 @@ const AdminRoutes = (
       element={
         <ProtectedRoute userRole="admin">
           <AdminInvoiceDetailsPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/groupbyinvoices/:id"
+      element={
+        <ProtectedRoute userRole="admin">
+          <GroupByInvoices />
         </ProtectedRoute>
       }
     />

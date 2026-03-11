@@ -135,6 +135,17 @@ export const calculateServiceTotal = (
     return service.totalPrice;
   }
 
+  // Also check for totalPrice as string and convert
+  if (typeof service.totalPrice === 'string' && parseFloat(service.totalPrice) > 0) {
+    const totalPriceNum = parseFloat(service.totalPrice);
+    console.debug('[Pricing] Using pre-calculated totalPrice (string):', {
+      serviceId,
+      serviceName: service.name || service.serviceName,
+      totalPrice: totalPriceNum
+    });
+    return totalPriceNum;
+  }
+
   // Use catering price calculation for catering services
   if (serviceType === 'catering' && details && Object.keys(selectedItems).length > 0) {
     const { baseItems, additionalChargeItems, comboCategoryItems } = extractCateringItems(

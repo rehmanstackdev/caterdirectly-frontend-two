@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { useGroupOrder } from "@/contexts/GroupOrderContext";
@@ -33,13 +32,14 @@ const BudgetSection = () => {
         </div>
       </div>
       <div className="space-y-2">
-        <label className="text-sm">Budget (group orders will always be individual)</label>
+        <label className="text-sm">Budget </label>
         <Input
           className="text-gray-500"
           placeholder="Enter Amount"
           value={totalBudget ? `$${totalBudget.toFixed(2)}` : ""}
           readOnly
         />
+        <p className="text-[10px]">(group orders will always be individual)</p>
       </div>
     </div>
   );
