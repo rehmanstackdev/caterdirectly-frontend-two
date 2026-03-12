@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { useServices } from '@/hooks/use-services';
 import { useServiceEditLoader } from '@/hooks/vendor/use-service-edit-loader';
 import { usersService } from '@/services/users.service';
+import { useVendorData } from '@/hooks/vendor/use-vendor-data';
 
 // Component imports
 import ServiceFormStepRenderer from './ServiceFormStepRenderer';
@@ -43,6 +44,7 @@ const ServiceFormContainer: React.FC<ServiceFormContainerProps> = ({
     handlePreviousStep
   } = useServiceForm();
 
+  const { vendorData } = useVendorData();
   const [showStepErrors, setShowStepErrors] = React.useState(false);
   const [isLoadingVendor, setIsLoadingVendor] = React.useState(false);
 
@@ -79,25 +81,15 @@ const ServiceFormContainer: React.FC<ServiceFormContainerProps> = ({
         };
         fetchVendor();
       }
-    } else if (!adminContext && !vendorInfo.vendorId) {
-      // Vendor context: load from localStorage
-      try {
-        const storedUserData = localStorage.getItem('user_data');
-        if (storedUserData) {
-          const userData = JSON.parse(storedUserData);
-          if (userData.vendor?.id) {
-            setVendorInfo({
-              vendorId: userData.vendor.id,
-              vendorName: userData.vendor.businessName || 'Vendor'
-            });
-            setIsInitialized(true);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading vendor info from localStorage:', error);
-      }
+    } else if (!adminContext && !vendorInfo.vendorId && vendorData) {
+      // Vendor context: load from useVendorData hook (works for both owners and team members)
+      setVendorInfo({
+        vendorId: vendorData.id,
+        vendorName: vendorData.businessName || 'Vendor'
+      });
+      setIsInitialized(true);
     }
-  }, [adminContext, vendorId, vendorInfo.vendorId, setVendorInfo, setIsInitialized]);
+  }, [adminContext, vendorId, vendorInfo.vendorId, vendorData, setVendorInfo, setIsInitialized]);
   
   // Use the extracted service edit loader logic for edit mode
   useServiceEditLoader(

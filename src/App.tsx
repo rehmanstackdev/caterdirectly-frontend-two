@@ -19,6 +19,7 @@ import OrderRoutes from './routes/orderRoutes';
 import AuthRoutes from './routes/authRoutes';
 import PublicRoutes from './routes/publicRoutes';
 import UnsubscribePage from './pages/UnsubscribePage';
+import TeamMemberLogin from './pages/vendor/TeamMemberLogin';
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,9 @@ function App() {
                         
                         {/* Unsubscribe route */}
                         <Route path="/unsubscribe" element={<UnsubscribePage />} />
+
+                        {/* Team member login (public) */}
+                        <Route path="/vendor/team-login" element={<TeamMemberLogin />} />
 
                         {/* Auth routes */}
                         {AuthRoutes}

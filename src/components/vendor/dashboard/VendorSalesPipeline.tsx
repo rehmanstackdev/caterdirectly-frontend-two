@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eye, ArrowRight, DollarSign, Calendar, MapPin, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useVendorPermissions } from '@/contexts/VendorPermissionsContext';
 
 interface SalesLead {
   id: string;
@@ -21,30 +22,21 @@ interface SalesLead {
 const VendorSalesPipeline: React.FC = () => {
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const { vendorId } = useVendorPermissions();
 
   useEffect(() => {
-    fetchSalesLeads();
-  }, []);
+    if (vendorId) fetchSalesLeads();
+  }, [vendorId]);
 
   const fetchSalesLeads = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get vendor info
-      const { data: vendor } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!vendor) return;
+      if (!vendorId) return;
 
       // Fetch ONLY paid, confirmed orders (vendors don't see proposals)
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*')
-        .eq('vendor_id', vendor.id)
+        .eq('vendor_id', vendorId)
         .eq('payment_status', 'paid')
         .in('status', ['active', 'completed'])
         .order('created_at', { ascending: false })

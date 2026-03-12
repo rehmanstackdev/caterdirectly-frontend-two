@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth/useAuth';
-import { usersService } from '@/services/users.service';
+import vendorService from '@/services/api/vendor/vendor.Service';
 import VendorsService from '@/services/api/admin/vendors.Service';
 
 interface VendorData {
@@ -17,6 +17,8 @@ interface VendorData {
   serviceTypes?: string[];
   coordinates?: { lat: number; lng: number };
   status: 'pending' | 'approved' | 'rejected';
+  teamRole?: string;
+  user?: { id: string; firstName?: string; lastName?: string; email?: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -37,26 +39,34 @@ export function useVendorData() {
       try {
         console.log('useVendorData: Fetching vendor data for user:', user.id);
         
-        // Try to get vendor data from stored user data first
-        const storedUserData = localStorage.getItem('user_data');
-        if (storedUserData) {
-          const userData = JSON.parse(storedUserData);
-          if (userData.vendor) {
-            console.log('useVendorData: Found vendor data in localStorage:', userData.vendor);
-            setVendorData(userData.vendor);
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // Fallback: try to get vendor by user ID from backend
-        const vendorData = await usersService.getVendorByUserId(user.id);
-        if (vendorData) {
-          console.log('useVendorData: Found vendor data from backend:', vendorData);
-          setVendorData(vendorData as VendorData);
+        // Primary: use /users/my-vendor which resolves vendor for both owners and team members
+        const vendor = await vendorService.getMyVendor();
+        if (vendor) {
+          console.log('useVendorData: Found vendor data from my-vendor endpoint:', vendor);
+          setVendorData(vendor as VendorData);
         } else {
-          console.log('useVendorData: No vendor data found');
-          setError('No vendor profile found');
+          // Fallback: try localStorage (vendorId or vendor object)
+          const storedUserData = localStorage.getItem('user_data');
+          if (storedUserData) {
+            const userData = JSON.parse(storedUserData);
+            if (userData.vendor) {
+              console.log('useVendorData: Found vendor data in localStorage:', userData.vendor);
+              setVendorData(userData.vendor);
+            } else if (userData.vendorId) {
+              console.log('useVendorData: Found vendorId in localStorage, fetching vendor:', userData.vendorId);
+              const vendorById = await vendorService.getVendorById(userData.vendorId);
+              if (vendorById) {
+                setVendorData(vendorById as VendorData);
+              } else {
+                setError('No vendor profile found');
+              }
+            } else {
+              setError('No vendor profile found');
+            }
+          } else {
+            console.log('useVendorData: No vendor data found');
+            setError('No vendor profile found');
+          }
         }
       } catch (err: any) {
         console.error('useVendorData: Error fetching vendor data:', err);

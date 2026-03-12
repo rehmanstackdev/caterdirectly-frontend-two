@@ -4,11 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useBackendUsers } from "@/hooks/admin/use-backend-users";
+import { useBackendUsers, useDeleteUser } from "@/hooks/admin/use-backend-users";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { AddUserDialog } from "@/components/admin/AddUserDialog";
 import { EditUserDialog } from "@/components/admin/EditUserDialog";
-import { Pencil, UserPlus, CheckCircle2, XCircle, MessageCircle } from "lucide-react";
+import { DeleteUserDialog } from "@/components/admin/DeleteUserDialog";
+import { Pencil, UserPlus, CheckCircle2, XCircle, MessageCircle, Trash2 } from "lucide-react";
 import type { PlatformUser } from "@/types/user";
 import type { BackendUser } from "@/services/users.service";
 import type { UserRole } from "@/types/supabase-types";
@@ -24,6 +25,8 @@ function UserManagement() {
   const [addUserDialogOpen, setAddUserDialogOpen] = useState(false);
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<PlatformUser | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<BackendUser | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -40,6 +43,7 @@ function UserManagement() {
 
   const { data, isLoading, error, refetch } = useBackendUsers(currentPage, itemsPerPage);
   const { isSuperAdmin } = useAdminPermissions();
+  const deleteUserMutation = useDeleteUser();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -95,6 +99,21 @@ function UserManagement() {
     };
     setSelectedUserForEdit(platformUser);
     setEditUserDialogOpen(true);
+  };
+
+  const openDeleteDialog = (user: BackendUser) => {
+    setSelectedUserForDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteUser = () => {
+    if (!selectedUserForDelete) return;
+    deleteUserMutation.mutate(selectedUserForDelete.id, {
+      onSuccess: () => {
+        setDeleteDialogOpen(false);
+        setSelectedUserForDelete(null);
+      },
+    });
   };
 
   const handleStartChat = async (userId: string) => {
@@ -155,6 +174,7 @@ function UserManagement() {
                 <TableHead>User Type</TableHead>
                 <TableHead>Email Verified</TableHead>
                 <TableHead>Roles</TableHead>
+                <TableHead>Team Role</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Last Active</TableHead>
                 <TableHead>Actions</TableHead>
@@ -181,6 +201,9 @@ function UserManagement() {
                       <Skeleton className="h-6 w-16 rounded-full" />
                     </TableCell>
                     <TableCell>
+                      <Skeleton className="h-6 w-16 rounded-full" />
+                    </TableCell>
+                    <TableCell>
                       <Skeleton className="h-4 w-[100px]" />
                     </TableCell>
                     <TableCell>
@@ -194,7 +217,7 @@ function UserManagement() {
               )}
               {!isLoading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10">No users found.</TableCell>
+                  <TableCell colSpan={9} className="text-center py-10">No users found.</TableCell>
                 </TableRow>
               )}
               {rows.map((u) => {
@@ -225,6 +248,17 @@ function UserManagement() {
                         <Badge key={role.id} variant="secondary">{getRoleDisplayName(role.role)}</Badge>
                       )) || <Badge variant="outline">No role</Badge>}
                     </TableCell>
+                    <TableCell>
+                      {(u as any).teamMembers?.length > 0 ? (
+                        (u as any).teamMembers.map((tm: any) => (
+                          <Badge key={tm.id} variant="outline" className="capitalize">
+                            {tm.teamRole}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</TableCell>
                     <TableCell>{u.updatedAt ? new Date(u.updatedAt).toLocaleDateString() : "—"}</TableCell>
                     <TableCell>
@@ -246,6 +280,15 @@ function UserManagement() {
                         >
                           <Pencil className="h-4 w-4" />
                           Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDeleteDialog(u)}
+                          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
                         </Button>
                       </div>
                     </TableCell>
@@ -401,6 +444,18 @@ function UserManagement() {
           isSuperAdmin={isSuperAdmin}
         />
       )}
+
+      <DeleteUserDialog
+        userName={
+          selectedUserForDelete
+            ? [selectedUserForDelete.firstName, selectedUserForDelete.lastName].filter(Boolean).join(" ") || selectedUserForDelete.email
+            : ""
+        }
+        loading={deleteUserMutation.isPending}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDeleteUser}
+      />
     </Dashboard>
   );
 }

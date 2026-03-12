@@ -55,6 +55,20 @@ class VendorService extends BaseRequestService {
   }
 
   /**
+   * Get the vendor profile for the current user (works for both owners and team members)
+   */
+  getMyVendor(): Promise<Vendor | null> {
+    return this.get(`${API_URL}users/my-vendor`, {
+      headers: getAuthHeader(),
+    }).then((response: any) => {
+      return response.data || response;
+    }).catch((error) => {
+      console.error('Error fetching my vendor:', error);
+      return null;
+    });
+  }
+
+  /**
    * Get vendor by ID
    */
   getVendorById(vendorId: string): Promise<Vendor> {

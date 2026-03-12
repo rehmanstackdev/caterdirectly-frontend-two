@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Clock, MessageSquare, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/auth/useAuth';
+import { useVendorPermissions } from '@/contexts/VendorPermissionsContext';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ServiceTicket {
@@ -23,30 +23,21 @@ interface ServiceTicket {
 const VendorCustomerService: React.FC = () => {
   const [tickets, setTickets] = useState<ServiceTicket[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { vendorId } = useVendorPermissions();
 
   useEffect(() => {
     const fetchTickets = async () => {
-      if (!user) return;
+      if (!vendorId) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        // Get vendor ID for current user
-        const { data: vendorData } = await supabase
-          .from('vendors')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
-
-        if (!vendorData) {
-          setLoading(false);
-          return;
-        }
-
         // Fetch support tickets for this vendor
         const { data: ticketsData } = await supabase
           .from('vendor_support_tickets')
           .select('*')
-          .eq('vendor_id', vendorData.id)
+          .eq('vendor_id', vendorId)
           .order('created_at', { ascending: false });
 
         const mappedTickets = (ticketsData || []).map(ticket => ({
@@ -70,7 +61,7 @@ const VendorCustomerService: React.FC = () => {
     };
 
     fetchTickets();
-  }, [user]);
+  }, [vendorId]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useVendorData } from '@/hooks/vendor/use-vendor-data';
 import chatService, { type ChatRoom, type ChatMessage } from '@/services/api/chat.service';
 import socketService from '@/services/socket.service';
 import { getAuthHeader } from '@/utils/utils';
@@ -30,12 +31,20 @@ interface AdminChatMessage {
 export const useVendorChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { vendorData } = useVendorData();
   const [threads, setThreads] = useState<AdminChatThread[]>([]);
   const [loading, setLoading] = useState(false);
   const fetchingRef = useRef(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchTime = useRef(0);
   const cacheTimeout = 10000; // 10 seconds cache
+
+  // For team members, vendor owner's userId is used in room participants
+  // Use both current user.id AND vendor owner userId to identify "self" messages
+  const vendorOwnerUserId = vendorData?.user?.id;
+  const isSelfId = useCallback((id: string) => {
+    return id === user?.id || (vendorOwnerUserId ? id === vendorOwnerUserId : false);
+  }, [user?.id, vendorOwnerUserId]);
 
   const fetchChatRooms = useCallback(async (force = false) => {
     if (!user || fetchingRef.current) return;
@@ -75,8 +84,8 @@ export const useVendorChat = () => {
             let participantEmail = '';
             let participantType: 'client' | 'support' | 'vendor' | 'host' = 'support';
             
-            // Get the other participant (not current user)
-            const otherParticipant = room.participants?.find(p => p.id !== user.id);
+            // Get the other participant (not current user or vendor owner)
+            const otherParticipant = room.participants?.find(p => !isSelfId(p.id));
             let participantImageUrl = null;
             if (otherParticipant) {
               participantName = `${otherParticipant.firstName || ''} ${otherParticipant.lastName || ''}`.trim();
@@ -101,7 +110,7 @@ export const useVendorChat = () => {
               participantType = 'host';
             }
             
-            const unreadCount = messages.filter(m => !m.isRead && m.sender?.id !== user.id).length;
+            const unreadCount = messages.filter(m => !m.isRead && !isSelfId(m.sender?.id)).length;
             const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
             
             return {
@@ -297,7 +306,7 @@ export const useVendorChat = () => {
                     }],
                     last_message: message.content,
                     last_message_time: message.createdAt || new Date().toISOString(),
-                    unread_count: (message.sender?.id || message.senderId) !== user.id ? (t.unread_count || 0) + 1 : t.unread_count
+                    unread_count: !isSelfId(message.sender?.id || message.senderId) ? (t.unread_count || 0) + 1 : t.unread_count
                   }
                 : t
             )
@@ -351,6 +360,7 @@ export const useVendorChat = () => {
     markMessageAsRead,
     startChatWithAdmin,
     refreshThreads: () => fetchChatRooms(true), // Force refresh
-    isSocketConnected: socketService.isSocketConnected()
+    isSocketConnected: socketService.isSocketConnected(),
+    isSelfId
   };
 };

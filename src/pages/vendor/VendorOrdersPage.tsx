@@ -70,7 +70,7 @@ function VendorOrdersPage() {
     <VendorDashboard activeTab="orders">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Orders & Bookings</h1>
-        <VendorActionButtons />
+        {/* <VendorActionButtons /> */}
       </div>
       
       <Tabs defaultValue="pending" value={activeTab} onValueChange={setActiveTab}>

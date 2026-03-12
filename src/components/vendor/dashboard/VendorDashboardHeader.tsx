@@ -2,10 +2,12 @@
 import React from 'react';
 import { Menu, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/auth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NotificationsPopover } from '@/components/notifications/NotificationsPopover';
 import ProfileAvatarWithDropdown from '@/components/profile/ProfileAvatarWithDropdown';
+import { useVendorData } from '@/hooks/vendor/use-vendor-data';
 
 interface VendorDashboardHeaderProps {
   isMobile: boolean;
@@ -35,6 +37,7 @@ const VendorDashboardHeader: React.FC<VendorDashboardHeaderProps> = ({
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { vendorData } = useVendorData();
   
   const handleLogout = async () => {
     await signOut();
@@ -80,11 +83,16 @@ const VendorDashboardHeader: React.FC<VendorDashboardHeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {vendorData?.teamRole && vendorData.teamRole !== 'owner' && (
+            <Badge variant="outline" className="capitalize text-[#F07712] border-[#F07712]">
+              {vendorData.teamRole}
+            </Badge>
+          )}
           <NotificationsPopover />
-          <ProfileAvatarWithDropdown 
-            userRole="vendor" 
-            onLogout={handleLogout} 
-            className="border-2 border-white shadow-sm" 
+          <ProfileAvatarWithDropdown
+            userRole="vendor"
+            onLogout={handleLogout}
+            className="border-2 border-white shadow-sm"
           />
         </div>
       </div>

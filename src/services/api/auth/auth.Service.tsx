@@ -18,7 +18,9 @@ class AuthService extends BaseRequestService {
     return this.get(`${API_URL}auth/verify-email?token=${token}`);
   }
 
-
+  teamMemberLogin(data: { email: string; password: string }) {
+    return this.post(`${API_URL}vendor-team/login`, data);
+  }
 
 }
 

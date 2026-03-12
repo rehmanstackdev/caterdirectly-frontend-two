@@ -31,13 +31,14 @@ import userService from '@/services/api/user.service';
 const VendorMessagingHub: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { 
-    threads, 
-    loading, 
-    sendMessage, 
+  const {
+    threads,
+    loading,
+    sendMessage,
     markAsRead,
     startChatWithAdmin,
-    refreshThreads
+    refreshThreads,
+    isSelfId
   } = useVendorChat();
   
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -378,11 +379,11 @@ const VendorMessagingHub: React.FC = () => {
                     {selectedThread.messages.map(message => (
                       <div
                         key={message.id}
-                        className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                        className={`flex ${isSelfId(message.sender_id) ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
                           className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.sender_id === user?.id
+                            isSelfId(message.sender_id)
                               ? 'bg-[#F07712] text-white'
                               : message.message_type === 'support'
                                 ? 'bg-blue-100 text-blue-900'
@@ -400,11 +401,11 @@ const VendorMessagingHub: React.FC = () => {
                           <p className="text-sm">{message.content}</p>
                           <div className="flex items-center justify-between mt-1">
                             <span className={`text-xs ${
-                              message.sender_id === user?.id ? 'text-orange-100' : 'text-gray-500'
+                              isSelfId(message.sender_id) ? 'text-orange-100' : 'text-gray-500'
                             }`}>
                               {formatRelativeTime(message.created_at)}
                             </span>
-                            {message.sender_id === user?.id && (
+                            {isSelfId(message.sender_id) && (
                               <CheckCircle className="h-3 w-3 text-orange-100" />
                             )}
                           </div>

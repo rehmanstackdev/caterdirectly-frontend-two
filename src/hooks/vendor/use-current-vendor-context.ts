@@ -34,8 +34,8 @@ export function useCurrentVendorContext(): VendorContextResult {
           console.log('[useCurrentVendorContext] User has vendor role, fetching vendor data');
           
           try {
-            // Get vendor data from backend API
-            const vendorData = await vendorService.getVendorByUserId(user.id);
+            // Get vendor data from backend API (resolves correct vendor for both owners and team members)
+            const vendorData = await vendorService.getMyVendor();
             
             if (vendorData && vendorData.id) {
               console.log('[useCurrentVendorContext] Found vendor:', vendorData);

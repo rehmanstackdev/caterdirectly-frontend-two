@@ -4,8 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useVendorPermissions } from '@/contexts/VendorPermissionsContext';
 
 const VendorSalesCommandCenter: React.FC = () => {
+  const { allowedTabs } = useVendorPermissions();
+
+  // Hide entirely if user doesn't have services tab access (e.g. staff role)
+  if (!allowedTabs.includes('services')) return null;
+
   return (
     <Card>
       <CardContent className="pt-6">

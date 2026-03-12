@@ -21,9 +21,15 @@ export function useServiceManagement() {
   // Always use vendorId as the parameter name for consistency
   const vendorIdFromUrl = queryParams.get('vendorId') || queryParams.get('vendor');
   
-  // For vendor context, get vendor ID from localStorage user_data if not in URL
+  // For vendor context, get vendor ID from sessionStorage (set by VendorPermissionsContext)
+  // or fallback to localStorage user_data
   const getVendorIdFromStorage = () => {
     if (userRole === 'vendor') {
+      // Prefer sessionStorage — set by VendorPermissionsContext with the correct
+      // resolved vendor ID (works for both owners and team members)
+      const sessionVendorId = sessionStorage.getItem('selected_vendor_id');
+      if (sessionVendorId) return sessionVendorId;
+
       try {
         const userDataStr = localStorage.getItem('user_data');
         if (userDataStr) {

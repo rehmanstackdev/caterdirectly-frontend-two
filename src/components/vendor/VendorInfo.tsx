@@ -34,8 +34,8 @@ const VendorInfo = ({ vendorName }: VendorInfoProps) => {
       console.log('VendorInfo: Fetching data for user:', user.id);
 
       try {
-        // Get vendor data from backend API
-        const vendor = await vendorService.getVendorByUserId(user.id);
+        // Get vendor data from backend API (resolves correct vendor for both owners and team members)
+        const vendor = await vendorService.getMyVendor();
 
         if (!vendor || !vendor.id) {
           console.error('VendorInfo: No vendor found for user');
