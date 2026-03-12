@@ -1475,9 +1475,7 @@ function VendorGroupOrderSetup() {
       toast.success(
         "Group order invoice created successfully"
       );
-      if (invoiceId) {
-        navigate(`/vendor/order-summary/${invoiceId}`);
-      }
+      navigate("/vendor/dashboard");
     } catch (error) {
       toast.error("Failed to create invoice");
     } finally {

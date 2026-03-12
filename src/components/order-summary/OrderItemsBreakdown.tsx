@@ -612,7 +612,10 @@ const OrderItemsBreakdown = ({
                   : null;
 
                 return (
-                  <div key={serviceIndex} className="space-y-3">
+                  <div
+                    key={serviceIndex}
+                    className="space-y-3 border-gray-200 rounded-lg p-2 border-[0.1vw]"
+                  >
                     {/* Catering Service with Calculation Breakdown */}
                     {isCatering &&
                     cateringCalc &&
@@ -623,21 +626,21 @@ const OrderItemsBreakdown = ({
                           <div>
                             {(service as any).guestName && (
                               <div className="mt-2">
-                                <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
-                                  <p className="text-xs font-semibold text-primary">
+                                <div className="rounded-md  bg-orange-200 border border-orange-300 px-4 py-2">
+                                  <p className="text-xs font-semibold text-black">
                                     {(service as any).guestName}
                                   </p>
                                   {(service as any).guestEmail && (
-                                    <p className="text-[11px] text-primary/80">
+                                    <p className="text-[11px] text-black/60">
                                       {(service as any).guestEmail}
                                     </p>
                                   )}
                                 </div>
                               </div>
                             )}
-                            <span className="font-medium text-gray-800">
+                            <div className="font-bold uppercase text-gray-800 mt-2">
                               {serviceName}
-                            </span>
+                            </div>
                           </div>
                           {showVendorEarningsBadge &&
                             serviceVendorEarnings > 0 && (
@@ -978,7 +981,7 @@ const OrderItemsBreakdown = ({
                             </div>
                             <div className="col-span-3 text-right">
                               <span className="text-sm font-semibold text-gray-600 uppercase">
-                                Unit Price
+                                Price
                               </span>
                             </div>
                             <div className="col-span-2 text-center">

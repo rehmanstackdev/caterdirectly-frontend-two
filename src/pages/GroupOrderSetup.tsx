@@ -1480,7 +1480,7 @@ function GroupOrderSetup() {
         console.warn("[GroupOrderSetup] Failed to clear localStorage:", error);
       }
       toast.success("Group order invoice created successfully");
-      navigate(`/host/order-summary/${invoiceId}`);
+      navigate("/marketplace");
     } catch (error) {
       console.error("Failed to create group order invoice:", error);
     } finally {
