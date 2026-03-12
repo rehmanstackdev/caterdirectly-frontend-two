@@ -43,6 +43,7 @@ interface LocationState {
     message?: string;
     expiryDate?: Date;
   };
+  customAdjustments?: CustomAdjustment[];
 }
 
 interface FormData {
@@ -371,6 +372,18 @@ export function useBookingFlow() {
       }
     }
   }, [serviceData.returningFromProposalCreation, serviceData.proposalMode, setProposalMode, setProposalData]);
+
+  // Restore custom adjustments when returning via navigation state.
+  useEffect(() => {
+    if (
+      customAdjustments.length === 0 &&
+      serviceData.customAdjustments &&
+      Array.isArray(serviceData.customAdjustments) &&
+      serviceData.customAdjustments.length > 0
+    ) {
+      setCustomAdjustments(serviceData.customAdjustments);
+    }
+  }, [customAdjustments.length, serviceData.customAdjustments]);
   
   // ✅ COMPLETE: Load invoice data for editing when edit parameter is present
   useEffect(() => {

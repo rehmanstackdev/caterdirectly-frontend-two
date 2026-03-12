@@ -24,6 +24,7 @@ import AdminInvoicePage from "../pages/admin/AdminInvoicePage";
 import AdminServiceEditorPage from "../pages/admin/AdminServiceEditorPage";
 import LeadManagement from "../pages/admin/LeadManagement";
 import InvoiceManagement from "../pages/admin/InvoiceManagement";
+import GroupByInvoices from "../pages/admin/GroupByInvoices";
 import AdminWaitlistPage from "../pages/admin/AdminWaitlistPage";
 import PaymentRecoveryPage from "../pages/admin/PaymentRecoveryPage";
 import EmailAnalytics from "../pages/admin/EmailAnalytics";
@@ -37,6 +38,7 @@ import AdminGroupOrderRedirect from "../components/admin/AdminGroupOrderRedirect
 import AdminMessagingPage from "../pages/admin/AdminMessagingPage";
 import AdminInvoiceDetailsPage from "../pages/admin/AdminInvoiceDetailsPage";
 import AdminEditInvoicePage from "../pages/admin/AdminEditInvoicePage";
+import AdminGroupEditInvoice from "../pages/admin/AdminGroupEditInvoice";
 import AdminOrderDetailsPage from "../pages/admin/AdminOrderDetailsPage";
 import AdminOrderSummaryPage from "../pages/admin/AdminOrderSummaryPage";
 import AdminCalendarPage from "@/pages/super-admin/AdminCalendarPage";
@@ -167,6 +169,22 @@ const AdminRoutes = (
       element={
         <ProtectedRoute userRole="admin">
           <AdminInvoiceDetailsPage />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/groupbyinvoices/:id"
+      element={
+        <ProtectedRoute userRole="admin">
+          <GroupByInvoices />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/groupbyinvoices/edit/:id"
+      element={
+        <ProtectedRoute userRole="admin">
+          <AdminGroupEditInvoice />
         </ProtectedRoute>
       }
     />

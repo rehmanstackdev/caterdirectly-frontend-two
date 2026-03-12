@@ -333,8 +333,20 @@ const InvoiceManagement = () => {
   };
 
   const handleViewInvoice = (invoice: InvoiceType) => {
-    // Navigate to dedicated invoice details page
+    // Navigate to group-by invoice page when applicable
+    if ((invoice as any).groupBy) {
+      navigate(`/admin/groupbyinvoices/${invoice.id}`);
+      return;
+    }
     navigate(`/admin/invoices/${invoice.id}`);
+  };
+
+  const handleEditInvoice = (invoice: InvoiceType) => {
+    if ((invoice as any).groupBy) {
+      navigate(`/admin/groupbyinvoices/edit/${invoice.id}`);
+      return;
+    }
+    navigate(`/admin/invoices/edit/${invoice.id}`);
   };
 
   const handleViewOrderDetail = (invoice: InvoiceType) => {
@@ -344,7 +356,9 @@ const InvoiceManagement = () => {
 
   const handleCopyInvoiceLink = async (invoice: InvoiceType) => {
     try {
-      const invoiceUrl = `${window.location.origin}/order-summary/${invoice.id}`;
+      const invoiceUrl = (invoice as any).groupBy
+        ? `${window.location.origin}/group-order/host-summary/${invoice.id}`
+        : `${window.location.origin}/order-summary/${invoice.id}`;
       await navigator.clipboard.writeText(invoiceUrl);
       sonnerToast.success("Invoice link copied to clipboard");
     } catch (error) {
@@ -1023,11 +1037,7 @@ const InvoiceManagement = () => {
                                     "draft",
                                   ].includes(statusFilter) && (
                                     <DropdownMenuItem
-                                      onClick={() =>
-                                        navigate(
-                                          `/admin/invoices/edit/${invoice.id}`,
-                                        )
-                                      }
+                                      onClick={() => handleEditInvoice(invoice)}
                                     >
                                       <Pencil className="h-4 w-4 mr-2" />
                                       Edit Invoice

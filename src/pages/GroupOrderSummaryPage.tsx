@@ -12,7 +12,7 @@ const GroupOrderSummaryPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { orderId } = location.state || {};
-  
+
   const [loading, setLoading] = useState(true);
   const [orderData, setOrderData] = useState<any>(null);
   const [guestOrders, setGuestOrders] = useState<GuestOrder[]>([]);
@@ -20,48 +20,60 @@ const GroupOrderSummaryPage = () => {
 
   // Track loaded order to prevent duplicate API calls
   const loadedOrderRef = useRef<string | null>(null);
-  
+
   // Load order data
   useEffect(() => {
     const loadOrderData = async () => {
       if (!orderId) {
-        toast.error('Order ID missing');
-        navigate('/group-order/setup');
+        toast.error("Order ID missing");
+        navigate("/group-order/setup");
         return;
       }
 
       // Prevent duplicate loading
       if (loadedOrderRef.current === orderId) {
-        console.log('[GroupOrderSummaryPage] Order already loaded, skipping API call');
+        console.log(
+          "[GroupOrderSummaryPage] Order already loaded, skipping API call",
+        );
         return;
       }
 
       try {
-        console.log('[GroupOrderSummaryPage] Loading order data for ID:', orderId);
+        console.log(
+          "[GroupOrderSummaryPage] Loading order data for ID:",
+          orderId,
+        );
         loadedOrderRef.current = orderId;
         setLoading(true);
-        
+
         // API call replaced with console log
-        console.log('[GroupOrderSummaryPage] Would fetch group order from API for ID:', orderId);
+        console.log(
+          "[GroupOrderSummaryPage] Would fetch group order from API for ID:",
+          orderId,
+        );
         const order = null; // Placeholder - API call disabled
-        
+
         // API call disabled - using console logs instead
         if (!order) {
-          console.warn('[GroupOrderSummaryPage] No order data available (API call disabled)');
-          toast.error('Order loading is currently disabled. Please use the API to load order data.');
+          console.warn(
+            "[GroupOrderSummaryPage] No order data available (API call disabled)",
+          );
+          toast.error(
+            "Order loading is currently disabled. Please use the API to load order data.",
+          );
           setLoading(false);
           return;
         }
-        
+
         // Data processing would happen here if order was loaded
-        console.log('[GroupOrderSummaryPage] Would process order data:', {
+        console.log("[GroupOrderSummaryPage] Would process order data:", {
           orderId: orderId,
           guestOrders: 0,
-          orderItems: 0
+          orderItems: 0,
         });
       } catch (error) {
-        console.error('Error loading order:', error);
-        toast.error('Failed to load order data');
+        console.error("Error loading order:", error);
+        toast.error("Failed to load order data");
       } finally {
         setLoading(false);
       }
@@ -72,14 +84,14 @@ const GroupOrderSummaryPage = () => {
 
   const handleConfirmOrder = () => {
     toast.success("Order confirmed! Payment processing would happen here.");
-    navigate('/order-confirmation', {
-      state: { orderId }
+    navigate("/order-confirmation", {
+      state: { orderId },
     });
   };
 
   const handleEditOrder = () => {
-    navigate('/group-order/review', {
-      state: { orderId }
+    navigate("/group-order/review", {
+      state: { orderId },
     });
   };
 
@@ -102,7 +114,7 @@ const GroupOrderSummaryPage = () => {
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <p className="text-gray-500 mb-4">Order not found</p>
-            <Button onClick={() => navigate('/group-order/setup')}>
+            <Button onClick={() => navigate("/group-order/setup")}>
               Go Back to Setup
             </Button>
           </div>

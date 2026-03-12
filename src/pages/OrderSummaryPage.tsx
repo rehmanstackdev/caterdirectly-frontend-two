@@ -52,6 +52,7 @@ function OrderSummaryPage() {
     guestName: string;
     guestEmail: string;
   }>>([]);
+  const [hasBackendDeliveryFees, setHasBackendDeliveryFees] = useState(false);
 
   // SSOT: Extract proposalId, token, and invoiceId from location.state
   // Only use these if we're editing the SAME invoice (not a different one)
@@ -133,6 +134,8 @@ function OrderSummaryPage() {
 
       for (const item of comboItems) {
         const service = ensureService(item?.serviceId || item?.service_id || item?.serviceID);
+        const premiumCharge = item?.premiumCharge ?? item?.additionalCharge ?? 0;
+        const quantity = Number(item?.quantity || 0);
         service.comboCategoryItems.push({
           ...item,
           price: Number(item?.price || 0),
@@ -140,7 +143,9 @@ function OrderSummaryPage() {
           totalPrice: Number(item?.totalPrice || 0),
           premiumCharge: item?.premiumCharge != null ? Number(item.premiumCharge) : 0,
         });
-        service.totalPrice += Number(item?.totalPrice || 0);
+        if (premiumCharge) {
+          service.totalPrice += Number(premiumCharge) * (quantity || 1);
+        }
         if (!service.image && item?.image) service.image = item.image;
       }
     }
@@ -150,6 +155,78 @@ function OrderSummaryPage() {
       totalPrice: Number(service.totalPrice.toFixed(2)),
       serviceName: service.serviceName || 'Catering Service',
     }));
+  }, []);
+
+  const buildGuestCateringServices = useCallback((guestOrders: any[] = []) => {
+    const services: any[] = [];
+
+    guestOrders.forEach((order: any) => {
+      const guestName = order?.guestName || 'Guest';
+      const guestEmail = order?.guestEmail || '-';
+      const guestId = order?.id || guestEmail || guestName;
+      const orderServices = Array.isArray(order?.services) ? order.services : [];
+      const cateringItems = Array.isArray(order?.cateringItems) ? order.cateringItems : [];
+      const comboItems = Array.isArray(order?.comboItems) ? order.comboItems : [];
+      const items = Array.isArray(order?.items) ? order.items : [];
+
+      orderServices.forEach((service: any) => {
+        const serviceId = service?.serviceId || 'unknown-service';
+        const serviceType = service?.serviceType || 'catering';
+        const serviceName = service?.serviceName || 'Catering Service';
+
+        const serviceCateringItems = cateringItems.length > 0
+          ? cateringItems.filter((item: any) => item.serviceId === serviceId)
+          : items
+              .filter((item: any) => item.serviceId === serviceId && !item.isComboCategoryItem)
+              .map((item: any) => ({
+                ...item,
+                cateringId: item.cateringId || item.id,
+                menuItemName: item.menuItemName || item.name,
+                menuName: item.menuName,
+                price: item.price,
+                quantity: item.quantity,
+                totalPrice: item.totalPrice,
+              }));
+
+        const serviceComboItems = comboItems.length > 0
+          ? comboItems.filter((item: any) => item.serviceId === serviceId)
+          : items
+              .filter((item: any) => item.serviceId === serviceId && item.isComboCategoryItem)
+              .map((item: any) => ({
+                ...item,
+                cateringId: item.cateringId || item.id,
+                menuItemName: item.menuItemName || item.name,
+                menuName: item.menuName,
+                comboId: item.comboId,
+                premiumCharge: item.premiumCharge,
+                price: item.price,
+                quantity: item.quantity,
+                totalPrice: item.totalPrice,
+              }));
+
+        services.push({
+          id: `guest-${guestId}-${serviceId}`,
+          serviceId,
+          serviceType,
+          serviceName,
+          totalPrice: Number(service?.serviceTotal || 0),
+          priceType: 'flat',
+          price: 0,
+          quantity: 1,
+          image: service?.image || '',
+          vendorId: service?.vendorId,
+          vendorEarnings: service?.vendorEarnings,
+          deliveryFee: '0',
+          cateringItems: serviceCateringItems,
+          comboCategoryItems: serviceComboItems,
+          guestName,
+          guestEmail,
+          isGuestService: true,
+        });
+      });
+    });
+
+    return services;
   }, []);
 
   // Get current invoice ID from formData or session (must be after formData state declaration)
@@ -208,8 +285,86 @@ function OrderSummaryPage() {
           let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
             ? invoiceData.services
             : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
-          if (apiServices.length === 0 && Array.isArray((summaryData as any).guestOrders)) {
-            apiServices = buildServicesFromGuestOrders((summaryData as any).guestOrders);
+          const guestOrders = Array.isArray((summaryData as any).guestOrders)
+            ? (summaryData as any).guestOrders
+            : [];
+          const shouldUseGuestServices = isGroupOrderHostSummaryRoute && guestOrders.length > 0;
+          const guestCateringServices = shouldUseGuestServices
+            ? buildGuestCateringServices(guestOrders)
+            : [];
+          const guestServices = guestOrders.length > 0
+            ? buildServicesFromGuestOrders(guestOrders)
+            : [];
+
+          if (shouldUseGuestServices && guestCateringServices.length > 0) {
+            const nonCateringServices = apiServices.filter((service: any) => {
+              const serviceType = service?.serviceType || '';
+              return serviceType !== 'catering';
+            });
+            apiServices = [...nonCateringServices, ...guestCateringServices];
+          } else if (apiServices.length === 0 && guestServices.length > 0) {
+            apiServices = guestServices;
+          } else if (guestServices.length > 0) {
+            const mergedByServiceId = new Map<string, any>();
+            apiServices.forEach((service) => {
+              const key = String(service.serviceId || service.id || "");
+              mergedByServiceId.set(key, service);
+            });
+            guestServices.forEach((guestService) => {
+              const key = String(guestService.serviceId || guestService.id || "");
+              const existing = mergedByServiceId.get(key);
+              if (!existing) {
+                mergedByServiceId.set(key, guestService);
+                return;
+              }
+              const existingCateringItems = Array.isArray(existing.cateringItems)
+                ? existing.cateringItems
+                : [];
+              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+                ? existing.comboCategoryItems
+                : [];
+              const extraCatering = Array.isArray(guestService.cateringItems)
+                ? guestService.cateringItems
+                : [];
+              const extraCombo = Array.isArray(guestService.comboCategoryItems)
+                ? guestService.comboCategoryItems
+                : [];
+
+              const mergedCateringItems = [
+                ...existingCateringItems,
+                ...extraCatering,
+              ].filter((item) => item);
+              const mergedComboItems = [
+                ...existingComboItems,
+                ...extraCombo,
+              ].filter((item) => item);
+              const cateringKeySet = new Set<string>();
+              const comboKeySet = new Set<string>();
+
+              const dedupedCateringItems = mergedCateringItems.filter((item) => {
+                const id = String(item.cateringId || item.id || "");
+                if (!id || cateringKeySet.has(id)) return false;
+                cateringKeySet.add(id);
+                return true;
+              });
+              const dedupedComboItems = mergedComboItems.filter((item) => {
+                const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
+                if (comboKeySet.has(comboKey)) return false;
+                comboKeySet.add(comboKey);
+                return true;
+              });
+
+              mergedByServiceId.set(key, {
+                ...existing,
+                serviceType: existing.serviceType || guestService.serviceType,
+                serviceName: existing.serviceName || guestService.serviceName,
+                image: existing.image || guestService.image,
+                cateringItems: dedupedCateringItems,
+                comboCategoryItems: dedupedComboItems,
+                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+              });
+            });
+            apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format
@@ -238,6 +393,7 @@ function OrderSummaryPage() {
                   id: item.cateringId || item.id,
                   name: item.menuItemName || item.name,
                   price: parseFloat(item.price || 0),
+                  quantity: item.quantity || 1,
                   category: item.menuName || 'Menu',
                   menuName: item.menuName,
                   menuItemName: item.menuItemName,
@@ -253,6 +409,7 @@ function OrderSummaryPage() {
               
               // Build selectedItems from cateringItems
               service.cateringItems.forEach((item: any) => {
+                if ((service as any).isGuestService) return;
                 const itemId = item.cateringId || item.id;
                 if (itemId) {
                   mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
@@ -452,6 +609,10 @@ function OrderSummaryPage() {
               serviceId: serviceId,
               name: service.serviceName,
               serviceName: service.serviceName,
+              guestName: (service as any).guestName,
+              guestEmail: (service as any).guestEmail,
+              isGuestService: (service as any).isGuestService,
+              vendorEarnings: service.vendorEarnings,
               price: parseFloat(service.price) || 0,
               servicePrice: service.price,
               totalPrice: parseFloat(service.totalPrice) || 0,
@@ -471,6 +632,13 @@ function OrderSummaryPage() {
               deliveryFee: service.deliveryFee || '0'
             };
           });
+
+          const deliveryFeeFromBackend = apiServices.some(
+            (service: any) =>
+              service?.deliveryFee !== null &&
+              service?.deliveryFee !== undefined &&
+              service?.deliveryFee !== '',
+          );
           
           // Map custom line items to custom adjustments
           const mappedAdjustments: CustomAdjustment[] = (invoiceData.customLineItems || []).map((item: any) => ({
@@ -523,6 +691,7 @@ function OrderSummaryPage() {
           setSelectedItems(mappedSelectedItems);
           setFormData(mappedFormData);
           setHostGuestOrders(mappedGuestOrders);
+          setHasBackendDeliveryFees(deliveryFeeFromBackend);
           
           // Store payment intent data
           if (summaryData.paymentIntentId) {
@@ -805,8 +974,85 @@ const calculateTotalWithTip = () => {
           let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
             ? invoiceData.services
             : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
-          if (apiServices.length === 0 && Array.isArray((summaryData as any).guestOrders)) {
-            apiServices = buildServicesFromGuestOrders((summaryData as any).guestOrders);
+          const guestOrders = Array.isArray((summaryData as any).guestOrders)
+            ? (summaryData as any).guestOrders
+            : [];
+          const shouldUseGuestServices = isGroupOrderHostSummaryRoute && guestOrders.length > 0;
+          const guestCateringServices = shouldUseGuestServices
+            ? buildGuestCateringServices(guestOrders)
+            : [];
+          const guestServices = guestOrders.length > 0
+            ? buildServicesFromGuestOrders(guestOrders)
+            : [];
+          if (shouldUseGuestServices && guestCateringServices.length > 0) {
+            const nonCateringServices = apiServices.filter((service: any) => {
+              const serviceType = service?.serviceType || '';
+              return serviceType !== 'catering';
+            });
+            apiServices = [...nonCateringServices, ...guestCateringServices];
+          } else if (apiServices.length === 0 && guestServices.length > 0) {
+            apiServices = guestServices;
+          } else if (guestServices.length > 0) {
+            const mergedByServiceId = new Map<string, any>();
+            apiServices.forEach((service) => {
+              const key = String(service.serviceId || service.id || "");
+              mergedByServiceId.set(key, service);
+            });
+            guestServices.forEach((guestService) => {
+              const key = String(guestService.serviceId || guestService.id || "");
+              const existing = mergedByServiceId.get(key);
+              if (!existing) {
+                mergedByServiceId.set(key, guestService);
+                return;
+              }
+              const existingCateringItems = Array.isArray(existing.cateringItems)
+                ? existing.cateringItems
+                : [];
+              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+                ? existing.comboCategoryItems
+                : [];
+              const extraCatering = Array.isArray(guestService.cateringItems)
+                ? guestService.cateringItems
+                : [];
+              const extraCombo = Array.isArray(guestService.comboCategoryItems)
+                ? guestService.comboCategoryItems
+                : [];
+
+              const mergedCateringItems = [
+                ...existingCateringItems,
+                ...extraCatering,
+              ].filter((item) => item);
+              const mergedComboItems = [
+                ...existingComboItems,
+                ...extraCombo,
+              ].filter((item) => item);
+              const cateringKeySet = new Set<string>();
+              const comboKeySet = new Set<string>();
+
+              const dedupedCateringItems = mergedCateringItems.filter((item) => {
+                const id = String(item.cateringId || item.id || "");
+                if (!id || cateringKeySet.has(id)) return false;
+                cateringKeySet.add(id);
+                return true;
+              });
+              const dedupedComboItems = mergedComboItems.filter((item) => {
+                const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
+                if (comboKeySet.has(comboKey)) return false;
+                comboKeySet.add(comboKey);
+                return true;
+              });
+
+              mergedByServiceId.set(key, {
+                ...existing,
+                serviceType: existing.serviceType || guestService.serviceType,
+                serviceName: existing.serviceName || guestService.serviceName,
+                image: existing.image || guestService.image,
+                cateringItems: dedupedCateringItems,
+                comboCategoryItems: dedupedComboItems,
+                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+              });
+            });
+            apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format
@@ -835,6 +1081,7 @@ const calculateTotalWithTip = () => {
                   id: item.cateringId || item.id,
                   name: item.menuItemName || item.name,
                   price: parseFloat(item.price || 0),
+                  quantity: item.quantity || 1,
                   category: item.menuName || 'Menu',
                   menuName: item.menuName,
                   menuItemName: item.menuItemName,
@@ -850,6 +1097,7 @@ const calculateTotalWithTip = () => {
               
               // Build selectedItems from cateringItems
               service.cateringItems.forEach((item: any) => {
+                if ((service as any).isGuestService) return;
                 const itemId = item.cateringId || item.id;
                 if (itemId) {
                   mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
@@ -1049,6 +1297,10 @@ const calculateTotalWithTip = () => {
               serviceId: serviceId,
               name: service.serviceName,
               serviceName: service.serviceName,
+              guestName: (service as any).guestName,
+              guestEmail: (service as any).guestEmail,
+              isGuestService: (service as any).isGuestService,
+              vendorEarnings: service.vendorEarnings,
               price: parseFloat(service.price) || 0,
               servicePrice: service.price,
               totalPrice: parseFloat(service.totalPrice) || 0,
@@ -1088,6 +1340,7 @@ const calculateTotalWithTip = () => {
           setSelectedServices(mappedServices);
           setSelectedItems(mappedSelectedItems);
           setHostGuestOrders(mappedGuestOrders);
+          setHasBackendDeliveryFees(deliveryFeeFromBackend);
           setFormData(prev => ({
             ...prev,
             customAdjustments: mappedAdjustments,
@@ -1296,6 +1549,7 @@ const calculateTotalWithTip = () => {
                   isTaxExempt={isTaxExempt}
                   isServiceFeeWaived={isServiceFeeWaived}
                   pricingSnapshot={null}
+                  showDeliveryFeesAlways={hasBackendDeliveryFees}
                 />
                 {!proposalMode && (
                   <>
