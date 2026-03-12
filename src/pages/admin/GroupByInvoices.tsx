@@ -127,7 +127,9 @@ const GroupByInvoices = () => {
       const guestName = order?.guestName || "Guest";
       const guestEmail = order?.guestEmail || "-";
       const guestId = order?.id || guestEmail || guestName;
-      const orderServices = Array.isArray(order?.services) ? order.services : [];
+      const orderServices = Array.isArray(order?.services)
+        ? order.services
+        : [];
       const cateringItems = Array.isArray(order?.cateringItems)
         ? order.cateringItems
         : [];
@@ -147,8 +149,7 @@ const GroupByInvoices = () => {
             : items
                 .filter(
                   (item: any) =>
-                    item.serviceId === serviceId &&
-                    !item.isComboCategoryItem,
+                    item.serviceId === serviceId && !item.isComboCategoryItem,
                 )
                 .map((item: any) => ({
                   ...item,
@@ -166,8 +167,7 @@ const GroupByInvoices = () => {
             : items
                 .filter(
                   (item: any) =>
-                    item.serviceId === serviceId &&
-                    item.isComboCategoryItem,
+                    item.serviceId === serviceId && item.isComboCategoryItem,
                 )
                 .map((item: any) => ({
                   ...item,
@@ -272,9 +272,7 @@ const GroupByInvoices = () => {
           ? (summaryData as any).guestOrders
           : [];
         const guestCateringServices =
-          guestOrders.length > 0
-            ? buildGuestCateringServices(guestOrders)
-            : [];
+          guestOrders.length > 0 ? buildGuestCateringServices(guestOrders) : [];
         const guestServices =
           guestOrders.length > 0
             ? buildServicesFromGuestOrders(guestOrders)
@@ -849,30 +847,6 @@ const GroupByInvoices = () => {
                 )}
               </CardContent>
             </Card>
-            <CardTitle className="flex items-center gap-2">
-              Guest Details
-            </CardTitle>
-            {hostGuestOrders.length > 0 && (
-              <Card className="p-4 sm:p-5 border border-gray-200">
-                <div className="space-y-3">
-                  {hostGuestOrders.map((guest) => (
-                    <div
-                      key={guest.id || guest.guestEmail}
-                      className="rounded-md border border-primary/20 bg-primary/5 p-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-primary">
-                          {guest.guestName}
-                        </p>
-                        <p className="text-xs text-primary/80">
-                          {guest.guestEmail}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
 
             <OrderItemsBreakdown
               services={selectedServices}

@@ -531,6 +531,8 @@ function AdminGroupOrderSetup() {
             addingToExistingBooking: true,
             replaceService: true,
             allowAllServiceTypes: true, // Flag to allow all service types
+            isGroupOrder: true,
+            returnRoute: "/admin/group-order/setup",
           },
         });
       };
@@ -1745,6 +1747,8 @@ function AdminGroupOrderSetup() {
                             bookingMode: true,
                             addingToExistingBooking: true,
                             allowAllServiceTypes: true,
+                            isGroupOrder: true,
+                            returnRoute: "/admin/group-order/setup",
                           },
                         });
                       }}

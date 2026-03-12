@@ -214,14 +214,18 @@ const GroupOrderInvitation = () => {
                 <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden xl:pr-2">
                   <Card className="border-black/10 shadow-sm">
                     <CardContent className="p-5">
-                      <h2 className="text-lg font-semibold">Accept Invitation</h2>
-                      <p className="mt-2 text-sm text-gray-600">
+                      <h2 className="text-lg text-center font-semibold">
+                        Accept Invitation
+                      </h2>
+                      <p className="mt-2 text-sm text-center text-gray-600">
                         Please accept the invitation before placing your order.
                       </p>
                       <Button
                         className="mt-4 w-full bg-[#F07712] hover:bg-[#F07712]/90"
                         onClick={handleAcceptInvitation}
-                        disabled={isAccepted || isAccepting || hasSubmittedOrder}
+                        disabled={
+                          isAccepted || isAccepting || hasSubmittedOrder
+                        }
                       >
                         {isAccepted
                           ? "Invitation Accepted"
@@ -235,51 +239,13 @@ const GroupOrderInvitation = () => {
                   {hasSubmittedOrder ? (
                     <Card className="border-black/10 shadow-sm">
                       <CardContent className="p-5">
-                        <h2 className="text-lg font-semibold">
+                        <h2 className="text-lg text-center font-semibold">
                           Order Already Submitted
                         </h2>
-                        <p className="mt-2 text-sm text-gray-600">
-                          We have received your order. No further action is needed.
+                        <p className="mt-2 text-sm text-center text-gray-600">
+                          We have received your order. No further action is
+                          needed.
                         </p>
-                        {orderData?.guestOrder?.items?.length > 0 && (
-                          <div className="mt-4 space-y-2">
-                            <div className="rounded-lg border border-black/10 bg-white p-3 text-sm text-gray-700">
-                              {orderData.guestOrder.items.map(
-                                (item: GuestOrderItem, index: number) => (
-                                  <div
-                                    key={`${item.id || index}`}
-                                    className="flex justify-between py-1"
-                                  >
-                                    <span className="mr-2">
-                                      {item.quantity} x{" "}
-                                      {item.name ||
-                                        item.menuItemName ||
-                                        item.menuName}
-                                    </span>
-                                    <span>
-                                      $
-                                      {(
-                                        Number(item.price || 0) *
-                                        Number(item.quantity || 0)
-                                      ).toFixed(2)}
-                                    </span>
-                                  </div>
-                                ),
-                              )}
-                              {orderData.guestOrder.totalPrice !== undefined && (
-                                <div className="flex justify-between border-t border-black/10 pt-2 mt-2 font-semibold">
-                                  <span>Total</span>
-                                  <span>
-                                    $
-                                    {Number(
-                                      orderData.guestOrder.totalPrice || 0,
-                                    ).toFixed(2)}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
                   ) : isAccepted ? (
@@ -294,7 +260,10 @@ const GroupOrderInvitation = () => {
                         setSelectedServices([]);
                         setSelectedItems({});
                       }}
-                      onSelectionChange={({ selectedServices, selectedItems }) => {
+                      onSelectionChange={({
+                        selectedServices,
+                        selectedItems,
+                      }) => {
                         setSelectedServices(selectedServices);
                         setSelectedItems(selectedItems);
                       }}
@@ -352,23 +321,23 @@ const GroupOrderInvitation = () => {
                     </CardContent>
                   </Card>
 
-                  {isAccepted && !hasSubmittedOrder && !isSubmissionComplete && (
-                    <div className="mt-4">
-                      <EnhancedOrderSummaryCard
-                        selectedServices={selectedServices}
-                        selectedItems={selectedItems}
-                        showCheckoutTaxNote={false}
-                        showItemCountFooter={false}
-                      />
-                    </div>
-                  )}
+                  {isAccepted &&
+                    !hasSubmittedOrder &&
+                    !isSubmissionComplete && (
+                      <div className="mt-4">
+                        <EnhancedOrderSummaryCard
+                          selectedServices={selectedServices}
+                          selectedItems={selectedItems}
+                          showCheckoutTaxNote={false}
+                          showItemCountFooter={false}
+                        />
+                      </div>
+                    )}
 
                   <div id="group-order-your-information" className="mt-4" />
 
                   {showNeedHelpOnRight && (
-                    <div className="mt-4">
-                      {needHelpCard}
-                    </div>
+                    <div className="mt-4">{needHelpCard}</div>
                   )}
                 </div>
               </div>
