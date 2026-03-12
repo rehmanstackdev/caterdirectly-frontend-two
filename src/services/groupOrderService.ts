@@ -148,7 +148,8 @@ export const groupOrderService = {
     token: string,
     guestInfo: any,
     selectedItems: any[],
-    total?: number
+    total?: number,
+    serviceTotals?: Array<{ serviceId: string; total: number }>
   ): Promise<boolean> {
     const normalizeItem = (item: any) => {
       const rawId = String(item?.id || item?.cateringId || "").trim();
@@ -194,6 +195,7 @@ export const groupOrderService = {
         dietaryRestrictions: guestInfo.dietaryRestrictions,
         total,
         items: normalizedItems,
+        serviceTotals,
       })
     });
 

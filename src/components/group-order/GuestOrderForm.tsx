@@ -21,6 +21,7 @@ import { groupOrderService } from "@/services/groupOrderService";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import EnhancedOrderSummaryCard from "@/components/booking/order-summary/EnhancedOrderSummaryCard";
 import { ServiceSelection } from "@/types/order";
+import { calculateServiceTotal } from "@/utils/unified-calculations";
 
 // Define the form schema
 const formSchema = z.object({
@@ -811,6 +812,15 @@ const GuestOrderForm = ({
           return;
         }
 
+        // Calculate per-service totals using the same function as EnhancedOrderSummaryCard
+        const serviceTotals = invitationServices
+          .map((service) => {
+            const serviceId = service.serviceId || service.id || "";
+            const total = calculateServiceTotal(service, selectedItemQuantities, 1);
+            return { serviceId, total: Math.round(total * 100) / 100 };
+          })
+          .filter((st) => st.serviceId && st.total > 0);
+
         // Submit real guest order
         await groupOrderService.submitGuestOrder(
           token,
@@ -820,7 +830,8 @@ const GuestOrderForm = ({
             phone: values.phone,
           },
           payloadItems,
-          subtotal
+          subtotal,
+          serviceTotals
         );
 
         setSubmitted(true);
