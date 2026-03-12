@@ -343,7 +343,7 @@ const InvoiceManagement = () => {
 
   const handleEditInvoice = (invoice: InvoiceType) => {
     if ((invoice as any).groupBy) {
-      navigate(`/admin/groupbyinvoices/${invoice.id}`);
+      navigate(`/admin/groupbyinvoices/edit/${invoice.id}`);
       return;
     }
     navigate(`/admin/invoices/edit/${invoice.id}`);
@@ -356,7 +356,9 @@ const InvoiceManagement = () => {
 
   const handleCopyInvoiceLink = async (invoice: InvoiceType) => {
     try {
-      const invoiceUrl = `${window.location.origin}/order-summary/${invoice.id}`;
+      const invoiceUrl = (invoice as any).groupBy
+        ? `${window.location.origin}/group-order/host-summary/${invoice.id}`
+        : `${window.location.origin}/order-summary/${invoice.id}`;
       await navigator.clipboard.writeText(invoiceUrl);
       sonnerToast.success("Invoice link copied to clipboard");
     } catch (error) {

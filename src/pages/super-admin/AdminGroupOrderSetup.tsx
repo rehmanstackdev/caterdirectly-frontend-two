@@ -339,6 +339,19 @@ function AdminGroupOrderSetup() {
 
   const [customAdjustments, setCustomAdjustments] = useState<any[]>([]);
 
+  const hasCartItems = useMemo(() => {
+    const hasSelectedItems = Object.values(state.selectedItems || {}).some(
+      (qty) => Number(qty) > 0,
+    );
+    const hasNonCateringService = (state.selectedServices || []).some(
+      (service: any) => {
+        const serviceType = service?.serviceType || service?.type || "";
+        return serviceType && serviceType !== "catering";
+      },
+    );
+    return hasSelectedItems || hasNonCateringService;
+  }, [state.selectedItems, state.selectedServices]);
+
   // Handle loading draft
   const handleLoadDraft = (draft: any) => {
     console.log("Loading draft:", draft);
@@ -1834,11 +1847,13 @@ function AdminGroupOrderSetup() {
                     />
 
                     <div className="sticky bottom-0 bg-white w-full max-w-full overflow-x-hidden mt-4 pt-3 border-t border-gray-200">
-                      <CreateOrderButton
-                        isGroupOrder={state.orderType}
-                        onClick={handleCreateGroupOrder}
-                        isLoading={isCreatingOrder}
-                      />
+                      {hasCartItems && (
+                        <CreateOrderButton
+                          isGroupOrder={state.orderType}
+                          onClick={handleCreateGroupOrder}
+                          isLoading={isCreatingOrder}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

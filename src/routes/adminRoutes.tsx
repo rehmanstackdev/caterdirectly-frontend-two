@@ -38,6 +38,7 @@ import AdminGroupOrderRedirect from "../components/admin/AdminGroupOrderRedirect
 import AdminMessagingPage from "../pages/admin/AdminMessagingPage";
 import AdminInvoiceDetailsPage from "../pages/admin/AdminInvoiceDetailsPage";
 import AdminEditInvoicePage from "../pages/admin/AdminEditInvoicePage";
+import AdminGroupEditInvoice from "../pages/admin/AdminGroupEditInvoice";
 import AdminOrderDetailsPage from "../pages/admin/AdminOrderDetailsPage";
 import AdminOrderSummaryPage from "../pages/admin/AdminOrderSummaryPage";
 import AdminCalendarPage from "@/pages/super-admin/AdminCalendarPage";
@@ -176,6 +177,14 @@ const AdminRoutes = (
       element={
         <ProtectedRoute userRole="admin">
           <GroupByInvoices />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/admin/groupbyinvoices/edit/:id"
+      element={
+        <ProtectedRoute userRole="admin">
+          <AdminGroupEditInvoice />
         </ProtectedRoute>
       }
     />

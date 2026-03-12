@@ -11,6 +11,7 @@ import AdditionalNotes from "@/components/group-order/AdditionalNotes";
 import CreateOrderButton from "@/components/group-order/CreateOrderButton";
 import BookingVendorCard from "@/components/booking/BookingVendorCard";
 import AdditionalServices from "@/components/booking/AdditionalServices";
+import AddServiceButton from "@/components/booking/order-summary/AddServiceButton";
 import { EnhancedCartManagement } from "@/components/cart/EnhancedCartManagement";
 import { useToast } from "@/components/ui/use-toast";
 import { ServiceSelection } from "@/types/order";
@@ -230,16 +231,6 @@ function VendorGroupOrderSetup() {
       );
     }
 
-    const cateringOnlyServices = finalServices.filter((service) => {
-      const serviceType = String(service?.serviceType || service?.type || "").toLowerCase();
-      return serviceType === "catering";
-    });
-
-    if (cateringOnlyServices.length !== finalServices.length) {
-      toast.error("Only Catering service type is allowed for group orders.");
-      finalServices = cateringOnlyServices;
-    }
-
     if (finalServices.length > 0) {
       setSelectedServices(finalServices);
 
@@ -371,6 +362,20 @@ function VendorGroupOrderSetup() {
   };
 
   const [customAdjustments, setCustomAdjustments] = useState<any[]>([]);
+  const hasCartItems = useMemo(() => {
+    const hasSelectedItems = Object.values(state.selectedItems || {}).some(
+      (qty) => Number(qty) > 0,
+    );
+    if (hasSelectedItems) return true;
+
+    // Allow non-catering services to enable create button even without item selection
+    return (state.selectedServices || []).some((service) => {
+      const serviceType = String(service?.serviceType || service?.type || "").toLowerCase();
+      const isNonCatering = serviceType && serviceType !== "catering";
+      const qty = Number((service as any)?.quantity || 0);
+      return isNonCatering && qty > 0;
+    });
+  }, [state.selectedItems, state.selectedServices]);
 
   // Handle loading draft
   const handleLoadDraft = (draft: any) => {
@@ -666,22 +671,6 @@ function VendorGroupOrderSetup() {
           // }
         }
       }
-    }
-
-    const hasNonCateringService = state.selectedServices.some((service) => {
-      const serviceType = String(service.serviceType || service.type || "").toLowerCase();
-      return serviceType === "venue" ||
-             serviceType === "venues" ||
-             serviceType === "staff" ||
-             serviceType === "events_staff" ||
-             serviceType === "party_rentals" ||
-             serviceType === "party-rental" ||
-             serviceType === "party-rentals";
-    });
-
-    if (hasNonCateringService) {
-      toast.error("Only Catering service type is allowed for group orders.");
-      return;
     }
 
     setIsCreatingOrder(true);
@@ -1363,8 +1352,10 @@ function VendorGroupOrderSetup() {
 
       // Format order deadline as ISO string from orderDeadlineDate and orderDeadlineTime
       // Format: "2025-12-30T23:59:59.000Z"
-      const formatOrderDeadline = (date: string, time: string): string => {
-        if (!date) return "";
+      const formatOrderDeadline = (date: string, time: string): string | null => {
+        if (!date) return null;
+        const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+        if (!datePattern.test(date)) return null;
         try {
           // Parse time - should be in HH:MM format from time input
           let timeString = "23:59:59";
@@ -1376,6 +1367,8 @@ function VendorGroupOrderSetup() {
             // If it's already in HH:MM:SS format, use it
             else if (time.match(/^\d{2}:\d{2}:\d{2}$/)) {
               timeString = time;
+            } else {
+              return null;
             }
           }
 
@@ -1397,11 +1390,12 @@ function VendorGroupOrderSetup() {
               parseInt(seconds || "59"),
               0
             );
+            if (isNaN(fallbackDate.getTime())) return null;
             return fallbackDate.toISOString();
           }
           return dateObj.toISOString();
         } catch {
-          return "";
+          return null;
         }
       };
 
@@ -1419,7 +1413,8 @@ function VendorGroupOrderSetup() {
           ? "events_staff"
           : primaryServiceType;
 
-      const budgetPerPerson = 30.0;
+      const budgetPerPerson =
+        Number((state.orderInfo as any)?.budgetPerPerson) || 0;
       const guestCount = state.orderInfo.headcount || state.invitedGuests.length + 1;
       
       // Try multiple possible company name fields
@@ -1449,10 +1444,11 @@ function VendorGroupOrderSetup() {
         budget: guestCount * budgetPerPerson,
         selectItem: normalizedServiceType,
         quantity: guestCount,
-        orderDeadline: formatOrderDeadline(
-          state.orderInfo.orderDeadlineDate || "",
-          state.orderInfo.orderDeadlineTime || ""
-        ),
+        orderDeadline:
+          formatOrderDeadline(
+            state.orderInfo.orderDeadlineDate || "",
+            state.orderInfo.orderDeadlineTime || ""
+          ) || null,
         inviteFriends: state.invitedGuests.map((email) => ({
           email,
           acceptanceStatus: false,
@@ -1507,8 +1503,8 @@ function VendorGroupOrderSetup() {
   return (
     <VendorDashboard activeTab="dashboard">
       <div className="w-full max-w-full overflow-x-hidden">
-        <div className="w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto px-3 sm:px-4 md:px-6 box-border overflow-x-hidden">
-          <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden">
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 box-border overflow-x-hidden">
+          <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden">
             <div className="w-full max-w-full overflow-x-hidden">
               <EnhancedCartManagement
                 selectedServices={state.selectedServices}
@@ -1525,205 +1521,212 @@ function VendorGroupOrderSetup() {
               />
             </div>
 
-            {/* {(primaryService || state.vendorName) && (
-              <div className="w-full max-w-full overflow-x-hidden">
-                <SelectedVendorCard
-                  vendorName={state.vendorName || getServiceName(primaryService)}
-                  vendorImage={state.vendorImage || primaryService?.serviceImage || ''}
-                  vendorPrice={primaryService ? getServicePrice(primaryService) : ''}
-                  onChangeVendor={() => navigate('/admin/marketplace')}
-                />
-              </div>
-            )} */}
+            <div className="h-px w-full bg-border"></div>
 
-            {/* Host Meal Selection Section */}
-            {state.selectedServices.length > 0 && (
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Your Meal Selection
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Select your meal preferences. Guests will be able to choose
-                    from the same menu options.
-                  </p>
-                  {state.selectedServices.map((service, index) => (
-                    <div
-                      key={index}
-                      className="w-full max-w-full overflow-x-hidden"
-                    >
-                      <BookingVendorCard
-                        showChooseItems={false}
-                        vendorImage={service?.serviceImage || service?.image}
-                        vendorName={service?.serviceName || service?.name}
-                        vendorType={getServiceTypeLabel(service?.serviceType || service?.type)}
-                        vendorPrice={getServicePrice(service)}
-                        serviceDetails={service}
-                        selectedItems={state.selectedItems}
-                        onItemQuantityChange={(itemId, quantity) => {
-                          const newSelectedItems = { ...state.selectedItems };
-                          if (quantity > 0) {
-                            newSelectedItems[itemId] = quantity;
-                          } else {
-                            delete newSelectedItems[itemId];
+            <div className="grid grid-cols-1 xl:grid-cols-10 gap-4 lg:gap-6 w-full max-w-full overflow-x-hidden">
+              <div className="xl:col-span-6">
+                <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm w-full max-w-full overflow-x-hidden xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
+                  <div className="space-y-3 sm:space-y-4 w-full max-w-full overflow-x-hidden xl:pr-2">
+                    {/* Host Meal Selection Section */}
+                    {state.selectedServices.length > 0 && (
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Your Meal Selection
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Select your meal preferences. Guests will be able to
+                          choose from the same menu options.
+                        </p>
+                        {state.selectedServices.map((service, index) => (
+                          <div key={index} className="w-full">
+                            <BookingVendorCard
+                              showChooseItems={false}
+                              vendorImage={service?.serviceImage || service?.image}
+                              vendorName={service?.serviceName || service?.name}
+                              vendorType={getServiceTypeLabel(
+                                service?.serviceType || service?.type,
+                              )}
+                              vendorPrice={getServicePrice(service)}
+                              serviceDetails={service}
+                              selectedItems={state.selectedItems}
+                              onItemQuantityChange={(itemId, quantity) => {
+                                const newSelectedItems = { ...state.selectedItems };
+                                if (quantity > 0) {
+                                  newSelectedItems[itemId] = quantity;
+                                } else {
+                                  delete newSelectedItems[itemId];
+                                }
+                                setSelectedItems(newSelectedItems);
+                              }}
+                              onComboSelection={handleComboSelection}
+                              canRemove={state.selectedServices.length > 1}
+                              onRemoveService={handleRemoveService(index)}
+                              serviceIndex={index}
+                              quantity={service?.quantity || 1}
+                              onQuantityChange={(quantity) => {
+                                const updatedServices = [...state.selectedServices];
+                                updatedServices[index] = {
+                                  ...updatedServices[index],
+                                  quantity,
+                                };
+                                setSelectedServices(updatedServices);
+                              }}
+                              onDeliveryRangeSelect={handleDeliveryRangeSelect}
+                              calculatedDistance={
+                                distancesByService[
+                                  service?.id || service?.serviceId || `service-${index}`
+                                ] || undefined
+                              }
+                              preselectedDeliveryFee={
+                                serviceDeliveryFees[
+                                  service?.id || service?.serviceId || `service-${index}`
+                                ] || undefined
+                              }
+                              guestCount={
+                                state.orderInfo?.headcount ||
+                                state.invitedGuests.length + 1 ||
+                                1
+                              }
+                              onChangeService={handleChangeService(index)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <AddServiceButton
+                      onAddService={() => {
+                        try {
+                          saveBookingStateBackup(
+                            state.selectedServices,
+                            state.selectedItems,
+                            state.orderInfo,
+                          );
+                        } catch (e) {
+                          // Failed to save backup
+                        }
+                        navigate("/vendor/new-proposal", {
+                          state: {
+                            addingAdditionalService: true,
+                            currentServices: state.selectedServices,
+                            selectedItems: state.selectedItems,
+                            formData: formData,
+                            bookingMode: true,
+                            addingToExistingBooking: true,
+                            isGroupOrder: true,
+                            allowAllServiceTypes: true,
+                            returnRoute: "/vendor/group-order/setup",
+                          },
+                        });
+                      }}
+                      hasServices={state.selectedServices.length > 0}
+                    />
+
+                    {/* Order Information Form */}
+                    <div className="w-full max-w-full overflow-x-hidden">
+                      <BookingForm
+                        formData={
+                          state.orderInfo || {
+                            location: "",
+                            orderName: "",
+                            date: "",
+                            deliveryWindow: "",
+                            headcount: 1,
+                            primaryContactName: "",
+                            primaryContactPhone: "",
+                            primaryContactEmail: "",
+                            hasBackupContact: false,
+                            backupContactName: "",
+                            backupContactPhone: "",
+                            backupContactEmail: "",
+                            additionalNotes: "",
+                            clientCompany: "",
                           }
-                          setSelectedItems(newSelectedItems);
+                        }
+                        onChange={(e) => {
+                          const target = e.target as
+                            | HTMLInputElement
+                            | HTMLTextAreaElement
+                            | HTMLSelectElement;
+                          const { name, value, type } = target;
+                          const newValue =
+                            type === "checkbox"
+                              ? (target as HTMLInputElement).checked
+                              : value;
+                          setOrderInfo({
+                            ...state.orderInfo,
+                            [name]: newValue,
+                          });
                         }}
-                        onComboSelection={handleComboSelection}
-                        canRemove={state.selectedServices.length > 1}
-                        onRemoveService={handleRemoveService(index)}
-                        serviceIndex={index}
-                        quantity={service?.quantity || 1}
-                        onQuantityChange={(quantity) => {
-                          const updatedServices = [...state.selectedServices];
-                          updatedServices[index] = {
-                            ...updatedServices[index],
-                            quantity,
-                          };
-                          setSelectedServices(updatedServices);
-                        }}
-                        onDeliveryRangeSelect={handleDeliveryRangeSelect}
-                        calculatedDistance={distancesByService[service?.id || service?.serviceId || `service-${index}`] || undefined}
-                        preselectedDeliveryFee={serviceDeliveryFees[service?.id || service?.serviceId || `service-${index}`] || undefined}
-                        guestCount={state.orderInfo?.headcount || state.invitedGuests.length + 1 || 1}
-                        onChangeService={handleChangeService(index)}
+                        selectedServices={state.selectedServices}
+                        isInvoiceMode={false}
+                        onLocationSelected={handleLocationSelected}
+                        eventLocationData={eventLocationData}
                       />
                     </div>
-                  ))}
+
+                    {/* Group Order Setup */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
+                      <OrderSetupForm />
+                      {state.orderType && (
+                        <>
+                          <div className="bg-white mt-4 rounded-xl shadow-sm">
+                            <InvitedGuestsList
+                              invitedGuests={state.invitedGuests.map((email) => ({
+                                email,
+                              }))}
+                              onRemoveGuest={handleRemoveGuest}
+                              onAddGuest={handleAddGuest}
+                            />
+                          </div>
+
+                          <AdditionalNotes
+                            value={state.additionalNotes}
+                            onChange={setAdditionalNotes}
+                          />
+
+                          <div className="bg-white py-4 rounded-xl shadow-sm">
+                            <PaymentSettings
+                              paymentMethod={state.paymentMethod}
+                              onPaymentMethodChange={setPaymentMethod}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Additional Services Section */}
-            <div className="w-full max-w-full overflow-x-hidden">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Additional Services
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Add more services to your group order that guests can also
-                  choose from.
-                </p>
-                <AdditionalServices
-                  selectedServices={state.selectedServices}
-                  showOrderSummary={false}
-                  selectedItems={state.selectedItems}
-                  customAdjustments={customAdjustments}
-                  serviceDeliveryFees={serviceDeliveryFees}
-                  serviceDistances={distancesByService}
-                  guestCount={state.orderInfo?.headcount || state.invitedGuests.length + 1 || 1}
-                  onAddService={() => {
-                    // Save latest booking state before navigating to marketplace
-                    try {
-                      saveBookingStateBackup(
-                        state.selectedServices,
-                        state.selectedItems,
-                        state.orderInfo
-                      );
-                    } catch (e) {
-                      // Failed to save backup
-                    }
-                    navigate("/vendor/new-proposal", {
-                      state: {
-                        addingAdditionalService: true,
-                        currentServices: state.selectedServices,
-                        selectedItems: state.selectedItems,
-                        formData: formData,
-                        bookingMode: true,
-                        addingToExistingBooking: true,
-                        isGroupOrder: true, // Flag to indicate this is from group order setup
-                        returnRoute: "/vendor/group-order/setup", // Return route for vendor group order
-                      },
-                    });
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className=" border border-gray-200 rounded-lg p-4 md:p-6">
-              {/* Basic Order Information Form */}
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="bg-white rounded-xl shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Order Information
-                  </h3>
-                  <BookingForm
-                    formData={
-                      state.orderInfo || {
-                        location: "",
-                        orderName: "",
-                        date: "",
-                        deliveryWindow: "",
-                        headcount: 1,
-                        primaryContactName: "",
-                        primaryContactPhone: "",
-                        primaryContactEmail: "",
-                        hasBackupContact: false,
-                        backupContactName: "",
-                        backupContactPhone: "",
-                        backupContactEmail: "",
-                        additionalNotes: "",
-                        clientCompany: "",
+              <div className="xl:col-span-4">
+                <div className="border rounded-xl bg-white p-3 sm:p-4 shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:overflow-y-auto no-scrollbar">
+                  <div className="pr-1">
+                    <AdditionalServices
+                      selectedServices={state.selectedServices}
+                      showOrderSummary={true}
+                      showAddServiceButton={false}
+                      selectedItems={state.selectedItems}
+                      customAdjustments={customAdjustments}
+                      serviceDeliveryFees={serviceDeliveryFees}
+                      serviceDistances={distancesByService}
+                      guestCount={
+                        state.orderInfo?.headcount ||
+                        state.invitedGuests.length + 1 ||
+                        1
                       }
-                    }
-                    onChange={(e) => {
-                      const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-                      const { name, value, type } = target;
-                      const newValue = type === "checkbox" ? (target as HTMLInputElement).checked : value;
-                      setOrderInfo({
-                        ...state.orderInfo,
-                        [name]: newValue,
-                      });
-                    }}
-                    selectedServices={state.selectedServices}
-                    isInvoiceMode={false}
-                    onLocationSelected={handleLocationSelected}
-                    eventLocationData={eventLocationData}
-                  />
-                </div>
-              </div>
-              <div className="w-full max-w-full overflow-x-hidden">
-                <div className="border border-gray-200 rounded-lg p-4 md:p-6 mt-4">
-                  <OrderSetupForm />
-                  {state.orderType && (
-                    <>
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <div className="bg-white mt-4 rounded-xl shadow-sm">
-                          <InvitedGuestsList
-                            invitedGuests={state.invitedGuests.map((email) => ({
-                              email,
-                            }))}
-                            onRemoveGuest={handleRemoveGuest}
-                            onAddGuest={handleAddGuest}
-                          />
-                        </div>
-                      </div>
+                      onAddService={() => {}}
+                    />
 
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <AdditionalNotes
-                          value={state.additionalNotes}
-                          onChange={setAdditionalNotes}
-                        />
-                      </div>
-
-                      <div className="w-full max-w-full overflow-x-hidden">
-                        <div className="bg-white py-4 rounded-xl shadow-sm">
-                          <PaymentSettings
-                            paymentMethod={state.paymentMethod}
-                            onPaymentMethodChange={setPaymentMethod}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="w-full max-w-full overflow-x-hidden">
+                    <div className="sticky bottom-0 bg-white w-full max-w-full overflow-x-hidden mt-4 pt-3 border-t border-gray-200">
+                      {hasCartItems && (
                         <CreateOrderButton
                           isGroupOrder={state.orderType}
                           onClick={handleCreateGroupOrder}
                           isLoading={isCreatingOrder}
                         />
-                      </div>
-                    </>
-                  )}
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

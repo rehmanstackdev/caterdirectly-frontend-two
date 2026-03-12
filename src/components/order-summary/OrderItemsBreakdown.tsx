@@ -45,6 +45,7 @@ interface OrderItemsBreakdownProps {
   isServiceFeeWaived?: boolean;
   onDeliveryFeeCalculated?: (deliveryFee: number) => void;
   showVendorEarningsBadge?: boolean;
+  showDeliveryFeesAlways?: boolean;
   // NEW: Accept pre-calculated pricing snapshot (SSOT)
   pricingSnapshot?: {
     subtotal: number;
@@ -69,6 +70,7 @@ const OrderItemsBreakdown = ({
   isServiceFeeWaived = false,
   pricingSnapshot = null,
   showVendorEarningsBadge = false,
+  showDeliveryFeesAlways = false,
 }: OrderItemsBreakdownProps) => {
   const { settings } = useAdminSettings();
   const { distancesByService } = useServiceDistances(
@@ -619,6 +621,20 @@ const OrderItemsBreakdown = ({
                         {/* Service Name Header */}
                         <div className="space-y-2 gap-3">
                           <div>
+                            {(service as any).guestName && (
+                              <div className="mt-2">
+                                <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
+                                  <p className="text-xs font-semibold text-primary">
+                                    {(service as any).guestName}
+                                  </p>
+                                  {(service as any).guestEmail && (
+                                    <p className="text-[11px] text-primary/80">
+                                      {(service as any).guestEmail}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             <span className="font-medium text-gray-800">
                               {serviceName}
                             </span>
@@ -914,8 +930,9 @@ const OrderItemsBreakdown = ({
                               sum + item.additionalCharge * item.quantity,
                             0,
                           );
-                          const computedTotal =
-                            combosTotal > 0
+                          const computedTotal = (service as any).isGuestService
+                            ? Number((service as any).totalPrice || 0)
+                            : combosTotal > 0
                               ? combosTotal + menuTotal
                               : cateringCalc.finalTotal;
                           return (
@@ -1173,6 +1190,23 @@ const OrderItemsBreakdown = ({
                     </div>
                   </>
                 )}
+              </div>
+            );
+          }
+          if (showDeliveryFeesAlways) {
+            return (
+              <div className="bg-white rounded-lg p-4 space-y-2 shadow-sm border border-gray-100">
+                <span className="text-xs font-semibold text-gray-500 uppercase">
+                  Delivery Fees
+                </span>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">
+                    Total Delivery Fees
+                  </span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {formatCurrency(deliveryFee)}
+                  </span>
+                </div>
               </div>
             );
           }

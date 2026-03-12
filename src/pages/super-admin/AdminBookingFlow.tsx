@@ -95,6 +95,10 @@ function VendorBookingFlow() {
   const handleAddAdditionalService = useCallback(() => {
     try {
       saveBookingStateBackup(selectedServices, selectedItems, formData);
+      sessionStorage.setItem(
+        "adminBookingCustomAdjustments",
+        JSON.stringify(customAdjustments || []),
+      );
     } catch (error) {
       console.log(
         "[AdminBookingFlow] Failed to save state before navigation:",
@@ -109,13 +113,14 @@ function VendorBookingFlow() {
         addingToExistingBooking: true,
         currentBookingServices: selectedServices,
         selectedItems: selectedItems,
+        customAdjustments,
         formData,
         bookingMode: true,
         isGroupOrder: false,
         returnRoute: "/admin/booking",
       },
     });
-  }, [selectedServices, selectedItems, formData, navigate]);
+  }, [selectedServices, selectedItems, customAdjustments, formData, navigate]);
 
   const handleCreateInvoice = async (bookingData: any) => {
     try {
@@ -212,6 +217,27 @@ function VendorBookingFlow() {
   const mode = searchParams.get("mode");
 
   useEffect(() => {
+    const stored = sessionStorage.getItem("adminBookingCustomAdjustments");
+    if (!stored) return;
+
+    if (!customAdjustments || customAdjustments.length === 0) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setCustomAdjustments(parsed);
+        }
+      } catch (error) {
+        console.log(
+          "[AdminBookingFlow] Failed to restore custom adjustments:",
+          error,
+        );
+      }
+    }
+
+    sessionStorage.removeItem("adminBookingCustomAdjustments");
+  }, [customAdjustments, setCustomAdjustments]);
+
+  useEffect(() => {
     if (initDoneRef.current) {
       return;
     }
@@ -283,6 +309,7 @@ function VendorBookingFlow() {
             serviceIndex: serviceIndex,
             currentServices: selectedServices,
             selectedItems: selectedItems,
+            customAdjustments,
             formData: formData,
             bookingMode: true,
             addingToExistingBooking: true,
@@ -291,7 +318,7 @@ function VendorBookingFlow() {
         });
       };
     },
-    [navigate, selectedServices, selectedItems, formData],
+    [navigate, selectedServices, selectedItems, customAdjustments, formData],
   );
 
   const handleLoadDraft = (draft: any) => {
