@@ -29,6 +29,9 @@ interface EnhancedCartManagementProps {
   invitedGuests?: string[];
   additionalNotes?: string;
   paymentMethod?: string;
+  isTaxExempt?: boolean;
+  isServiceFeeWaived?: boolean;
+  adminNotes?: string;
 }
 
 export const EnhancedCartManagement = ({
@@ -42,6 +45,9 @@ export const EnhancedCartManagement = ({
   invitedGuests = [],
   additionalNotes = "",
   paymentMethod = "host_pays_everything",
+  isTaxExempt = false,
+  isServiceFeeWaived = false,
+  adminNotes = "",
 }: EnhancedCartManagementProps) => {
   const navigate = useNavigate();
   const [draftName, setDraftName] = useState("Draft Order");
@@ -860,10 +866,10 @@ export const EnhancedCartManagement = ({
           phoneNumber: formData?.primaryContactPhone || "",
           emailAddress: formData?.primaryContactEmail || "",
           addBackupContact: formData?.hasBackupContact || false,
-          additionalNotes: formData?.additionalNotes || "",
-          taxExemptStatus: false,
-          waiveServiceFee: false,
-          adminOverrideNotes: "Draft Order",
+          additionalNotes: adminNotes || formData?.additionalNotes || "",
+          taxExemptStatus: isTaxExempt,
+          waiveServiceFee: isServiceFeeWaived,
+          adminOverrideNotes: adminNotes || "Draft Order",
           budgetPerPerson: null,
           budget: null,
           selectItem: null,

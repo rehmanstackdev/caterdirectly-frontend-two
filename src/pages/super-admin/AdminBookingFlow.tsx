@@ -851,6 +851,9 @@ function VendorBookingFlow() {
                   customAdjustments={customAdjustments}
                   onLoadDraft={handleLoadDraft}
                   className="mb-4"
+                  isTaxExempt={isTaxExempt}
+                  isServiceFeeWaived={isServiceFeeWaived}
+                  adminNotes={adminNotes}
                 />
               </div>
 
@@ -2260,7 +2263,17 @@ function VendorBookingFlow() {
                                 }
                                 toast.success("Invoice created successfully");
                                 if (invoiceId) {
-                                  navigate(`/admin/order-summary/${invoiceId}`);
+                                  // Role-based navigation
+                                  if (userRole === "admin" || userRole === "super-admin") {
+                                    navigate("/admin/invoice-management");
+                                  } else if (userRole === "vendor") {
+                                    navigate("/vendor/dashboard");
+                                  } else if (userRole === "host" || userRole === "event-host") {
+                                    navigate("/host/dashboard");
+                                  } else {
+                                    // Fallback to invoice management for unknown roles
+                                    navigate("/admin/invoice-management");
+                                  }
                                 }
                               } catch (error) {
                                 console.error(
