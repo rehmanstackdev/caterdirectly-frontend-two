@@ -1,25 +1,33 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate, useSearchParams, useParams } from 'react-router-dom';
-import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
-import Header from '@/components/cater-directly/Header';
-import Footer from '@/components/cater-directly/Footer';
-import BookingDetailsCard from '@/components/order-summary/BookingDetailsCard';
-import OrderItemsBreakdown from '@/components/order-summary/OrderItemsBreakdown';
-import OrderActionButtons from '@/components/order-summary/OrderActionButtons';
-import PaymentMethodCard from '@/components/order-summary/PaymentMethodCard';
-import { AdminFixOrderButton } from '@/components/order-summary/AdminFixOrderButton';
-import { ServiceSelection } from '@/types/order';
-import { useInvoice } from '@/contexts/InvoiceContext';
-import { toast } from 'sonner';
-import { useAdminSettings } from '@/hooks/use-admin-settings';
-import { calculateUnifiedOrderTotals } from '@/utils/unified-calculations';
-import { loadBookingStateBackup, clearBookingStateBackup } from '@/utils/booking-state-persistence';
-import invoiceService from '@/services/api/invoice.Service';
-import { CustomAdjustment } from '@/types/adjustments';
-import { generateInvoicePDF } from '@/utils/invoice-pdf-generator';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  useLocation,
+  useNavigate,
+  useSearchParams,
+  useParams,
+} from "react-router-dom";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import Header from "@/components/cater-directly/Header";
+import Footer from "@/components/cater-directly/Footer";
+import BookingDetailsCard from "@/components/order-summary/BookingDetailsCard";
+import OrderItemsBreakdown from "@/components/order-summary/OrderItemsBreakdown";
+import OrderActionButtons from "@/components/order-summary/OrderActionButtons";
+import PaymentMethodCard from "@/components/order-summary/PaymentMethodCard";
+import { AdminFixOrderButton } from "@/components/order-summary/AdminFixOrderButton";
+import { ServiceSelection } from "@/types/order";
+import { useInvoice } from "@/contexts/InvoiceContext";
+import { toast } from "sonner";
+import { useAdminSettings } from "@/hooks/use-admin-settings";
+import { calculateUnifiedOrderTotals } from "@/utils/unified-calculations";
+import {
+  loadBookingStateBackup,
+  clearBookingStateBackup,
+} from "@/utils/booking-state-persistence";
+import invoiceService from "@/services/api/invoice.Service";
+import { CustomAdjustment } from "@/types/adjustments";
+import { generateInvoicePDF } from "@/utils/invoice-pdf-generator";
 
 function OrderSummaryPage() {
   const location = useLocation();
@@ -29,180 +37,222 @@ function OrderSummaryPage() {
   const { isInvoiceMode } = useInvoice();
   const { settings: adminSettings } = useAdminSettings();
 
-
   // Initialize from location.state or database (database-first approach)
   const initialState = (location.state as any) || {};
-  
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCopyingLink, setIsCopyingLink] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
   const [billingAddress, setBillingAddress] = useState<string | null>(null);
   const [stripeTax, setStripeTax] = useState<any | null>(null);
-  const [generatedProposalUrl, setGeneratedProposalUrl] = useState<string | null>(() => {
-    return sessionStorage.getItem('generatedProposalUrl') || null;
+  const [generatedProposalUrl, setGeneratedProposalUrl] = useState<
+    string | null
+  >(() => {
+    return sessionStorage.getItem("generatedProposalUrl") || null;
   });
   const [proposalPersisted, setProposalPersisted] = useState(false);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isLoadingInvoiceSummary, setIsLoadingInvoiceSummary] = useState(false);
   const [additionalTip, setAdditionalTip] = useState<number | null>(null);
-  const [hostGuestOrders, setHostGuestOrders] = useState<Array<{
-    id: string;
-    guestName: string;
-    guestEmail: string;
-  }>>([]);
+  const [hostGuestOrders, setHostGuestOrders] = useState<
+    Array<{
+      id: string;
+      guestName: string;
+      guestEmail: string;
+    }>
+  >([]);
   const [hasBackendDeliveryFees, setHasBackendDeliveryFees] = useState(false);
 
   // SSOT: Extract proposalId, token, and invoiceId from location.state
   // Only use these if we're editing the SAME invoice (not a different one)
   const [editingInvoiceId] = useState<string | null>(
-    initialState.invoiceId || null
+    initialState.invoiceId || null,
   );
   const [editingProposalId] = useState<string | null>(
-    initialState.proposalId || null
+    initialState.proposalId || null,
   );
   const [editingProposalToken] = useState<string | null>(
-    initialState.token || null
+    initialState.token || null,
   );
-
 
   // Extract invoiceId from URL params (for public access)
   const invoiceIdFromUrl = params.id || params.invoiceId;
-  
-  const [selectedServices, setSelectedServices] = useState<ServiceSelection[]>(initialState.selectedServices || []);
+
+  const [selectedServices, setSelectedServices] = useState<ServiceSelection[]>(
+    initialState.selectedServices || [],
+  );
   const [formData, setFormData] = useState<any>({
     ...(initialState.formData || {}),
-    customAdjustments: initialState.customAdjustments || initialState.formData?.customAdjustments || []
+    customAdjustments:
+      initialState.customAdjustments ||
+      initialState.formData?.customAdjustments ||
+      [],
   });
-  const [selectedItems, setSelectedItems] = useState<Record<string, number>>(initialState.selectedItems || {});
+  const [selectedItems, setSelectedItems] = useState<Record<string, number>>(
+    initialState.selectedItems || {},
+  );
   const vendor = initialState.vendor || null;
-  const isGroupOrderHostSummaryRoute = location.pathname.includes('/group-order/host-summary/');
+  const isGroupOrderHostSummaryRoute = location.pathname.includes(
+    "/group-order/host-summary/",
+  );
 
-  const fetchInvoiceSummary = useCallback(async (invoiceId: string) => {
-    if (isGroupOrderHostSummaryRoute) {
-      return invoiceService.getGroupOrderHostSummary(invoiceId);
-    }
-    return invoiceService.getInvoiceOrderSummary(invoiceId);
-  }, [isGroupOrderHostSummaryRoute]);
+  const fetchInvoiceSummary = useCallback(
+    async (invoiceId: string) => {
+      if (isGroupOrderHostSummaryRoute) {
+        return invoiceService.getGroupOrderHostSummary(invoiceId);
+      }
+      return invoiceService.getInvoiceOrderSummary(invoiceId);
+    },
+    [isGroupOrderHostSummaryRoute],
+  );
 
   const getSummaryPayload = (response: any) => {
     const candidates = [response, response?.data, response?.data?.data];
     return candidates.find((candidate: any) => candidate?.invoice) || null;
   };
 
-  const buildServicesFromGuestOrders = useCallback((guestOrders: any[] = []) => {
-    const servicesById = new Map<string, any>();
+  const buildServicesFromGuestOrders = useCallback(
+    (guestOrders: any[] = []) => {
+      const servicesById = new Map<string, any>();
 
-    const ensureService = (serviceIdRaw: any) => {
-      const serviceId = String(serviceIdRaw || '').trim() || 'unknown-service';
-      if (!servicesById.has(serviceId)) {
-        servicesById.set(serviceId, {
-          id: `guest-${serviceId}`,
-          serviceId,
-          serviceType: 'catering',
-          serviceName: 'Catering Service',
-          totalPrice: 0,
-          priceType: 'flat',
-          price: 0,
-          quantity: 1,
-          image: '',
-          vendorId: undefined,
-          deliveryFee: '0',
-          cateringItems: [],
-          comboCategoryItems: [],
-        });
-      }
-      return servicesById.get(serviceId);
-    };
-
-    for (const order of guestOrders || []) {
-      const cateringItems = Array.isArray(order?.cateringItems) ? order.cateringItems : [];
-      const comboItems = Array.isArray(order?.comboItems) ? order.comboItems : [];
-
-      for (const item of cateringItems) {
-        const service = ensureService(item?.serviceId || item?.service_id || item?.serviceID);
-        service.cateringItems.push({
-          ...item,
-          price: Number(item?.price || 0),
-          quantity: Number(item?.quantity || 0),
-          totalPrice: Number(item?.totalPrice || 0),
-        });
-        service.totalPrice += Number(item?.totalPrice || 0);
-        if (!service.image && item?.image) service.image = item.image;
-      }
-
-      for (const item of comboItems) {
-        const service = ensureService(item?.serviceId || item?.service_id || item?.serviceID);
-        const premiumCharge = item?.premiumCharge ?? item?.additionalCharge ?? 0;
-        const quantity = Number(item?.quantity || 0);
-        service.comboCategoryItems.push({
-          ...item,
-          price: Number(item?.price || 0),
-          quantity: Number(item?.quantity || 0),
-          totalPrice: Number(item?.totalPrice || 0),
-          premiumCharge: item?.premiumCharge != null ? Number(item.premiumCharge) : 0,
-        });
-        if (premiumCharge) {
-          service.totalPrice += Number(premiumCharge) * (quantity || 1);
+      const ensureService = (serviceIdRaw: any) => {
+        const serviceId =
+          String(serviceIdRaw || "").trim() || "unknown-service";
+        if (!servicesById.has(serviceId)) {
+          servicesById.set(serviceId, {
+            id: `guest-${serviceId}`,
+            serviceId,
+            serviceType: "catering",
+            serviceName: "Catering Service",
+            totalPrice: 0,
+            priceType: "flat",
+            price: 0,
+            quantity: 1,
+            image: "",
+            vendorId: undefined,
+            deliveryFee: "0",
+            cateringItems: [],
+            comboCategoryItems: [],
+          });
         }
-        if (!service.image && item?.image) service.image = item.image;
-      }
-    }
+        return servicesById.get(serviceId);
+      };
 
-    return Array.from(servicesById.values()).map((service) => ({
-      ...service,
-      totalPrice: Number(service.totalPrice.toFixed(2)),
-      serviceName: service.serviceName || 'Catering Service',
-    }));
-  }, []);
+      for (const order of guestOrders || []) {
+        const cateringItems = Array.isArray(order?.cateringItems)
+          ? order.cateringItems
+          : [];
+        const comboItems = Array.isArray(order?.comboItems)
+          ? order.comboItems
+          : [];
+
+        for (const item of cateringItems) {
+          const service = ensureService(
+            item?.serviceId || item?.service_id || item?.serviceID,
+          );
+          service.cateringItems.push({
+            ...item,
+            price: Number(item?.price || 0),
+            quantity: Number(item?.quantity || 0),
+            totalPrice: Number(item?.totalPrice || 0),
+          });
+          service.totalPrice += Number(item?.totalPrice || 0);
+          if (!service.image && item?.image) service.image = item.image;
+        }
+
+        for (const item of comboItems) {
+          const service = ensureService(
+            item?.serviceId || item?.service_id || item?.serviceID,
+          );
+          const premiumCharge =
+            item?.premiumCharge ?? item?.additionalCharge ?? 0;
+          const quantity = Number(item?.quantity || 0);
+          service.comboCategoryItems.push({
+            ...item,
+            price: Number(item?.price || 0),
+            quantity: Number(item?.quantity || 0),
+            totalPrice: Number(item?.totalPrice || 0),
+            premiumCharge:
+              item?.premiumCharge != null ? Number(item.premiumCharge) : 0,
+          });
+          if (premiumCharge) {
+            service.totalPrice += Number(premiumCharge) * (quantity || 1);
+          }
+          if (!service.image && item?.image) service.image = item.image;
+        }
+      }
+
+      return Array.from(servicesById.values()).map((service) => ({
+        ...service,
+        totalPrice: Number(service.totalPrice.toFixed(2)),
+        serviceName: service.serviceName || "Catering Service",
+      }));
+    },
+    [],
+  );
 
   const buildGuestCateringServices = useCallback((guestOrders: any[] = []) => {
     const services: any[] = [];
 
     guestOrders.forEach((order: any) => {
-      const guestName = order?.guestName || 'Guest';
-      const guestEmail = order?.guestEmail || '-';
+      const guestName = order?.guestName || "Guest";
+      const guestEmail = order?.guestEmail || "-";
       const guestId = order?.id || guestEmail || guestName;
-      const orderServices = Array.isArray(order?.services) ? order.services : [];
-      const cateringItems = Array.isArray(order?.cateringItems) ? order.cateringItems : [];
-      const comboItems = Array.isArray(order?.comboItems) ? order.comboItems : [];
+      const orderServices = Array.isArray(order?.services)
+        ? order.services
+        : [];
+      const cateringItems = Array.isArray(order?.cateringItems)
+        ? order.cateringItems
+        : [];
+      const comboItems = Array.isArray(order?.comboItems)
+        ? order.comboItems
+        : [];
       const items = Array.isArray(order?.items) ? order.items : [];
 
       orderServices.forEach((service: any) => {
-        const serviceId = service?.serviceId || 'unknown-service';
-        const serviceType = service?.serviceType || 'catering';
-        const serviceName = service?.serviceName || 'Catering Service';
+        const serviceId = service?.serviceId || "unknown-service";
+        const serviceType = service?.serviceType || "catering";
+        const serviceName = service?.serviceName || "Catering Service";
 
-        const serviceCateringItems = cateringItems.length > 0
-          ? cateringItems.filter((item: any) => item.serviceId === serviceId)
-          : items
-              .filter((item: any) => item.serviceId === serviceId && !item.isComboCategoryItem)
-              .map((item: any) => ({
-                ...item,
-                cateringId: item.cateringId || item.id,
-                menuItemName: item.menuItemName || item.name,
-                menuName: item.menuName,
-                price: item.price,
-                quantity: item.quantity,
-                totalPrice: item.totalPrice,
-              }));
+        const serviceCateringItems =
+          cateringItems.length > 0
+            ? cateringItems.filter((item: any) => item.serviceId === serviceId)
+            : items
+                .filter(
+                  (item: any) =>
+                    item.serviceId === serviceId && !item.isComboCategoryItem,
+                )
+                .map((item: any) => ({
+                  ...item,
+                  cateringId: item.cateringId || item.id,
+                  menuItemName: item.menuItemName || item.name,
+                  menuName: item.menuName,
+                  price: item.price,
+                  quantity: item.quantity,
+                  totalPrice: item.totalPrice,
+                }));
 
-        const serviceComboItems = comboItems.length > 0
-          ? comboItems.filter((item: any) => item.serviceId === serviceId)
-          : items
-              .filter((item: any) => item.serviceId === serviceId && item.isComboCategoryItem)
-              .map((item: any) => ({
-                ...item,
-                cateringId: item.cateringId || item.id,
-                menuItemName: item.menuItemName || item.name,
-                menuName: item.menuName,
-                comboId: item.comboId,
-                premiumCharge: item.premiumCharge,
-                price: item.price,
-                quantity: item.quantity,
-                totalPrice: item.totalPrice,
-              }));
+        const serviceComboItems =
+          comboItems.length > 0
+            ? comboItems.filter((item: any) => item.serviceId === serviceId)
+            : items
+                .filter(
+                  (item: any) =>
+                    item.serviceId === serviceId && item.isComboCategoryItem,
+                )
+                .map((item: any) => ({
+                  ...item,
+                  cateringId: item.cateringId || item.id,
+                  menuItemName: item.menuItemName || item.name,
+                  menuName: item.menuName,
+                  comboId: item.comboId,
+                  premiumCharge: item.premiumCharge,
+                  price: item.price,
+                  quantity: item.quantity,
+                  totalPrice: item.totalPrice,
+                }));
 
         services.push({
           id: `guest-${guestId}-${serviceId}`,
@@ -210,13 +260,13 @@ function OrderSummaryPage() {
           serviceType,
           serviceName,
           totalPrice: Number(service?.serviceTotal || 0),
-          priceType: 'flat',
+          priceType: "flat",
           price: 0,
           quantity: 1,
-          image: service?.image || '',
+          image: service?.image || "",
           vendorId: service?.vendorId,
           vendorEarnings: service?.vendorEarnings,
-          deliveryFee: '0',
+          deliveryFee: "0",
           cateringItems: serviceCateringItems,
           comboCategoryItems: serviceComboItems,
           guestName,
@@ -230,31 +280,31 @@ function OrderSummaryPage() {
   }, []);
 
   // Get current invoice ID from formData or session (must be after formData state declaration)
-  const currentInvoiceId = formData?.invoiceId || sessionStorage.getItem('currentInvoiceId');
-
-
-  
-
-
-
+  const currentInvoiceId =
+    formData?.invoiceId || sessionStorage.getItem("currentInvoiceId");
 
   // PHASE 3: Safely extract admin overrides with enhanced tracing
   const { isTaxExempt, isServiceFeeWaived } = useMemo(() => {
     // Only extract if formData has meaningful content
-    const hasValidFormData = formData && typeof formData === 'object' && Object.keys(formData).length > 0;
-    
+    const hasValidFormData =
+      formData &&
+      typeof formData === "object" &&
+      Object.keys(formData).length > 0;
+
     if (!hasValidFormData) {
       return {
         isTaxExempt: false,
-        isServiceFeeWaived: false
+        isServiceFeeWaived: false,
       };
     }
-    
+
     const overrides = formData.adminOverrides || null;
     return {
       // Fallback to top-level booleans if adminOverrides is absent
       isTaxExempt: Boolean(overrides?.isTaxExempt ?? formData?.isTaxExempt),
-      isServiceFeeWaived: Boolean(overrides?.isServiceFeeWaived ?? formData?.isServiceFeeWaived)
+      isServiceFeeWaived: Boolean(
+        overrides?.isServiceFeeWaived ?? formData?.isServiceFeeWaived,
+      ),
     };
   }, [formData, searchParams]);
 
@@ -263,43 +313,51 @@ function OrderSummaryPage() {
     const loadInvoiceSummary = async () => {
       // Only load from API if we have an invoiceId in URL
       if (!invoiceIdFromUrl) return;
-      
+
       setIsLoadingInvoiceSummary(true);
       try {
         const response = await fetchInvoiceSummary(invoiceIdFromUrl);
-        
+
         const summaryData = getSummaryPayload(response);
         if (summaryData?.invoice) {
           const invoiceData = summaryData.invoice;
-          const mappedGuestOrders = Array.isArray((summaryData as any).guestOrders)
+          const mappedGuestOrders = Array.isArray(
+            (summaryData as any).guestOrders,
+          )
             ? (summaryData as any).guestOrders.map((order: any) => ({
-                id: order.id || '',
-                guestName: order.guestName || 'Guest',
-                guestEmail: order.guestEmail || '-',
+                id: order.id || "",
+                guestName: order.guestName || "Guest",
+                guestEmail: order.guestEmail || "-",
               }))
             : [];
-          
+
           // Build selectedItems from service items
           const mappedSelectedItems: Record<string, number> = {};
-          
-          let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
-            ? invoiceData.services
-            : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
+
+          let apiServices: any[] =
+            Array.isArray(invoiceData.services) &&
+            invoiceData.services.length > 0
+              ? invoiceData.services
+              : Array.isArray((summaryData as any).services)
+                ? (summaryData as any).services
+                : [];
           const guestOrders = Array.isArray((summaryData as any).guestOrders)
             ? (summaryData as any).guestOrders
             : [];
-          const shouldUseGuestServices = isGroupOrderHostSummaryRoute && guestOrders.length > 0;
+          const shouldUseGuestServices =
+            isGroupOrderHostSummaryRoute && guestOrders.length > 0;
           const guestCateringServices = shouldUseGuestServices
             ? buildGuestCateringServices(guestOrders)
             : [];
-          const guestServices = guestOrders.length > 0
-            ? buildServicesFromGuestOrders(guestOrders)
-            : [];
+          const guestServices =
+            guestOrders.length > 0
+              ? buildServicesFromGuestOrders(guestOrders)
+              : [];
 
           if (shouldUseGuestServices && guestCateringServices.length > 0) {
             const nonCateringServices = apiServices.filter((service: any) => {
-              const serviceType = service?.serviceType || '';
-              return serviceType !== 'catering';
+              const serviceType = service?.serviceType || "";
+              return serviceType !== "catering";
             });
             apiServices = [...nonCateringServices, ...guestCateringServices];
           } else if (apiServices.length === 0 && guestServices.length > 0) {
@@ -311,16 +369,22 @@ function OrderSummaryPage() {
               mergedByServiceId.set(key, service);
             });
             guestServices.forEach((guestService) => {
-              const key = String(guestService.serviceId || guestService.id || "");
+              const key = String(
+                guestService.serviceId || guestService.id || "",
+              );
               const existing = mergedByServiceId.get(key);
               if (!existing) {
                 mergedByServiceId.set(key, guestService);
                 return;
               }
-              const existingCateringItems = Array.isArray(existing.cateringItems)
+              const existingCateringItems = Array.isArray(
+                existing.cateringItems,
+              )
                 ? existing.cateringItems
                 : [];
-              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+              const existingComboItems = Array.isArray(
+                existing.comboCategoryItems,
+              )
                 ? existing.comboCategoryItems
                 : [];
               const extraCatering = Array.isArray(guestService.cateringItems)
@@ -341,12 +405,14 @@ function OrderSummaryPage() {
               const cateringKeySet = new Set<string>();
               const comboKeySet = new Set<string>();
 
-              const dedupedCateringItems = mergedCateringItems.filter((item) => {
-                const id = String(item.cateringId || item.id || "");
-                if (!id || cateringKeySet.has(id)) return false;
-                cateringKeySet.add(id);
-                return true;
-              });
+              const dedupedCateringItems = mergedCateringItems.filter(
+                (item) => {
+                  const id = String(item.cateringId || item.id || "");
+                  if (!id || cateringKeySet.has(id)) return false;
+                  cateringKeySet.add(id);
+                  return true;
+                },
+              );
               const dedupedComboItems = mergedComboItems.filter((item) => {
                 const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
                 if (comboKeySet.has(comboKey)) return false;
@@ -361,312 +427,371 @@ function OrderSummaryPage() {
                 image: existing.image || guestService.image,
                 cateringItems: dedupedCateringItems,
                 comboCategoryItems: dedupedComboItems,
-                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+                totalPrice:
+                  Number(existing.totalPrice || 0) +
+                  Number(guestService.totalPrice || 0),
               });
             });
             apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format
-          const mappedServices: ServiceSelection[] = apiServices.map((service: any) => {
-            const serviceId = service.id;
-            const serviceType = service.serviceType || '';
-            
-            // Extract items based on service type and build selectedItems
-            let serviceItems: any[] = [];
-            let menuItems: any[] = [];
-            let rentalItems: any[] = [];
-            let staffItems: any[] = [];
-            let venueItems: any[] = [];
-            
-            if (service.cateringItems && service.cateringItems.length > 0) {
-              serviceItems = service.cateringItems;
-              menuItems = service.cateringItems.map((item: any) => {
-                // Find combo category items for this combo
-                const comboCategoryItems = apiServices.flatMap((s: any) => 
-                  (s.comboCategoryItems || []).filter((comboItem: any) => 
-                    comboItem.comboId === (item.cateringId || item.id)
-                  )
-                );
-                
-                return {
-                  id: item.cateringId || item.id,
-                  name: item.menuItemName || item.name,
-                  price: parseFloat(item.price || 0),
-                  quantity: item.quantity || 1,
-                  category: item.menuName || 'Menu',
-                  menuName: item.menuName,
-                  menuItemName: item.menuItemName,
-                  isCombo: comboCategoryItems.length > 0 || item.isCombo || false,
-                  comboCategories: item.comboCategories || [],
-                  comboCategoryItems: comboCategoryItems,
-                  priceType: item.priceType || 'fixed',
-                  image: item.image || item.imageUrl,
-                  imageUrl: item.imageUrl || item.image,
-                  description: item.description || ''
-                };
-              });
-              
-              // Build selectedItems from cateringItems
-              service.cateringItems.forEach((item: any) => {
-                if ((service as any).isGuestService) return;
-                const itemId = item.cateringId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
-                }
-              });
-            }
-            
-            // Add combo base items for all combos from comboCategoryItems
-            if (serviceType === 'catering') {
-              const allComboCategoryItems = service.comboCategoryItems || [];
-              const comboGroups = new Map();
+          const mappedServices: ServiceSelection[] = apiServices.map(
+            (service: any) => {
+              const serviceId = service.id;
+              const serviceType = service.serviceType || "";
 
-              allComboCategoryItems.forEach((item: any) => {
-                if (!comboGroups.has(item.comboId)) {
-                  comboGroups.set(item.comboId, []);
-                }
-                comboGroups.get(item.comboId).push(item);
-              });
+              // Extract items based on service type and build selectedItems
+              let serviceItems: any[] = [];
+              let menuItems: any[] = [];
+              let rentalItems: any[] = [];
+              let staffItems: any[] = [];
+              let venueItems: any[] = [];
 
-              comboGroups.forEach((comboCategoryItems, comboId) => {
-                const existingCombo = menuItems.find(item => item.id === comboId);
-                const matchingCateringItem = service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId);
-                const comboImage = comboCategoryItems[0]?.image || matchingCateringItem?.image || '';
-                if (!existingCombo) {
-                  const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
-                  menuItems.push({
-                    id: comboId,
-                    name: comboName,
-                    price: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
-                    quantity: matchingCateringItem?.quantity || 1,
-                    category: 'Combo Packages',
-                    menuName: 'Combo Packages',
-                    menuItemName: comboName,
-                    isCombo: true,
-                    comboCategories: [],
-                    comboCategoryItems: comboCategoryItems.map((item: any) => ({
-                      ...item,
-                      image: item.image || item.imageUrl || ''
-                    })),
-                    priceType: 'fixed',
-                    image: comboImage,
-                    imageUrl: comboImage,
-                    description: ''
-                  });
-                  mappedSelectedItems[comboId] = matchingCateringItem?.quantity || 0;
-                } else {
-                  existingCombo.comboCategoryItems = comboCategoryItems.map((item: any) => ({
-                    ...item,
-                    image: item.image || item.imageUrl || ''
-                  }));
-                  if (comboImage && !existingCombo.image) {
-                    existingCombo.image = comboImage;
-                    existingCombo.imageUrl = comboImage;
-                  }
-                }
-              });
-            }
-            
-            if (service.partyRentalItems && service.partyRentalItems.length > 0) {
-              serviceItems = service.partyRentalItems;
-              rentalItems = service.partyRentalItems.map((item: any) => ({
-                id: item.rentalId || item.id,
-                name: item.name,
-                price: parseFloat(item.eachPrice || item.price || 0),
-                priceType: 'fixed'
-              }));
-              
-              // Build selectedItems from partyRentalItems
-              service.partyRentalItems.forEach((item: any) => {
-                const itemId = item.rentalId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
-                }
-              });
-            }
-            
-            if (service.staffItems && service.staffItems.length > 0) {
-              serviceItems = service.staffItems;
-              staffItems = service.staffItems.map((item: any) => ({
-                id: item.staffId || item.id,
-                name: item.name,
-                price: parseFloat(item.perHourPrice || item.price || 0),
-                pricingType: item.pricingType || 'hourly',
-                perHourPrice: parseFloat(item.perHourPrice || item.price || 0)
-              }));
-              
-              // Build selectedItems from staffItems (include duration for staff)
-              service.staffItems.forEach((item: any) => {
-                const itemId = item.staffId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
-                  if (item.hours) {
-                    mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
-                  }
-                }
-              });
-            }
-            
-            if (service.venueItems && service.venueItems.length > 0) {
-              serviceItems = service.venueItems;
-              venueItems = service.venueItems.map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                price: parseFloat(item.price || 0)
-              }));
-            }
-            
-            // Build service_details structure based on service type
-            let serviceDetails: any = {};
-            if (serviceType === 'catering') {
-              // Map comboCategoryItems from API to the format expected by calculation
-              const mappedComboCategoryItems = (service.comboCategoryItems || []).map((item: any) => ({
-                id: item.id,
-                name: item.menuItemName || item.name,
-                menuName: item.menuName,
-                price: parseFloat(item.price) || 0,
-                quantity: item.quantity || 1,
-                additionalCharge: item.premiumCharge ? parseFloat(item.premiumCharge) : 0,
-                comboId: item.comboId,
-                cateringId: item.cateringId,
-                image: item.image || item.imageUrl || ''
-              }));
+              if (service.cateringItems && service.cateringItems.length > 0) {
+                serviceItems = service.cateringItems;
+                menuItems = service.cateringItems.map((item: any) => {
+                  // Find combo category items for this combo
+                  const comboCategoryItems = apiServices.flatMap((s: any) =>
+                    (s.comboCategoryItems || []).filter(
+                      (comboItem: any) =>
+                        comboItem.comboId === (item.cateringId || item.id),
+                    ),
+                  );
 
-              // Add image field to menuItems for display
-              const menuItemsWithImages = menuItems.map((mi: any) => ({
-                ...mi,
-                image: mi.image || mi.imageUrl || ''
-              }));
-
-              const comboIds = [...new Set(mappedComboCategoryItems.map((item: any) => item.comboId))];
-              const combos = comboIds.map((comboId: any) => {
-                const comboItems = mappedComboCategoryItems.filter((item: any) => item.comboId === comboId);
-                const categoryMap = new Map();
-                comboItems.forEach((item: any) => {
-                  if (!categoryMap.has(item.menuName)) {
-                    categoryMap.set(item.menuName, {
-                      id: item.menuName,
-                      categoryId: item.menuName,
-                      name: item.menuName,
-                      items: []
-                    });
-                  }
-                  categoryMap.get(item.menuName).items.push({
+                  return {
                     id: item.cateringId || item.id,
-                    itemId: item.cateringId || item.id,
-                    name: item.name,
-                    price: item.price,
-                    additionalCharge: item.additionalCharge,
-                    image: item.image || ''
-                  });
+                    name: item.menuItemName || item.name,
+                    price: parseFloat(item.price || 0),
+                    quantity: item.quantity || 1,
+                    category: item.menuName || "Menu",
+                    menuName: item.menuName,
+                    menuItemName: item.menuItemName,
+                    isCombo:
+                      comboCategoryItems.length > 0 || item.isCombo || false,
+                    comboCategories: item.comboCategories || [],
+                    comboCategoryItems: comboCategoryItems,
+                    priceType: item.priceType || "fixed",
+                    image: item.image || item.imageUrl,
+                    imageUrl: item.imageUrl || item.image,
+                    description: item.description || "",
+                  };
                 });
 
-                const matchingCateringItem = service.cateringItems?.find((ci: any) => (ci.cateringId || ci.id) === comboId);
-                const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
+                // Build selectedItems from cateringItems
+                service.cateringItems.forEach((item: any) => {
+                  if ((service as any).isGuestService) return;
+                  const itemId = item.cateringId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
+                  }
+                });
+              }
 
-                return {
-                  id: comboId,
-                  name: comboName,
-                  isCombo: true,
-                  pricePerPerson: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
-                  comboCategories: Array.from(categoryMap.values())
-                };
-              });
+              // Add combo base items for all combos from comboCategoryItems
+              if (serviceType === "catering") {
+                const allComboCategoryItems = service.comboCategoryItems || [];
+                const comboGroups = new Map();
 
-              serviceDetails = {
-                catering: {
+                allComboCategoryItems.forEach((item: any) => {
+                  if (!comboGroups.has(item.comboId)) {
+                    comboGroups.set(item.comboId, []);
+                  }
+                  comboGroups.get(item.comboId).push(item);
+                });
+
+                comboGroups.forEach((comboCategoryItems, comboId) => {
+                  const existingCombo = menuItems.find(
+                    (item) => item.id === comboId,
+                  );
+                  const matchingCateringItem = service.cateringItems?.find(
+                    (item: any) => (item.cateringId || item.id) === comboId,
+                  );
+                  const comboImage =
+                    comboCategoryItems[0]?.image ||
+                    matchingCateringItem?.image ||
+                    "";
+                  if (!existingCombo) {
+                    const comboName =
+                      matchingCateringItem?.menuItemName ||
+                      matchingCateringItem?.menuName ||
+                      matchingCateringItem?.name ||
+                      "Combo";
+                    menuItems.push({
+                      id: comboId,
+                      name: comboName,
+                      price: matchingCateringItem
+                        ? parseFloat(matchingCateringItem.price || 0)
+                        : 0,
+                      quantity: matchingCateringItem?.quantity || 1,
+                      category: "Combo Packages",
+                      menuName: "Combo Packages",
+                      menuItemName: comboName,
+                      isCombo: true,
+                      comboCategories: [],
+                      comboCategoryItems: comboCategoryItems.map(
+                        (item: any) => ({
+                          ...item,
+                          image: item.image || item.imageUrl || "",
+                        }),
+                      ),
+                      priceType: "fixed",
+                      image: comboImage,
+                      imageUrl: comboImage,
+                      description: "",
+                    });
+                    mappedSelectedItems[comboId] =
+                      matchingCateringItem?.quantity || 0;
+                  } else {
+                    existingCombo.comboCategoryItems = comboCategoryItems.map(
+                      (item: any) => ({
+                        ...item,
+                        image: item.image || item.imageUrl || "",
+                      }),
+                    );
+                    if (comboImage && !existingCombo.image) {
+                      existingCombo.image = comboImage;
+                      existingCombo.imageUrl = comboImage;
+                    }
+                  }
+                });
+              }
+
+              if (
+                service.partyRentalItems &&
+                service.partyRentalItems.length > 0
+              ) {
+                serviceItems = service.partyRentalItems;
+                rentalItems = service.partyRentalItems.map((item: any) => ({
+                  id: item.rentalId || item.id,
+                  name: item.name,
+                  price: parseFloat(item.eachPrice || item.price || 0),
+                  priceType: "fixed",
+                }));
+
+                // Build selectedItems from partyRentalItems
+                service.partyRentalItems.forEach((item: any) => {
+                  const itemId = item.rentalId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
+                  }
+                });
+              }
+
+              if (service.staffItems && service.staffItems.length > 0) {
+                serviceItems = service.staffItems;
+                staffItems = service.staffItems.map((item: any) => ({
+                  id: item.staffId || item.id,
+                  name: item.name,
+                  price: parseFloat(item.perHourPrice || item.price || 0),
+                  pricingType: item.pricingType || "hourly",
+                  perHourPrice: parseFloat(
+                    item.perHourPrice || item.price || 0,
+                  ),
+                }));
+
+                // Build selectedItems from staffItems (include duration for staff)
+                service.staffItems.forEach((item: any) => {
+                  const itemId = item.staffId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
+                    if (item.hours) {
+                      mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
+                    }
+                  }
+                });
+              }
+
+              if (service.venueItems && service.venueItems.length > 0) {
+                serviceItems = service.venueItems;
+                venueItems = service.venueItems.map((item: any) => ({
+                  id: item.id,
+                  name: item.name,
+                  price: parseFloat(item.price || 0),
+                }));
+              }
+
+              // Build service_details structure based on service type
+              let serviceDetails: any = {};
+              if (serviceType === "catering") {
+                // Map comboCategoryItems from API to the format expected by calculation
+                const mappedComboCategoryItems = (
+                  service.comboCategoryItems || []
+                ).map((item: any) => ({
+                  id: item.id,
+                  name: item.menuItemName || item.name,
+                  menuName: item.menuName,
+                  price: parseFloat(item.price) || 0,
+                  quantity: item.quantity || 1,
+                  additionalCharge: item.premiumCharge
+                    ? parseFloat(item.premiumCharge)
+                    : 0,
+                  comboId: item.comboId,
+                  cateringId: item.cateringId,
+                  image: item.image || item.imageUrl || "",
+                }));
+
+                // Add image field to menuItems for display
+                const menuItemsWithImages = menuItems.map((mi: any) => ({
+                  ...mi,
+                  image: mi.image || mi.imageUrl || "",
+                }));
+
+                const comboIds = [
+                  ...new Set(
+                    mappedComboCategoryItems.map((item: any) => item.comboId),
+                  ),
+                ];
+                const combos = comboIds.map((comboId: any) => {
+                  const comboItems = mappedComboCategoryItems.filter(
+                    (item: any) => item.comboId === comboId,
+                  );
+                  const categoryMap = new Map();
+                  comboItems.forEach((item: any) => {
+                    if (!categoryMap.has(item.menuName)) {
+                      categoryMap.set(item.menuName, {
+                        id: item.menuName,
+                        categoryId: item.menuName,
+                        name: item.menuName,
+                        items: [],
+                      });
+                    }
+                    categoryMap.get(item.menuName).items.push({
+                      id: item.cateringId || item.id,
+                      itemId: item.cateringId || item.id,
+                      name: item.name,
+                      price: item.price,
+                      additionalCharge: item.additionalCharge,
+                      image: item.image || "",
+                    });
+                  });
+
+                  const matchingCateringItem = service.cateringItems?.find(
+                    (ci: any) => (ci.cateringId || ci.id) === comboId,
+                  );
+                  const comboName =
+                    matchingCateringItem?.menuItemName ||
+                    matchingCateringItem?.menuName ||
+                    matchingCateringItem?.name ||
+                    "Combo";
+
+                  return {
+                    id: comboId,
+                    name: comboName,
+                    isCombo: true,
+                    pricePerPerson: matchingCateringItem
+                      ? parseFloat(matchingCateringItem.price || 0)
+                      : 0,
+                    comboCategories: Array.from(categoryMap.values()),
+                  };
+                });
+
+                serviceDetails = {
+                  catering: {
+                    menuItems: menuItemsWithImages,
+                    combos: combos,
+                  },
                   menuItems: menuItemsWithImages,
-                  combos: combos
-                },
-                menuItems: menuItemsWithImages,
-                comboCategoryItems: mappedComboCategoryItems
-              };
-            } else if (serviceType === 'party_rentals' || serviceType === 'party-rentals' || serviceType === 'party-rental') {
-              serviceDetails = {
-                rentalItems: rentalItems,
-                rental: {
-                  items: rentalItems
-                }
-              };
-            } else if (serviceType === 'events_staff' || serviceType === 'staff') {
-              serviceDetails = {
-                staffServices: staffItems,
-                services: staffItems,
-                staff: {
-                  services: staffItems
-                }
-              };
-            } else if (serviceType === 'venues' || serviceType === 'venue') {
-              serviceDetails = {
-                venueOptions: venueItems,
-                options: venueItems
-              };
-            }
+                  comboCategoryItems: mappedComboCategoryItems,
+                };
+              } else if (
+                serviceType === "party_rentals" ||
+                serviceType === "party-rentals" ||
+                serviceType === "party-rental"
+              ) {
+                serviceDetails = {
+                  rentalItems: rentalItems,
+                  rental: {
+                    items: rentalItems,
+                  },
+                };
+              } else if (
+                serviceType === "events_staff" ||
+                serviceType === "staff"
+              ) {
+                serviceDetails = {
+                  staffServices: staffItems,
+                  services: staffItems,
+                  staff: {
+                    services: staffItems,
+                  },
+                };
+              } else if (serviceType === "venues" || serviceType === "venue") {
+                serviceDetails = {
+                  venueOptions: venueItems,
+                  options: venueItems,
+                };
+              }
 
-            return {
-              id: serviceId,
-              serviceId: serviceId,
-              name: service.serviceName,
-              serviceName: service.serviceName,
-              guestName: (service as any).guestName,
-              guestEmail: (service as any).guestEmail,
-              isGuestService: (service as any).isGuestService,
-              vendorEarnings: service.vendorEarnings,
-              price: parseFloat(service.price) || 0,
-              servicePrice: service.price,
-              totalPrice: parseFloat(service.totalPrice) || 0,
-              quantity: service.quantity || 1,
-              duration: service.staffItems?.[0]?.hours || 0,
-              serviceType: serviceType,
-              type: serviceType,
-              description: '',
-              vendor_id: service.vendorId || undefined,
-              priceType: service.priceType || 'flat',
-              price_type: service.priceType || 'flat',
-              service_details: serviceDetails,
-              selected_menu_items: serviceItems,
-              image: service.image || service.imageUrl || '',
-              imageUrl: service.imageUrl || service.image || '',
-              serviceImage: service.image || service.imageUrl || '',
-              deliveryFee: service.deliveryFee || '0'
-            };
-          });
+              return {
+                id: serviceId,
+                serviceId: serviceId,
+                name: service.serviceName,
+                serviceName: service.serviceName,
+                guestName: (service as any).guestName,
+                guestEmail: (service as any).guestEmail,
+                isGuestService: (service as any).isGuestService,
+                vendorEarnings: service.vendorEarnings,
+                price: parseFloat(service.price) || 0,
+                servicePrice: service.price,
+                totalPrice: parseFloat(service.totalPrice) || 0,
+                quantity: service.quantity || 1,
+                duration: service.staffItems?.[0]?.hours || 0,
+                serviceType: serviceType,
+                type: serviceType,
+                description: "",
+                vendor_id: service.vendorId || undefined,
+                priceType: service.priceType || "flat",
+                price_type: service.priceType || "flat",
+                service_details: serviceDetails,
+                selected_menu_items: serviceItems,
+                image: service.image || service.imageUrl || "",
+                imageUrl: service.imageUrl || service.image || "",
+                serviceImage: service.image || service.imageUrl || "",
+                deliveryFee: service.deliveryFee || "0",
+              };
+            },
+          );
 
           const deliveryFeeFromBackend = apiServices.some(
             (service: any) =>
               service?.deliveryFee !== null &&
               service?.deliveryFee !== undefined &&
-              service?.deliveryFee !== '',
+              service?.deliveryFee !== "",
           );
-          
+
           // Map custom line items to custom adjustments
-          const mappedAdjustments: CustomAdjustment[] = (invoiceData.customLineItems || []).map((item: any) => ({
+          const mappedAdjustments: CustomAdjustment[] = (
+            invoiceData.customLineItems || []
+          ).map((item: any) => ({
             id: item.id,
             label: item.label,
-            type: item.type === 'percentage' ? 'percentage' : 'fixed',
-            mode: item.mode === 'surcharge' ? 'surcharge' : 'discount',
+            type: item.type === "percentage" ? "percentage" : "fixed",
+            mode: item.mode === "surcharge" ? "surcharge" : "discount",
             value: parseFloat(item.value) || 0,
-            taxable: item.taxable !== false // default to true
+            taxable: item.taxable !== false, // default to true
           }));
-          
+
           // Map invoice data to formData
           const mappedFormData = {
             invoiceId: invoiceData.id,
-            eventName: invoiceData.eventName || '',
-            company: invoiceData.companyName || '',
-            location: invoiceData.eventLocation || '',
-            date: invoiceData.eventDate || '',
-            time: invoiceData.serviceTime || '',
+            eventName: invoiceData.eventName || "",
+            company: invoiceData.companyName || "",
+            location: invoiceData.eventLocation || "",
+            date: invoiceData.eventDate || "",
+            time: invoiceData.serviceTime || "",
             headcount: invoiceData.guestCount || 1,
-            primaryContactName: invoiceData.contactName || '',
-            primaryContactPhone: invoiceData.phoneNumber || '',
-            primaryContactEmail: invoiceData.emailAddress || '',
-            additionalNotes: invoiceData.additionalNotes || '',
+            primaryContactName: invoiceData.contactName || "",
+            primaryContactPhone: invoiceData.phoneNumber || "",
+            primaryContactEmail: invoiceData.emailAddress || "",
+            additionalNotes: invoiceData.additionalNotes || "",
             customAdjustments: mappedAdjustments,
             adminOverrides: {
               isTaxExempt: invoiceData.taxExemptStatus || false,
-              isServiceFeeWaived: invoiceData.waiveServiceFee || false
+              isServiceFeeWaived: invoiceData.waiveServiceFee || false,
             },
             isTaxExempt: invoiceData.taxExemptStatus || false,
             isServiceFeeWaived: invoiceData.waiveServiceFee || false,
@@ -676,23 +801,25 @@ function OrderSummaryPage() {
             selectItem: invoiceData.selectItem,
             quantity: invoiceData.quantity,
             orderDeadline: invoiceData.orderDeadline,
-            paymentSettings: invoiceData.paymentSettings
+            paymentSettings: invoiceData.paymentSettings,
           };
-          
+
           // Add combo category items to selectedItems
-          const allComboCategoryItems = apiServices.flatMap((s: any) => s.comboCategoryItems || []);
+          const allComboCategoryItems = apiServices.flatMap(
+            (s: any) => s.comboCategoryItems || [],
+          );
           allComboCategoryItems.forEach((item: any) => {
             const itemKey = `${item.comboId}_${item.menuName}_${item.cateringId}`;
             mappedSelectedItems[itemKey] = item.quantity;
           });
-          
+
           // Set state from API data
           setSelectedServices(mappedServices);
           setSelectedItems(mappedSelectedItems);
           setFormData(mappedFormData);
           setHostGuestOrders(mappedGuestOrders);
           setHasBackendDeliveryFees(deliveryFeeFromBackend);
-          
+
           // Store payment intent data
           if (summaryData.paymentIntentId) {
             setPaymentIntentId(summaryData.paymentIntentId);
@@ -700,24 +827,27 @@ function OrderSummaryPage() {
           if (summaryData.clientSecret) {
             setClientSecret(summaryData.clientSecret);
           }
-          
+
           // Store totalAmount from API for use in calculations
           if (summaryData.totalAmount) {
-            sessionStorage.setItem(`invoiceTotal_${invoiceIdFromUrl}`, summaryData.totalAmount.toString());
+            sessionStorage.setItem(
+              `invoiceTotal_${invoiceIdFromUrl}`,
+              summaryData.totalAmount.toString(),
+            );
           }
-          
+
           return true;
         }
       } catch (error) {
         toast.error("Failed to load invoice", {
-          description: "Could not load invoice data. Please try again."
+          description: "Could not load invoice data. Please try again.",
         });
       } finally {
         setIsLoadingInvoiceSummary(false);
       }
       return false;
     };
-    
+
     loadInvoiceSummary();
   }, [invoiceIdFromUrl, fetchInvoiceSummary]);
 
@@ -727,41 +857,61 @@ function OrderSummaryPage() {
     if (invoiceIdFromUrl) {
       return;
     }
-    
+
     // Use navigation state if available
-    const hasNavigationState = Array.isArray(initialState.selectedServices) && initialState.selectedServices.length > 0;
+    const hasNavigationState =
+      Array.isArray(initialState.selectedServices) &&
+      initialState.selectedServices.length > 0;
     if (hasNavigationState) {
       return;
     }
-    
+
     // Fallback to session storage
-    const sessionInvoiceData = sessionStorage.getItem('invoiceData') || sessionStorage.getItem('proposalData');
+    const sessionInvoiceData =
+      sessionStorage.getItem("invoiceData") ||
+      sessionStorage.getItem("proposalData");
     if (sessionInvoiceData) {
       try {
         const invoiceData = JSON.parse(sessionInvoiceData);
-        
+
         setSelectedServices(invoiceData.selectedServices || []);
         setSelectedItems(invoiceData.selectedItems || {});
         setFormData({
           ...invoiceData.clientInfo,
           ...invoiceData.formData,
-          customAdjustments: invoiceData.customAdjustments || invoiceData.formData?.customAdjustments || [],
-          adminOverrides: invoiceData.overrides || invoiceData.formData?.adminOverrides,
-          isTaxExempt: invoiceData.overrides?.isTaxExempt || invoiceData.formData?.isTaxExempt || false,
-          isServiceFeeWaived: invoiceData.overrides?.isServiceFeeWaived || invoiceData.formData?.isServiceFeeWaived || false,
-          primaryContactName: invoiceData.clientInfo?.clientName || invoiceData.formData?.primaryContactName,
-          primaryContactEmail: invoiceData.clientInfo?.clientEmail || invoiceData.formData?.primaryContactEmail,
-          primaryContactPhone: invoiceData.clientInfo?.clientPhone || invoiceData.formData?.primaryContactPhone,
+          customAdjustments:
+            invoiceData.customAdjustments ||
+            invoiceData.formData?.customAdjustments ||
+            [],
+          adminOverrides:
+            invoiceData.overrides || invoiceData.formData?.adminOverrides,
+          isTaxExempt:
+            invoiceData.overrides?.isTaxExempt ||
+            invoiceData.formData?.isTaxExempt ||
+            false,
+          isServiceFeeWaived:
+            invoiceData.overrides?.isServiceFeeWaived ||
+            invoiceData.formData?.isServiceFeeWaived ||
+            false,
+          primaryContactName:
+            invoiceData.clientInfo?.clientName ||
+            invoiceData.formData?.primaryContactName,
+          primaryContactEmail:
+            invoiceData.clientInfo?.clientEmail ||
+            invoiceData.formData?.primaryContactEmail,
+          primaryContactPhone:
+            invoiceData.clientInfo?.clientPhone ||
+            invoiceData.formData?.primaryContactPhone,
         });
-        
-        sessionStorage.removeItem('invoiceData');
-        sessionStorage.removeItem('proposalData');
+
+        sessionStorage.removeItem("invoiceData");
+        sessionStorage.removeItem("proposalData");
         return;
       } catch (error) {
         // Failed to parse session data
       }
     }
-    
+
     // Final fallback to booking backup
     const backup = loadBookingStateBackup();
     if (backup) {
@@ -769,23 +919,23 @@ function OrderSummaryPage() {
       setSelectedItems(backup.selectedItems || {});
       setFormData({
         ...(backup.formData || {}),
-        customAdjustments: backup.formData?.customAdjustments || []
+        customAdjustments: backup.formData?.customAdjustments || [],
       });
     } else {
       // No data available - redirect to booking
-      toast.error('Session expired', {
-        description: 'We could not restore your order. Please start again.'
+      toast.error("Session expired", {
+        description: "We could not restore your order. Please start again.",
       });
-      
+
       const getBookingRoute = () => {
-        if (location.pathname.includes('/admin')) {
-          return '/admin/booking';
-        } else if (location.pathname.includes('/vendor')) {
-          return '/vendor/booking';
+        if (location.pathname.includes("/admin")) {
+          return "/admin/booking";
+        } else if (location.pathname.includes("/vendor")) {
+          return "/vendor/booking";
         }
-        return '/booking';
+        return "/booking";
       };
-      
+
       navigate(getBookingRoute());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -794,50 +944,50 @@ function OrderSummaryPage() {
   // ENTERPRISE: Enhanced invoice mode detection with multiple sources
   const proposalMode = useMemo(() => {
     // Priority 1: URL parameter
-    if (searchParams.get('mode') === 'invoice') return true;
-    
+    if (searchParams.get("mode") === "invoice") return true;
+
     // Priority 2: InvoiceContext
     if (isInvoiceMode) return true;
-    
+
     // Priority 3: sessionStorage has invoice data
-    if (typeof window !== 'undefined' && sessionStorage.getItem('invoiceData')) return true;
-    
+    if (typeof window !== "undefined" && sessionStorage.getItem("invoiceData"))
+      return true;
+
     // Priority 4: location.state has proposalId or token (viewing/editing existing proposal)
     if (editingProposalId || editingProposalToken) return true;
-    
+
     // Priority 5: URL query params have proposalId or token
-    if (searchParams.get('proposalId') || searchParams.get('token')) return true;
-    
+    if (searchParams.get("proposalId") || searchParams.get("token"))
+      return true;
+
     return false;
   }, [searchParams, isInvoiceMode, editingProposalId, editingProposalToken]);
-
 
   // Normalize proposal data to match expected booking fields
   useEffect(() => {
     if (proposalMode && formData) {
       const needsMapping = !formData.primaryContactName && formData.clientName;
       if (needsMapping) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           primaryContactName: prev.clientName,
           primaryContactEmail: prev.clientEmail,
-          primaryContactPhone: prev.clientPhone
+          primaryContactPhone: prev.clientPhone,
         }));
       }
     }
   }, [proposalMode, formData?.clientName, formData?.primaryContactName]);
 
-
   const handleCopyProposalLink = async () => {
     setIsCopyingLink(true);
     try {
-      let urlToCopy = '';
+      let urlToCopy = "";
 
       if (isGroupOrderHostSummaryRoute) {
         const invoiceId = params.invoiceId || params.id || invoiceIdFromUrl;
         if (!invoiceId) {
           toast.error("No Link Available", {
-            description: "Cannot copy link. No invoice ID found."
+            description: "Cannot copy link. No invoice ID found.",
           });
           return;
         }
@@ -845,83 +995,95 @@ function OrderSummaryPage() {
       } else if (generatedProposalUrl) {
         urlToCopy = generatedProposalUrl;
       } else {
-        const invoiceId = editingInvoiceId || currentInvoiceId || invoiceIdFromUrl;
+        const invoiceId =
+          editingInvoiceId || currentInvoiceId || invoiceIdFromUrl;
         if (!invoiceId) {
           toast.error("No Link Available", {
-            description: "Cannot copy link. No invoice ID found."
+            description: "Cannot copy link. No invoice ID found.",
           });
           return;
         }
         urlToCopy = `${window.location.origin}/proposals/${invoiceId}`;
       }
-      
+
       // Copy to clipboard
       await navigator.clipboard.writeText(urlToCopy);
-      
+
       toast.success("Link Copied!", {
-        description: "Link has been copied to your clipboard."
+        description: "Link has been copied to your clipboard.",
       });
     } catch (error) {
       toast.error("Copy Failed", {
-        description: error instanceof Error ? error.message : "Failed to copy link to clipboard"
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to copy link to clipboard",
       });
     } finally {
       setIsCopyingLink(false);
     }
   };
 
-const calculateTotal = () => {
-  // Calculate from state - exclude tax
-  const baseTotals = calculateUnifiedOrderTotals(
-    selectedServices as any,
-    selectedItems as any,
-    (formData as any)?.location,
-    {
-      serviceFeePercentage: adminSettings.serviceFeePercentage,
-      serviceFeeFixed: adminSettings.serviceFeeFixed,
-      serviceFeeType: adminSettings.serviceFeeType,
-    },
-    undefined,
-    formData?.customAdjustments || [],
-    undefined, // distancesByService removed - API provides this
-    isTaxExempt,
-    isServiceFeeWaived
-  );
+  const calculateTotal = () => {
+    // Calculate from state - exclude tax
+    const baseTotals = calculateUnifiedOrderTotals(
+      selectedServices as any,
+      selectedItems as any,
+      (formData as any)?.location,
+      {
+        serviceFeePercentage: adminSettings.serviceFeePercentage,
+        serviceFeeFixed: adminSettings.serviceFeeFixed,
+        serviceFeeType: adminSettings.serviceFeeType,
+      },
+      undefined,
+      formData?.customAdjustments || [],
+      undefined, // distancesByService removed - API provides this
+      isTaxExempt,
+      isServiceFeeWaived,
+    );
 
-  // Calculate delivery fees from services (matching OrderItemsBreakdown logic)
-  const serviceDeliveryFees = (selectedServices || []).reduce((total: number, service: any) => {
-    const serviceFee = parseFloat(String(service.deliveryFee || '0')) || 0;
-    return total + serviceFee;
-  }, 0);
+    // Calculate delivery fees from services (matching OrderItemsBreakdown logic)
+    const serviceDeliveryFees = (selectedServices || []).reduce(
+      (total: number, service: any) => {
+        const serviceFee = parseFloat(String(service.deliveryFee || "0")) || 0;
+        return total + serviceFee;
+      },
+      0,
+    );
 
-  // Use service delivery fees if available, otherwise fallback to baseTotals
-  const deliveryFee = serviceDeliveryFees > 0 ? serviceDeliveryFees : baseTotals.deliveryFee;
+    // Use service delivery fees if available, otherwise fallback to baseTotals
+    const deliveryFee =
+      serviceDeliveryFees > 0 ? serviceDeliveryFees : baseTotals.deliveryFee;
 
-  // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
-  const serviceFeeBase = baseTotals.subtotal + deliveryFee + (baseTotals.adjustmentsTotal || 0);
-  const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
-  const recalcServiceFee = isServiceFeeWaived ? 0 : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
-  const taxRate = baseTotals.taxData?.rate ?? 0;
-  const recalcTax = isTaxExempt ? 0 : parseFloat((serviceFeeBase * taxRate).toFixed(2));
+    // Match OrderItemsBreakdown: service fee & tax on (subtotal + delivery + adjustments)
+    const serviceFeeBase =
+      baseTotals.subtotal + deliveryFee + (baseTotals.adjustmentsTotal || 0);
+    const serviceFeePercentage = adminSettings.serviceFeePercentage || 0;
+    const recalcServiceFee = isServiceFeeWaived
+      ? 0
+      : parseFloat((serviceFeeBase * (serviceFeePercentage / 100)).toFixed(2));
+    const taxRate = baseTotals.taxData?.rate ?? 0;
+    const recalcTax = isTaxExempt
+      ? 0
+      : parseFloat((serviceFeeBase * taxRate).toFixed(2));
 
-  console.log('[OrderSummaryPage] calculateTotal breakdown:', {
-    subtotal: baseTotals.subtotal,
-    deliveryFee,
-    adjustmentsTotal: baseTotals.adjustmentsTotal,
-    serviceFeeBase,
-    recalcServiceFee,
-    recalcTax,
-    total: serviceFeeBase + recalcServiceFee + recalcTax
-  });
+    console.log("[OrderSummaryPage] calculateTotal breakdown:", {
+      subtotal: baseTotals.subtotal,
+      deliveryFee,
+      adjustmentsTotal: baseTotals.adjustmentsTotal,
+      serviceFeeBase,
+      recalcServiceFee,
+      recalcTax,
+      total: serviceFeeBase + recalcServiceFee + recalcTax,
+    });
 
-  return serviceFeeBase + recalcServiceFee + recalcTax;
-};
+    return serviceFeeBase + recalcServiceFee + recalcTax;
+  };
 
-const calculateTotalWithTip = () => {
-  // Return total including additional tip for display purposes
-  return calculateTotal() + (additionalTip || 0);
-};
-
+  const calculateTotalWithTip = () => {
+    // Return total including additional tip for display purposes
+    return calculateTotal() + (additionalTip || 0);
+  };
 
   const handlePaymentSuccess = (orderId: string) => {
     try {
@@ -929,8 +1091,8 @@ const calculateTotalWithTip = () => {
     } catch (e) {
       // Post-payment cleanup warning
     }
-    navigate('/order-confirmation', { 
-      state: { orderId } 
+    navigate("/order-confirmation", {
+      state: { orderId },
     });
   };
 
@@ -938,56 +1100,67 @@ const calculateTotalWithTip = () => {
     const orderId = invoiceIdFromUrl || currentInvoiceId || editingInvoiceId;
     if (orderId) {
       // Check if this is a group order by looking for group order specific fields
-      const isGroupOrder = formData?.budgetPerPerson || formData?.paymentSettings || formData?.orderDeadline;
-      
+      const isGroupOrder =
+        formData?.budgetPerPerson ||
+        formData?.paymentSettings ||
+        formData?.orderDeadline;
+
       if (isGroupOrder) {
         navigate(`/edit-group-order/${orderId}`);
       } else {
         navigate(`/edit-order/${orderId}`);
       }
     } else {
-      toast.error('No order ID available for editing');
+      toast.error("No order ID available for editing");
     }
   };
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
-    
+
     try {
       if (invoiceIdFromUrl) {
         const response = await fetchInvoiceSummary(invoiceIdFromUrl);
-        
+
         const summaryData = getSummaryPayload(response);
         if (summaryData?.invoice) {
           const invoiceData = summaryData.invoice;
-          const mappedGuestOrders = Array.isArray((summaryData as any).guestOrders)
+          const mappedGuestOrders = Array.isArray(
+            (summaryData as any).guestOrders,
+          )
             ? (summaryData as any).guestOrders.map((order: any) => ({
-                id: order.id || '',
-                guestName: order.guestName || 'Guest',
-                guestEmail: order.guestEmail || '-',
+                id: order.id || "",
+                guestName: order.guestName || "Guest",
+                guestEmail: order.guestEmail || "-",
               }))
             : [];
-          
+
           // Build selectedItems from service items
           const mappedSelectedItems: Record<string, number> = {};
-          
-          let apiServices: any[] = Array.isArray(invoiceData.services) && invoiceData.services.length > 0
-            ? invoiceData.services
-            : (Array.isArray((summaryData as any).services) ? (summaryData as any).services : []);
+
+          let apiServices: any[] =
+            Array.isArray(invoiceData.services) &&
+            invoiceData.services.length > 0
+              ? invoiceData.services
+              : Array.isArray((summaryData as any).services)
+                ? (summaryData as any).services
+                : [];
           const guestOrders = Array.isArray((summaryData as any).guestOrders)
             ? (summaryData as any).guestOrders
             : [];
-          const shouldUseGuestServices = isGroupOrderHostSummaryRoute && guestOrders.length > 0;
+          const shouldUseGuestServices =
+            isGroupOrderHostSummaryRoute && guestOrders.length > 0;
           const guestCateringServices = shouldUseGuestServices
             ? buildGuestCateringServices(guestOrders)
             : [];
-          const guestServices = guestOrders.length > 0
-            ? buildServicesFromGuestOrders(guestOrders)
-            : [];
+          const guestServices =
+            guestOrders.length > 0
+              ? buildServicesFromGuestOrders(guestOrders)
+              : [];
           if (shouldUseGuestServices && guestCateringServices.length > 0) {
             const nonCateringServices = apiServices.filter((service: any) => {
-              const serviceType = service?.serviceType || '';
-              return serviceType !== 'catering';
+              const serviceType = service?.serviceType || "";
+              return serviceType !== "catering";
             });
             apiServices = [...nonCateringServices, ...guestCateringServices];
           } else if (apiServices.length === 0 && guestServices.length > 0) {
@@ -999,16 +1172,22 @@ const calculateTotalWithTip = () => {
               mergedByServiceId.set(key, service);
             });
             guestServices.forEach((guestService) => {
-              const key = String(guestService.serviceId || guestService.id || "");
+              const key = String(
+                guestService.serviceId || guestService.id || "",
+              );
               const existing = mergedByServiceId.get(key);
               if (!existing) {
                 mergedByServiceId.set(key, guestService);
                 return;
               }
-              const existingCateringItems = Array.isArray(existing.cateringItems)
+              const existingCateringItems = Array.isArray(
+                existing.cateringItems,
+              )
                 ? existing.cateringItems
                 : [];
-              const existingComboItems = Array.isArray(existing.comboCategoryItems)
+              const existingComboItems = Array.isArray(
+                existing.comboCategoryItems,
+              )
                 ? existing.comboCategoryItems
                 : [];
               const extraCatering = Array.isArray(guestService.cateringItems)
@@ -1029,12 +1208,14 @@ const calculateTotalWithTip = () => {
               const cateringKeySet = new Set<string>();
               const comboKeySet = new Set<string>();
 
-              const dedupedCateringItems = mergedCateringItems.filter((item) => {
-                const id = String(item.cateringId || item.id || "");
-                if (!id || cateringKeySet.has(id)) return false;
-                cateringKeySet.add(id);
-                return true;
-              });
+              const dedupedCateringItems = mergedCateringItems.filter(
+                (item) => {
+                  const id = String(item.cateringId || item.id || "");
+                  if (!id || cateringKeySet.has(id)) return false;
+                  cateringKeySet.add(id);
+                  return true;
+                },
+              );
               const dedupedComboItems = mergedComboItems.filter((item) => {
                 const comboKey = `${item.comboId || ""}-${item.cateringId || item.id || ""}`;
                 if (comboKeySet.has(comboKey)) return false;
@@ -1049,324 +1230,391 @@ const calculateTotalWithTip = () => {
                 image: existing.image || guestService.image,
                 cateringItems: dedupedCateringItems,
                 comboCategoryItems: dedupedComboItems,
-                totalPrice: Number(existing.totalPrice || 0) + Number(guestService.totalPrice || 0),
+                totalPrice:
+                  Number(existing.totalPrice || 0) +
+                  Number(guestService.totalPrice || 0),
               });
             });
             apiServices = Array.from(mergedByServiceId.values());
           }
 
           // Map services from API to ServiceSelection format
-          const mappedServices: ServiceSelection[] = apiServices.map((service: any) => {
-            const serviceId = service.id;
-            const serviceType = service.serviceType || '';
-            
-            // Extract items based on service type and build selectedItems
-            let serviceItems: any[] = [];
-            let menuItems: any[] = [];
-            let rentalItems: any[] = [];
-            let staffItems: any[] = [];
-            let venueItems: any[] = [];
-            
-            if (service.cateringItems && service.cateringItems.length > 0) {
-              serviceItems = service.cateringItems;
-              menuItems = service.cateringItems.map((item: any) => {
-                // Find combo category items for this combo
-                const comboCategoryItems = apiServices.flatMap((s: any) => 
-                  (s.comboCategoryItems || []).filter((comboItem: any) => 
-                    comboItem.comboId === (item.cateringId || item.id)
-                  )
-                );
-                
-                return {
-                  id: item.cateringId || item.id,
-                  name: item.menuItemName || item.name,
-                  price: parseFloat(item.price || 0),
-                  quantity: item.quantity || 1,
-                  category: item.menuName || 'Menu',
-                  menuName: item.menuName,
-                  menuItemName: item.menuItemName,
-                  isCombo: comboCategoryItems.length > 0 || item.isCombo || false,
-                  comboCategories: item.comboCategories || [],
-                  comboCategoryItems: comboCategoryItems,
-                  priceType: item.priceType || 'fixed',
-                  image: item.image || item.imageUrl,
-                  imageUrl: item.imageUrl || item.image,
-                  description: item.description || ''
-                };
-              });
-              
-              // Build selectedItems from cateringItems
-              service.cateringItems.forEach((item: any) => {
-                if ((service as any).isGuestService) return;
-                const itemId = item.cateringId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
-                }
-              });
-            }
-            
-            // Add combo base items for all combos from comboCategoryItems (refresh function)
-            if (serviceType === 'catering') {
-              const allComboCategoryItems = service.comboCategoryItems || [];
-              const comboGroups = new Map();
+          const mappedServices: ServiceSelection[] = apiServices.map(
+            (service: any) => {
+              const serviceId = service.id;
+              const serviceType = service.serviceType || "";
 
-              allComboCategoryItems.forEach((item: any) => {
-                if (!comboGroups.has(item.comboId)) {
-                  comboGroups.set(item.comboId, []);
-                }
-                comboGroups.get(item.comboId).push(item);
-              });
+              // Extract items based on service type and build selectedItems
+              let serviceItems: any[] = [];
+              let menuItems: any[] = [];
+              let rentalItems: any[] = [];
+              let staffItems: any[] = [];
+              let venueItems: any[] = [];
 
-              comboGroups.forEach((comboCategoryItems, comboId) => {
-                const existingCombo = menuItems.find(item => item.id === comboId);
-                const matchingCateringItem = service.cateringItems?.find((item: any) => (item.cateringId || item.id) === comboId);
-                const comboImage = comboCategoryItems[0]?.image || matchingCateringItem?.image || '';
-                if (!existingCombo) {
-                  const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
-                  menuItems.push({
-                    id: comboId,
-                    name: comboName,
-                    price: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
-                    quantity: matchingCateringItem?.quantity || 1,
-                    category: 'Combo Packages',
-                    menuName: 'Combo Packages',
-                    menuItemName: comboName,
-                    isCombo: true,
-                    comboCategories: [],
-                    comboCategoryItems: comboCategoryItems.map((item: any) => ({
-                      ...item,
-                      image: item.image || item.imageUrl || ''
-                    })),
-                    priceType: 'fixed',
-                    image: comboImage,
-                    imageUrl: comboImage,
-                    description: ''
-                  });
-                  mappedSelectedItems[comboId] = matchingCateringItem?.quantity || 0;
-                } else {
-                  existingCombo.comboCategoryItems = comboCategoryItems.map((item: any) => ({
-                    ...item,
-                    image: item.image || item.imageUrl || ''
-                  }));
-                  if (comboImage && !existingCombo.image) {
-                    existingCombo.image = comboImage;
-                    existingCombo.imageUrl = comboImage;
-                  }
-                }
-              });
-            }
-            
-            if (service.partyRentalItems && service.partyRentalItems.length > 0) {
-              serviceItems = service.partyRentalItems;
-              rentalItems = service.partyRentalItems.map((item: any) => ({
-                id: item.rentalId || item.id,
-                name: item.name,
-                price: parseFloat(item.eachPrice || item.price || 0),
-                priceType: 'fixed'
-              }));
-              
-              // Build selectedItems from partyRentalItems
-              service.partyRentalItems.forEach((item: any) => {
-                const itemId = item.rentalId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
-                }
-              });
-            }
-            
-            if (service.staffItems && service.staffItems.length > 0) {
-              serviceItems = service.staffItems;
-              staffItems = service.staffItems.map((item: any) => ({
-                id: item.staffId || item.id,
-                name: item.name,
-                price: parseFloat(item.perHourPrice || item.price || 0),
-                pricingType: item.pricingType || 'hourly',
-                perHourPrice: parseFloat(item.perHourPrice || item.price || 0)
-              }));
-              
-              // Build selectedItems from staffItems (include duration for staff)
-              service.staffItems.forEach((item: any) => {
-                const itemId = item.staffId || item.id;
-                if (itemId) {
-                  mappedSelectedItems[itemId] = (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
-                  if (item.hours) {
-                    mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
-                  }
-                }
-              });
-            }
-            
-            if (service.venueItems && service.venueItems.length > 0) {
-              serviceItems = service.venueItems;
-              venueItems = service.venueItems.map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                price: parseFloat(item.price || 0)
-              }));
-            }
-            
-            // Build service_details structure based on service type
-            let serviceDetails: any = {};
-            if (serviceType === 'catering') {
-              // Map comboCategoryItems from API to the format expected by calculation
-              const mappedComboCategoryItems = (service.comboCategoryItems || []).map((item: any) => ({
-                id: item.id,
-                name: item.menuItemName || item.name,
-                menuName: item.menuName,
-                price: parseFloat(item.price) || 0,
-                quantity: item.quantity || 1,
-                additionalCharge: item.premiumCharge ? parseFloat(item.premiumCharge) : 0,
-                comboId: item.comboId,
-                cateringId: item.cateringId,
-                image: item.image || item.imageUrl || ''
-              }));
+              if (service.cateringItems && service.cateringItems.length > 0) {
+                serviceItems = service.cateringItems;
+                menuItems = service.cateringItems.map((item: any) => {
+                  // Find combo category items for this combo
+                  const comboCategoryItems = apiServices.flatMap((s: any) =>
+                    (s.comboCategoryItems || []).filter(
+                      (comboItem: any) =>
+                        comboItem.comboId === (item.cateringId || item.id),
+                    ),
+                  );
 
-              // Add image field to menuItems for display
-              const menuItemsWithImages = menuItems.map((mi: any) => ({
-                ...mi,
-                image: mi.image || mi.imageUrl || ''
-              }));
-
-              const comboIds = [...new Set(mappedComboCategoryItems.map((item: any) => item.comboId))];
-              const combos = comboIds.map((comboId: any) => {
-                const comboItems = mappedComboCategoryItems.filter((item: any) => item.comboId === comboId);
-                const categoryMap = new Map();
-                comboItems.forEach((item: any) => {
-                  if (!categoryMap.has(item.menuName)) {
-                    categoryMap.set(item.menuName, {
-                      id: item.menuName,
-                      categoryId: item.menuName,
-                      name: item.menuName,
-                      items: []
-                    });
-                  }
-                  categoryMap.get(item.menuName).items.push({
+                  return {
                     id: item.cateringId || item.id,
-                    itemId: item.cateringId || item.id,
-                    name: item.name,
-                    price: item.price,
-                    additionalCharge: item.additionalCharge,
-                    image: item.image || ''
-                  });
+                    name: item.menuItemName || item.name,
+                    price: parseFloat(item.price || 0),
+                    quantity: item.quantity || 1,
+                    category: item.menuName || "Menu",
+                    menuName: item.menuName,
+                    menuItemName: item.menuItemName,
+                    isCombo:
+                      comboCategoryItems.length > 0 || item.isCombo || false,
+                    comboCategories: item.comboCategories || [],
+                    comboCategoryItems: comboCategoryItems,
+                    priceType: item.priceType || "fixed",
+                    image: item.image || item.imageUrl,
+                    imageUrl: item.imageUrl || item.image,
+                    description: item.description || "",
+                  };
                 });
 
-                const matchingCateringItem = service.cateringItems?.find((ci: any) => (ci.cateringId || ci.id) === comboId);
-                const comboName = matchingCateringItem?.menuItemName || matchingCateringItem?.menuName || matchingCateringItem?.name || 'Combo';
+                // Build selectedItems from cateringItems
+                service.cateringItems.forEach((item: any) => {
+                  if ((service as any).isGuestService) return;
+                  const itemId = item.cateringId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
+                  }
+                });
+              }
 
-                return {
-                  id: comboId,
-                  name: comboName,
-                  isCombo: true,
-                  pricePerPerson: matchingCateringItem ? parseFloat(matchingCateringItem.price || 0) : 0,
-                  comboCategories: Array.from(categoryMap.values())
-                };
-              });
+              // Add combo base items for all combos from comboCategoryItems (refresh function)
+              if (serviceType === "catering") {
+                const allComboCategoryItems = service.comboCategoryItems || [];
+                const comboGroups = new Map();
 
-              serviceDetails = {
-                catering: {
+                allComboCategoryItems.forEach((item: any) => {
+                  if (!comboGroups.has(item.comboId)) {
+                    comboGroups.set(item.comboId, []);
+                  }
+                  comboGroups.get(item.comboId).push(item);
+                });
+
+                comboGroups.forEach((comboCategoryItems, comboId) => {
+                  const existingCombo = menuItems.find(
+                    (item) => item.id === comboId,
+                  );
+                  const matchingCateringItem = service.cateringItems?.find(
+                    (item: any) => (item.cateringId || item.id) === comboId,
+                  );
+                  const comboImage =
+                    comboCategoryItems[0]?.image ||
+                    matchingCateringItem?.image ||
+                    "";
+                  if (!existingCombo) {
+                    const comboName =
+                      matchingCateringItem?.menuItemName ||
+                      matchingCateringItem?.menuName ||
+                      matchingCateringItem?.name ||
+                      "Combo";
+                    menuItems.push({
+                      id: comboId,
+                      name: comboName,
+                      price: matchingCateringItem
+                        ? parseFloat(matchingCateringItem.price || 0)
+                        : 0,
+                      quantity: matchingCateringItem?.quantity || 1,
+                      category: "Combo Packages",
+                      menuName: "Combo Packages",
+                      menuItemName: comboName,
+                      isCombo: true,
+                      comboCategories: [],
+                      comboCategoryItems: comboCategoryItems.map(
+                        (item: any) => ({
+                          ...item,
+                          image: item.image || item.imageUrl || "",
+                        }),
+                      ),
+                      priceType: "fixed",
+                      image: comboImage,
+                      imageUrl: comboImage,
+                      description: "",
+                    });
+                    mappedSelectedItems[comboId] =
+                      matchingCateringItem?.quantity || 0;
+                  } else {
+                    existingCombo.comboCategoryItems = comboCategoryItems.map(
+                      (item: any) => ({
+                        ...item,
+                        image: item.image || item.imageUrl || "",
+                      }),
+                    );
+                    if (comboImage && !existingCombo.image) {
+                      existingCombo.image = comboImage;
+                      existingCombo.imageUrl = comboImage;
+                    }
+                  }
+                });
+              }
+
+              if (
+                service.partyRentalItems &&
+                service.partyRentalItems.length > 0
+              ) {
+                serviceItems = service.partyRentalItems;
+                rentalItems = service.partyRentalItems.map((item: any) => ({
+                  id: item.rentalId || item.id,
+                  name: item.name,
+                  price: parseFloat(item.eachPrice || item.price || 0),
+                  priceType: "fixed",
+                }));
+
+                // Build selectedItems from partyRentalItems
+                service.partyRentalItems.forEach((item: any) => {
+                  const itemId = item.rentalId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + (item.quantity || 1);
+                  }
+                });
+              }
+
+              if (service.staffItems && service.staffItems.length > 0) {
+                serviceItems = service.staffItems;
+                staffItems = service.staffItems.map((item: any) => ({
+                  id: item.staffId || item.id,
+                  name: item.name,
+                  price: parseFloat(item.perHourPrice || item.price || 0),
+                  pricingType: item.pricingType || "hourly",
+                  perHourPrice: parseFloat(
+                    item.perHourPrice || item.price || 0,
+                  ),
+                }));
+
+                // Build selectedItems from staffItems (include duration for staff)
+                service.staffItems.forEach((item: any) => {
+                  const itemId = item.staffId || item.id;
+                  if (itemId) {
+                    mappedSelectedItems[itemId] =
+                      (mappedSelectedItems[itemId] || 0) + 1; // Staff quantity
+                    if (item.hours) {
+                      mappedSelectedItems[`${itemId}_duration`] = item.hours; // Staff duration
+                    }
+                  }
+                });
+              }
+
+              if (service.venueItems && service.venueItems.length > 0) {
+                serviceItems = service.venueItems;
+                venueItems = service.venueItems.map((item: any) => ({
+                  id: item.id,
+                  name: item.name,
+                  price: parseFloat(item.price || 0),
+                }));
+              }
+
+              // Build service_details structure based on service type
+              let serviceDetails: any = {};
+              if (serviceType === "catering") {
+                // Map comboCategoryItems from API to the format expected by calculation
+                const mappedComboCategoryItems = (
+                  service.comboCategoryItems || []
+                ).map((item: any) => ({
+                  id: item.id,
+                  name: item.menuItemName || item.name,
+                  menuName: item.menuName,
+                  price: parseFloat(item.price) || 0,
+                  quantity: item.quantity || 1,
+                  additionalCharge: item.premiumCharge
+                    ? parseFloat(item.premiumCharge)
+                    : 0,
+                  comboId: item.comboId,
+                  cateringId: item.cateringId,
+                  image: item.image || item.imageUrl || "",
+                }));
+
+                // Add image field to menuItems for display
+                const menuItemsWithImages = menuItems.map((mi: any) => ({
+                  ...mi,
+                  image: mi.image || mi.imageUrl || "",
+                }));
+
+                const comboIds = [
+                  ...new Set(
+                    mappedComboCategoryItems.map((item: any) => item.comboId),
+                  ),
+                ];
+                const combos = comboIds.map((comboId: any) => {
+                  const comboItems = mappedComboCategoryItems.filter(
+                    (item: any) => item.comboId === comboId,
+                  );
+                  const categoryMap = new Map();
+                  comboItems.forEach((item: any) => {
+                    if (!categoryMap.has(item.menuName)) {
+                      categoryMap.set(item.menuName, {
+                        id: item.menuName,
+                        categoryId: item.menuName,
+                        name: item.menuName,
+                        items: [],
+                      });
+                    }
+                    categoryMap.get(item.menuName).items.push({
+                      id: item.cateringId || item.id,
+                      itemId: item.cateringId || item.id,
+                      name: item.name,
+                      price: item.price,
+                      additionalCharge: item.additionalCharge,
+                      image: item.image || "",
+                    });
+                  });
+
+                  const matchingCateringItem = service.cateringItems?.find(
+                    (ci: any) => (ci.cateringId || ci.id) === comboId,
+                  );
+                  const comboName =
+                    matchingCateringItem?.menuItemName ||
+                    matchingCateringItem?.menuName ||
+                    matchingCateringItem?.name ||
+                    "Combo";
+
+                  return {
+                    id: comboId,
+                    name: comboName,
+                    isCombo: true,
+                    pricePerPerson: matchingCateringItem
+                      ? parseFloat(matchingCateringItem.price || 0)
+                      : 0,
+                    comboCategories: Array.from(categoryMap.values()),
+                  };
+                });
+
+                serviceDetails = {
+                  catering: {
+                    menuItems: menuItemsWithImages,
+                    combos: combos,
+                  },
                   menuItems: menuItemsWithImages,
-                  combos: combos
-                },
-                menuItems: menuItemsWithImages,
-                comboCategoryItems: mappedComboCategoryItems
-              };
-            } else if (serviceType === 'party_rentals' || serviceType === 'party-rentals' || serviceType === 'party-rental') {
-              serviceDetails = {
-                rentalItems: rentalItems,
-                rental: {
-                  items: rentalItems
-                }
-              };
-            } else if (serviceType === 'events_staff' || serviceType === 'staff') {
-              serviceDetails = {
-                staffServices: staffItems,
-                services: staffItems,
-                staff: {
-                  services: staffItems
-                }
-              };
-            } else if (serviceType === 'venues' || serviceType === 'venue') {
-              serviceDetails = {
-                venueOptions: venueItems,
-                options: venueItems
-              };
-            }
+                  comboCategoryItems: mappedComboCategoryItems,
+                };
+              } else if (
+                serviceType === "party_rentals" ||
+                serviceType === "party-rentals" ||
+                serviceType === "party-rental"
+              ) {
+                serviceDetails = {
+                  rentalItems: rentalItems,
+                  rental: {
+                    items: rentalItems,
+                  },
+                };
+              } else if (
+                serviceType === "events_staff" ||
+                serviceType === "staff"
+              ) {
+                serviceDetails = {
+                  staffServices: staffItems,
+                  services: staffItems,
+                  staff: {
+                    services: staffItems,
+                  },
+                };
+              } else if (serviceType === "venues" || serviceType === "venue") {
+                serviceDetails = {
+                  venueOptions: venueItems,
+                  options: venueItems,
+                };
+              }
 
-            return {
-              id: serviceId,
-              serviceId: serviceId,
-              name: service.serviceName,
-              serviceName: service.serviceName,
-              guestName: (service as any).guestName,
-              guestEmail: (service as any).guestEmail,
-              isGuestService: (service as any).isGuestService,
-              vendorEarnings: service.vendorEarnings,
-              price: parseFloat(service.price) || 0,
-              servicePrice: service.price,
-              totalPrice: parseFloat(service.totalPrice) || 0,
-              quantity: service.quantity || 1,
-              duration: service.staffItems?.[0]?.hours || 0,
-              serviceType: serviceType,
-              type: serviceType,
-              description: '',
-              vendor_id: service.vendorId || undefined,
-              priceType: service.priceType || 'flat',
-              price_type: service.priceType || 'flat',
-              service_details: serviceDetails,
-              selected_menu_items: serviceItems,
-              image: service.image || service.imageUrl || '',
-              imageUrl: service.imageUrl || service.image || '',
-              serviceImage: service.image || service.imageUrl || '',
-              deliveryFee: service.deliveryFee || '0'
-            };
-          });
-          
-          const mappedAdjustments: CustomAdjustment[] = (invoiceData.customLineItems || []).map((item: any) => ({
+              return {
+                id: serviceId,
+                serviceId: serviceId,
+                name: service.serviceName,
+                serviceName: service.serviceName,
+                guestName: (service as any).guestName,
+                guestEmail: (service as any).guestEmail,
+                isGuestService: (service as any).isGuestService,
+                vendorEarnings: service.vendorEarnings,
+                price: parseFloat(service.price) || 0,
+                servicePrice: service.price,
+                totalPrice: parseFloat(service.totalPrice) || 0,
+                quantity: service.quantity || 1,
+                duration: service.staffItems?.[0]?.hours || 0,
+                serviceType: serviceType,
+                type: serviceType,
+                description: "",
+                vendor_id: service.vendorId || undefined,
+                priceType: service.priceType || "flat",
+                price_type: service.priceType || "flat",
+                service_details: serviceDetails,
+                selected_menu_items: serviceItems,
+                image: service.image || service.imageUrl || "",
+                imageUrl: service.imageUrl || service.image || "",
+                serviceImage: service.image || service.imageUrl || "",
+                deliveryFee: service.deliveryFee || "0",
+              };
+            },
+          );
+
+          const mappedAdjustments: CustomAdjustment[] = (
+            invoiceData.customLineItems || []
+          ).map((item: any) => ({
             id: item.id,
             label: item.label,
-            type: item.type === 'percentage' ? 'percentage' : 'fixed',
-            mode: item.mode === 'surcharge' ? 'surcharge' : 'discount',
+            type: item.type === "percentage" ? "percentage" : "fixed",
+            mode: item.mode === "surcharge" ? "surcharge" : "discount",
             value: parseFloat(item.value) || 0,
-            taxable: item.taxable !== false
+            taxable: item.taxable !== false,
           }));
-          
+
           // Add combo category items to selectedItems (refresh)
-          const allComboCategoryItems = apiServices.flatMap((s: any) => s.comboCategoryItems || []);
+          const allComboCategoryItems = apiServices.flatMap(
+            (s: any) => s.comboCategoryItems || [],
+          );
           allComboCategoryItems.forEach((item: any) => {
             const itemKey = `${item.comboId}_${item.menuName}_${item.cateringId}`;
             mappedSelectedItems[itemKey] = item.quantity;
           });
-          
+
           setSelectedServices(mappedServices);
           setSelectedItems(mappedSelectedItems);
           setHostGuestOrders(mappedGuestOrders);
           setHasBackendDeliveryFees(deliveryFeeFromBackend);
-          setFormData(prev => ({
+          setFormData((prev) => ({
             ...prev,
             customAdjustments: mappedAdjustments,
             adminOverrides: {
               isTaxExempt: invoiceData.taxExemptStatus || false,
-              isServiceFeeWaived: invoiceData.waiveServiceFee || false
-            }
+              isServiceFeeWaived: invoiceData.waiveServiceFee || false,
+            },
           }));
-          
+
           if (summaryData.totalAmount) {
-            sessionStorage.setItem(`invoiceTotal_${invoiceIdFromUrl}`, summaryData.totalAmount.toString());
+            sessionStorage.setItem(
+              `invoiceTotal_${invoiceIdFromUrl}`,
+              summaryData.totalAmount.toString(),
+            );
           }
-          
+
           toast.success("Data Refreshed!", {
-            description: "Invoice data reloaded from API."
+            description: "Invoice data reloaded from API.",
           });
           return;
         }
       }
-      
+
       toast.error("Refresh Failed", {
-        description: "No invoice ID available to refresh."
+        description: "No invoice ID available to refresh.",
       });
     } catch (error) {
       toast.error("Refresh Failed", {
-        description: error instanceof Error ? error.message : "Failed to refresh invoice data"
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to refresh invoice data",
       });
     } finally {
       setIsRefreshing(false);
@@ -1385,10 +1633,10 @@ const calculateTotalWithTip = () => {
 
   const handleDownloadInvoice = async () => {
     const invoiceId = editingInvoiceId || currentInvoiceId || invoiceIdFromUrl;
-    
+
     if (!invoiceId) {
       toast.error("No Invoice Available", {
-        description: "Cannot download invoice. No invoice ID found."
+        description: "Cannot download invoice. No invoice ID found.",
       });
       return;
     }
@@ -1396,27 +1644,28 @@ const calculateTotalWithTip = () => {
     setIsDownloadingInvoice(true);
     try {
       const response = await fetchInvoiceSummary(invoiceId);
-      
+
       const summaryData = getSummaryPayload(response);
       if (summaryData?.invoice) {
         await generateInvoicePDF(summaryData.invoice);
         toast.success("Invoice Download Started", {
-          description: "Your invoice PDF is being generated and will download shortly."
+          description:
+            "Your invoice PDF is being generated and will download shortly.",
         });
       } else {
         toast.error("Download Failed", {
-          description: "Could not retrieve invoice data."
+          description: "Could not retrieve invoice data.",
         });
       }
     } catch (error) {
       toast.error("Download Failed", {
-        description: error instanceof Error ? error.message : "Failed to download invoice"
+        description:
+          error instanceof Error ? error.message : "Failed to download invoice",
       });
     } finally {
       setIsDownloadingInvoice(false);
     }
   };
-
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -1433,114 +1682,126 @@ const calculateTotalWithTip = () => {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="mb-4 sm:mb-6 flex items-center justify-between gap-4">
             <h1 className="text-2xl sm:text-3xl font-bold">
-              {proposalMode ? 'Proposal Summary' : 'Order Summary'}
+              {proposalMode ? "Proposal Summary" : "Order Summary"}
             </h1>
-              <div className="flex flex-col items-end gap-3">
-                <div className="flex flex-row gap-3">
-                  {!isGroupOrderHostSummaryRoute && (
-                    <button
-                      onClick={handleDownloadInvoice}
-                      disabled={isDownloadingInvoice}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isDownloadingInvoice && (
-                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      )}
-                      {isDownloadingInvoice ? 'Downloading...' : 'Download Invoice'}
-                    </button>
-                  )}
+            <div className="flex flex-col items-end gap-3">
+              <div className="flex flex-row gap-3">
+                {!isGroupOrderHostSummaryRoute && (
                   <button
-                    onClick={handleCopyProposalLink}
-                    disabled={isCopyingLink}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                    onClick={handleDownloadInvoice}
+                    disabled={isDownloadingInvoice}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {isCopyingLink ? 'Copying...' : 'Copy Link'}
-                  </button>
-                  {!isGroupOrderHostSummaryRoute && generatedProposalUrl && (
-                    <button
-                      onClick={() => {
-                        if (!proposalPersisted) {
-                          toast.error("Please wait...", {
-                            description: "Proposal is being saved. Try again in a moment."
-                          });
-                          return;
-                        }
-                        const url = new URL(generatedProposalUrl);
-                        navigate(url.pathname);
-                      }}
-                      disabled={!proposalPersisted}
-                      className={`${!proposalPersisted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent/90'} bg-accent text-accent-foreground px-4 py-2 rounded-lg font-medium transition-colors`}
-                    >
-                      {proposalPersisted ? '👁️ View Public Proposal' : '⏳ Saving Proposal...'}
-                    </button>
-                  )}
-                </div>
-                
-                {!isGroupOrderHostSummaryRoute && generatedProposalUrl && (
-                  <div className="bg-muted p-3 rounded-lg border max-w-md">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm text-muted-foreground">Proposal Link:</p>
-                      {proposalPersisted && (
-                        <span className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
-                          ✓ Saved
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={generatedProposalUrl}
-                        readOnly
-                        className="flex-1 text-xs bg-background border rounded px-2 py-1 font-mono"
-                      />
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedProposalUrl);
-                          toast.success("Link Copied!", {
-                            description: "Link copied to clipboard."
-                          });
-                        }}
-                        className="bg-secondary hover:bg-secondary/80 text-secondary-foreground px-2 py-1 rounded text-xs font-medium"
+                    {isDownloadingInvoice && (
+                      <svg
+                        className="animate-spin h-4 w-4"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
                       >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
+                    {isDownloadingInvoice
+                      ? "Downloading..."
+                      : "Download Invoice"}
+                  </button>
+                )}
+                <button
+                  onClick={handleCopyProposalLink}
+                  disabled={isCopyingLink}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {isCopyingLink ? "Copying..." : "Copy Link"}
+                </button>
+                {!isGroupOrderHostSummaryRoute && generatedProposalUrl && (
+                  <button
+                    onClick={() => {
+                      if (!proposalPersisted) {
+                        toast.error("Please wait...", {
+                          description:
+                            "Proposal is being saved. Try again in a moment.",
+                        });
+                        return;
+                      }
+                      const url = new URL(generatedProposalUrl);
+                      navigate(url.pathname);
+                    }}
+                    disabled={!proposalPersisted}
+                    className={`${!proposalPersisted ? "opacity-50 cursor-not-allowed" : "hover:bg-accent/90"} bg-accent text-accent-foreground px-4 py-2 rounded-lg font-medium transition-colors`}
+                  >
+                    {proposalPersisted
+                      ? "👁️ View Public Proposal"
+                      : "⏳ Saving Proposal..."}
+                  </button>
                 )}
               </div>
+
+              {!isGroupOrderHostSummaryRoute && generatedProposalUrl && (
+                <div className="bg-muted p-3 rounded-lg border max-w-md">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-sm text-muted-foreground">
+                      Proposal Link:
+                    </p>
+                    {proposalPersisted && (
+                      <span className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+                        ✓ Saved
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={generatedProposalUrl}
+                      readOnly
+                      className="flex-1 text-xs bg-background border rounded px-2 py-1 font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedProposalUrl);
+                        toast.success("Link Copied!", {
+                          description: "Link copied to clipboard.",
+                        });
+                      }}
+                      className="bg-secondary hover:bg-secondary/80 text-secondary-foreground px-2 py-1 rounded text-xs font-medium"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          
+
           <div className="space-y-4 sm:space-y-6">
             {isLoadingInvoiceSummary && (
               <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center space-y-4">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
                   <div className="text-lg font-medium">Loading invoice...</div>
-                  <div className="text-sm text-muted-foreground">Please wait while we fetch your invoice data</div>
+                  <div className="text-sm text-muted-foreground">
+                    Please wait while we fetch your invoice data
+                  </div>
                 </div>
               </div>
             )}
             {!isLoadingInvoiceSummary && (
               <div className="space-y-4 sm:space-y-6">
                 <BookingDetailsCard formData={formData} />
-                {isGroupOrderHostSummaryRoute && hostGuestOrders.length > 0 && (
-                  <Card className="p-4 sm:p-5 border border-gray-200">
-                    <div className="space-y-3">
-                      {hostGuestOrders.map((guest) => (
-                        <div key={guest.id || guest.guestEmail} className="rounded-md border border-primary/20 bg-primary/5 p-3">
-                          <div>
-                            <p className="text-sm font-semibold text-primary">{guest.guestName}</p>
-                            <p className="text-xs text-primary/80">{guest.guestEmail}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-                <OrderItemsBreakdown 
+
+                <OrderItemsBreakdown
                   services={selectedServices}
                   selectedItems={selectedItems}
                   formData={formData}
@@ -1556,7 +1817,10 @@ const calculateTotalWithTip = () => {
                     <Card className="p-4 sm:p-6">
                       <div className="space-y-4">
                         <div>
-                          <Label htmlFor="additionalTip" className="text-base font-medium">
+                          <Label
+                            htmlFor="additionalTip"
+                            className="text-base font-medium"
+                          >
                             Additional Tip :
                           </Label>
                           <p className="text-sm text-muted-foreground mt-1">
@@ -1570,10 +1834,10 @@ const calculateTotalWithTip = () => {
                             step="0.01"
                             min="0"
                             placeholder="0.00"
-                            value={additionalTip ?? ''}
+                            value={additionalTip ?? ""}
                             onChange={(e) => {
                               const value = e.target.value;
-                              if (value === '') {
+                              if (value === "") {
                                 setAdditionalTip(null);
                               } else {
                                 const numValue = parseFloat(value);
@@ -1591,106 +1855,127 @@ const calculateTotalWithTip = () => {
                       totalAmount={calculateTotal()}
                       additionalTip={additionalTip ?? 0}
                       onPaymentSuccess={handlePaymentSuccess}
-                    isProcessing={isProcessingPayment}
-                    orderData={formData}
-                    services={selectedServices}
-                    selectedItems={selectedItems}
-                    onBillingAddressChange={setBillingAddress}
-                    onStripeTaxUpdate={setStripeTax}
-                    clientSecret={clientSecret || undefined}
-                    paymentIntentId={paymentIntentId || undefined}
-                    invoiceId={invoiceIdFromUrl || currentInvoiceId || editingInvoiceId || undefined}
-                    preTaxBreakdown={{
-                      subtotal: calculateUnifiedOrderTotals(
-                        selectedServices as any,
-                        selectedItems as any,
-                        (formData as any)?.location,
-                        {
-                          serviceFeePercentage: adminSettings.serviceFeePercentage,
-                          serviceFeeFixed: adminSettings.serviceFeeFixed,
-                          serviceFeeType: adminSettings.serviceFeeType,
-                        },
-                        undefined,
-                        formData?.customAdjustments || [],
-                        undefined, // distancesByService removed - API provides this
-                        isTaxExempt,
-                        isServiceFeeWaived
-                      ).subtotal,
-                      serviceFee: calculateUnifiedOrderTotals(
-                        selectedServices as any,
-                        selectedItems as any,
-                        (formData as any)?.location,
-                        {
-                          serviceFeePercentage: adminSettings.serviceFeePercentage,
-                          serviceFeeFixed: adminSettings.serviceFeeFixed,
-                          serviceFeeType: adminSettings.serviceFeeType,
-                        },
-                        undefined,
-                        formData?.customAdjustments || [],
-                        undefined, // distancesByService removed - API provides this
-                        isTaxExempt,
-                        isServiceFeeWaived
-                      ).serviceFee,
-                      deliveryFee: calculateUnifiedOrderTotals(
-                        selectedServices as any,
-                        selectedItems as any,
-                        (formData as any)?.location,
-                        {
-                          serviceFeePercentage: adminSettings.serviceFeePercentage,
-                          serviceFeeFixed: adminSettings.serviceFeeFixed,
-                          serviceFeeType: adminSettings.serviceFeeType,
-                        },
-                        undefined,
-                        formData?.customAdjustments || [],
-                        undefined, // distancesByService removed - API provides this
-                        isTaxExempt,
-                        isServiceFeeWaived
-                      ).deliveryFee,
-                      adjustmentsTotal: calculateUnifiedOrderTotals(
-                        selectedServices as any,
-                        selectedItems as any,
-                        (formData as any)?.location,
-                        {
-                          serviceFeePercentage: adminSettings.serviceFeePercentage,
-                          serviceFeeFixed: adminSettings.serviceFeeFixed,
-                          serviceFeeType: adminSettings.serviceFeeType,
-                        },
-                        undefined,
-                        formData?.customAdjustments || [],
-                        undefined, // distancesByService removed - API provides this
-                        isTaxExempt,
-                        isServiceFeeWaived
-                      ).adjustmentsTotal || 0,
-                      currency: 'usd'
-                    }}
+                      isProcessing={isProcessingPayment}
+                      orderData={formData}
+                      services={selectedServices}
+                      selectedItems={selectedItems}
+                      onBillingAddressChange={setBillingAddress}
+                      onStripeTaxUpdate={setStripeTax}
+                      clientSecret={clientSecret || undefined}
+                      paymentIntentId={paymentIntentId || undefined}
+                      invoiceId={
+                        invoiceIdFromUrl ||
+                        currentInvoiceId ||
+                        editingInvoiceId ||
+                        undefined
+                      }
+                      preTaxBreakdown={{
+                        subtotal: calculateUnifiedOrderTotals(
+                          selectedServices as any,
+                          selectedItems as any,
+                          (formData as any)?.location,
+                          {
+                            serviceFeePercentage:
+                              adminSettings.serviceFeePercentage,
+                            serviceFeeFixed: adminSettings.serviceFeeFixed,
+                            serviceFeeType: adminSettings.serviceFeeType,
+                          },
+                          undefined,
+                          formData?.customAdjustments || [],
+                          undefined, // distancesByService removed - API provides this
+                          isTaxExempt,
+                          isServiceFeeWaived,
+                        ).subtotal,
+                        serviceFee: calculateUnifiedOrderTotals(
+                          selectedServices as any,
+                          selectedItems as any,
+                          (formData as any)?.location,
+                          {
+                            serviceFeePercentage:
+                              adminSettings.serviceFeePercentage,
+                            serviceFeeFixed: adminSettings.serviceFeeFixed,
+                            serviceFeeType: adminSettings.serviceFeeType,
+                          },
+                          undefined,
+                          formData?.customAdjustments || [],
+                          undefined, // distancesByService removed - API provides this
+                          isTaxExempt,
+                          isServiceFeeWaived,
+                        ).serviceFee,
+                        deliveryFee: calculateUnifiedOrderTotals(
+                          selectedServices as any,
+                          selectedItems as any,
+                          (formData as any)?.location,
+                          {
+                            serviceFeePercentage:
+                              adminSettings.serviceFeePercentage,
+                            serviceFeeFixed: adminSettings.serviceFeeFixed,
+                            serviceFeeType: adminSettings.serviceFeeType,
+                          },
+                          undefined,
+                          formData?.customAdjustments || [],
+                          undefined, // distancesByService removed - API provides this
+                          isTaxExempt,
+                          isServiceFeeWaived,
+                        ).deliveryFee,
+                        adjustmentsTotal:
+                          calculateUnifiedOrderTotals(
+                            selectedServices as any,
+                            selectedItems as any,
+                            (formData as any)?.location,
+                            {
+                              serviceFeePercentage:
+                                adminSettings.serviceFeePercentage,
+                              serviceFeeFixed: adminSettings.serviceFeeFixed,
+                              serviceFeeType: adminSettings.serviceFeeType,
+                            },
+                            undefined,
+                            formData?.customAdjustments || [],
+                            undefined, // distancesByService removed - API provides this
+                            isTaxExempt,
+                            isServiceFeeWaived,
+                          ).adjustmentsTotal || 0,
+                        currency: "usd",
+                      }}
                     />
                   </>
                 )}
               </div>
             )}
-            
-            {!isLoadingInvoiceSummary && (currentInvoiceId || editingInvoiceId || invoiceIdFromUrl) && (
-              <div className="flex justify-end">
-                <AdminFixOrderButton 
-                  orderId={invoiceIdFromUrl || currentInvoiceId || editingInvoiceId || ''}
-                  invoiceId={currentInvoiceId || editingInvoiceId || invoiceIdFromUrl || ''}
-                  currentTotal={calculateTotal()}
-                />
-              </div>
-            )}
-            
+
+            {!isLoadingInvoiceSummary &&
+              (currentInvoiceId || editingInvoiceId || invoiceIdFromUrl) && (
+                <div className="flex justify-end">
+                  <AdminFixOrderButton
+                    orderId={
+                      invoiceIdFromUrl ||
+                      currentInvoiceId ||
+                      editingInvoiceId ||
+                      ""
+                    }
+                    invoiceId={
+                      currentInvoiceId ||
+                      editingInvoiceId ||
+                      invoiceIdFromUrl ||
+                      ""
+                    }
+                    currentTotal={calculateTotal()}
+                  />
+                </div>
+              )}
+
             {!isLoadingInvoiceSummary && !isGroupOrderHostSummaryRoute && (
               <>
                 <Separator />
-                
+
                 {!proposalMode && (
-                  <OrderActionButtons 
+                  <OrderActionButtons
                     onEditOrder={handleEditOrder}
                     isProcessing={isProcessingPayment}
                   />
                 )}
                 {proposalMode && (
-                  <OrderActionButtons 
+                  <OrderActionButtons
                     onEditOrder={handleEditProposal}
                     onRefreshData={handleRefreshData}
                     isProcessing={false}
@@ -1707,7 +1992,6 @@ const calculateTotalWithTip = () => {
       <Footer />
     </div>
   );
-};
+}
 
 export default OrderSummaryPage;
-          

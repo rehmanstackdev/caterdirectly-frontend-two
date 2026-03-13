@@ -1538,6 +1538,7 @@ function AdminGroupOrderSetup() {
       const primaryServiceType = "catering"; // Force catering for group orders to bypass backend validation
       const normalizedServiceType = "catering";
 
+      // Get budget from form data, fallback to 30.0 if not set
       const budgetPerPerson =
         Number((state.orderInfo as any)?.budgetPerPerson) || 30.0;
       const guestCount =
@@ -1632,8 +1633,13 @@ function AdminGroupOrderSetup() {
                 selectedServices={state.selectedServices}
                 selectedItems={state.selectedItems}
                 formData={state.orderInfo}
+                customAdjustments={customAdjustments}
                 onLoadDraft={handleLoadDraft}
                 className="mb-4"
+                isGroupOrder={true}
+                invitedGuests={state.invitedGuests}
+                additionalNotes={state.additionalNotes}
+                paymentMethod={state.paymentMethod}
               />
             </div>
 

@@ -241,12 +241,19 @@ const GuestOrderForm = ({
 }: GuestOrderFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [invitationServices, setInvitationServices] = useState<ServiceSelection[]>([]);
-  const [itemCatalog, setItemCatalog] = useState<Record<string, InvitationServiceSummaryItem>>({});
-  const [selectedItemQuantities, setSelectedItemQuantities] = useState<Record<string, number>>({});
+  const [invitationServices, setInvitationServices] = useState<
+    ServiceSelection[]
+  >([]);
+  const [itemCatalog, setItemCatalog] = useState<
+    Record<string, InvitationServiceSummaryItem>
+  >({});
+  const [selectedItemQuantities, setSelectedItemQuantities] = useState<
+    Record<string, number>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [infoPortalElement, setInfoPortalElement] = useState<HTMLElement | null>(null);
+  const [infoPortalElement, setInfoPortalElement] =
+    useState<HTMLElement | null>(null);
 
   const getServiceMenuPhoto = (service: ServiceSelection): string => {
     const details = service as ServiceSelection & {
@@ -302,7 +309,11 @@ const GuestOrderForm = ({
       setLoading(true);
       try {
         const parsePositiveNumber = (value: unknown): number | undefined => {
-          if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+          if (
+            typeof value === "number" &&
+            Number.isFinite(value) &&
+            value > 0
+          ) {
             return value;
           }
           if (typeof value === "string") {
@@ -312,31 +323,49 @@ const GuestOrderForm = ({
           return undefined;
         };
 
-        if (orderInfo?.serviceDetails && Array.isArray(orderInfo.serviceDetails) && orderInfo.serviceDetails.length > 0) {
+        if (
+          orderInfo?.serviceDetails &&
+          Array.isArray(orderInfo.serviceDetails) &&
+          orderInfo.serviceDetails.length > 0
+        ) {
           const catalog: Record<string, InvitationServiceSummaryItem> = {};
 
           const mappedServices: ServiceSelection[] = orderInfo.serviceDetails
-            .filter((detail) => (detail.serviceType || detail.type) === "catering")
+            .filter(
+              (detail) => (detail.serviceType || detail.type) === "catering",
+            )
             .map((detail, serviceIndex) => {
               const serviceId = String(
-                detail.serviceId || detail.id || `service-detail-${serviceIndex}`,
+                detail.serviceId ||
+                  detail.id ||
+                  `service-detail-${serviceIndex}`,
               );
-              const catering = detail.catering || detail.service_details?.catering || {};
-              const minimumGuests = parsePositiveNumber((catering as any).minimumGuests);
-              const maximumGuests = parsePositiveNumber((catering as any).maximumGuests);
+              const catering =
+                detail.catering || detail.service_details?.catering || {};
+              const minimumGuests = parsePositiveNumber(
+                (catering as any).minimumGuests,
+              );
+              const maximumGuests = parsePositiveNumber(
+                (catering as any).maximumGuests,
+              );
               const menuItemsFromSeparated = Array.isArray(detail.cateringItems)
                 ? detail.cateringItems.map((item, idx) => ({
-                    id: item.cateringId || item.id || `${serviceId}_menu_${idx}`,
+                    id:
+                      item.cateringId || item.id || `${serviceId}_menu_${idx}`,
                     name: item.menuItemName || item.name || "Menu Item",
                     description: item.menuName || "",
                     price: Number(item.price || 0),
                     imageUrl: item.image || item.imageUrl || "",
-                    minimumOrderQuantity: Number(item.quantity || 0) || undefined,
+                    minimumOrderQuantity:
+                      Number(item.quantity || 0) || undefined,
                   }))
                 : [];
-              const menuItems = menuItemsFromSeparated.length > 0
-                ? menuItemsFromSeparated
-                : (Array.isArray(catering.menuItems) ? catering.menuItems : []);
+              const menuItems =
+                menuItemsFromSeparated.length > 0
+                  ? menuItemsFromSeparated
+                  : Array.isArray(catering.menuItems)
+                    ? catering.menuItems
+                    : [];
 
               const groupedCombosFromSeparated = (() => {
                 const comboItems = Array.isArray(detail.comboCategoryItems)
@@ -353,7 +382,11 @@ const GuestOrderForm = ({
                     item.comboId ||
                       `${serviceId}_${comboName.toLowerCase().replace(/[^a-z0-9]+/g, "_") || comboIndex}`,
                   );
-                  const categoryName = (parts[1] || parts[0] || "Category").trim();
+                  const categoryName = (
+                    parts[1] ||
+                    parts[0] ||
+                    "Category"
+                  ).trim();
                   const categoryId = `${comboId}_${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 
                   if (!combosById.has(comboId)) {
@@ -369,9 +402,15 @@ const GuestOrderForm = ({
                   }
 
                   const combo = combosById.get(comboId);
-                  let category = (combo.comboCategories || []).find((cat: any) => cat.id === categoryId);
+                  let category = (combo.comboCategories || []).find(
+                    (cat: any) => cat.id === categoryId,
+                  );
                   if (!category) {
-                    category = { id: categoryId, name: categoryName, items: [] };
+                    category = {
+                      id: categoryId,
+                      name: categoryName,
+                      items: [],
+                    };
                     combo.comboCategories.push(category);
                   }
 
@@ -390,12 +429,17 @@ const GuestOrderForm = ({
                 return Array.from(combosById.values());
               })();
 
-              const combos = groupedCombosFromSeparated.length > 0
-                ? groupedCombosFromSeparated
-                : (Array.isArray(catering.combos) ? catering.combos : []);
+              const combos =
+                groupedCombosFromSeparated.length > 0
+                  ? groupedCombosFromSeparated
+                  : Array.isArray(catering.combos)
+                    ? catering.combos
+                    : [];
 
               const normalizedMenuItems = menuItems.map((item, itemIndex) => {
-                const itemId = String(item.id || `${serviceId}_menu_${itemIndex}`);
+                const itemId = String(
+                  item.id || `${serviceId}_menu_${itemIndex}`,
+                );
                 const normalized: InvitationServiceSummaryItem = {
                   id: itemId,
                   serviceId,
@@ -417,7 +461,9 @@ const GuestOrderForm = ({
               });
 
               const normalizedCombos = combos.map((combo, comboIndex) => {
-                const comboId = String(combo.id || `combo-${serviceId}-${comboIndex}`);
+                const comboId = String(
+                  combo.id || `combo-${serviceId}-${comboIndex}`,
+                );
                 // Use simple combo id in UI so invitation summary logic matches existing shared utilities.
                 const comboPkgId = comboId;
                 const comboPrice = Number(combo.pricePerPerson || 0);
@@ -434,44 +480,66 @@ const GuestOrderForm = ({
                   comboId,
                 };
 
-                const comboCategories = (combo.comboCategories || []).map((category, categoryIndex) => {
-                  const categoryId = String(category.id || `category-${categoryIndex}`);
-                  return {
-                    id: categoryId,
-                    name: category.name || "Category",
-                    ...(category.maxSelections != null ? { maxSelections: Number(category.maxSelections) } : {}),
-                    items: (category.items || []).map((categoryItem, itemIndex) => {
-                      const categoryItemId = String(categoryItem.id || `item-${itemIndex}`);
-                      // Use legacy/simple key format in UI: <comboId>_<categoryId>_<itemId>
-                      const selectionKey = `${comboId}_${categoryId}_${categoryItemId}`;
-                      const additionalCharge = Number(categoryItem.additionalCharge || 0);
-                      catalog[selectionKey] = {
-                        id: selectionKey,
-                        serviceId,
-                        payloadItemId: categoryItemId,
-                        name: categoryItem.name || "Combo Item",
-                        menuName: `${combo.name || "Combo"} - ${category.name || "Category"}`,
-                        price: Number(categoryItem.price || 0) + additionalCharge,
-                        maxQuantity: categoryItem.quantity || undefined,
-                        premiumCharge: additionalCharge > 0 ? additionalCharge : null,
-                        image: categoryItem.imageUrl || categoryItem.imageUri || categoryItem.image,
-                        comboId,
-                        comboCategoryId: categoryId,
-                        selectionKey,
-                      };
+                const comboCategories = (combo.comboCategories || []).map(
+                  (category, categoryIndex) => {
+                    const categoryId = String(
+                      category.id || `category-${categoryIndex}`,
+                    );
+                    return {
+                      id: categoryId,
+                      name: category.name || "Category",
+                      ...(category.maxSelections != null
+                        ? { maxSelections: Number(category.maxSelections) }
+                        : {}),
+                      items: (category.items || []).map(
+                        (categoryItem, itemIndex) => {
+                          const categoryItemId = String(
+                            categoryItem.id || `item-${itemIndex}`,
+                          );
+                          // Use legacy/simple key format in UI: <comboId>_<categoryId>_<itemId>
+                          const selectionKey = `${comboId}_${categoryId}_${categoryItemId}`;
+                          const additionalCharge = Number(
+                            categoryItem.additionalCharge || 0,
+                          );
+                          catalog[selectionKey] = {
+                            id: selectionKey,
+                            serviceId,
+                            payloadItemId: categoryItemId,
+                            name: categoryItem.name || "Combo Item",
+                            menuName: `${combo.name || "Combo"} - ${category.name || "Category"}`,
+                            price:
+                              Number(categoryItem.price || 0) +
+                              additionalCharge,
+                            maxQuantity: categoryItem.quantity || undefined,
+                            premiumCharge:
+                              additionalCharge > 0 ? additionalCharge : null,
+                            image:
+                              categoryItem.imageUrl ||
+                              categoryItem.imageUri ||
+                              categoryItem.image,
+                            comboId,
+                            comboCategoryId: categoryId,
+                            selectionKey,
+                          };
 
-                      return {
-                        id: categoryItemId,
-                        name: categoryItem.name || "Combo Item",
-                        price: Number(categoryItem.price || 0),
-                        additionalCharge,
-                        isPremium: !!categoryItem.isPremium || additionalCharge > 0,
-                        image: categoryItem.imageUrl || categoryItem.imageUri || categoryItem.image,
-                        selectionKey,
-                      };
-                    }),
-                  };
-                });
+                          return {
+                            id: categoryItemId,
+                            name: categoryItem.name || "Combo Item",
+                            price: Number(categoryItem.price || 0),
+                            additionalCharge,
+                            isPremium:
+                              !!categoryItem.isPremium || additionalCharge > 0,
+                            image:
+                              categoryItem.imageUrl ||
+                              categoryItem.imageUri ||
+                              categoryItem.image,
+                            selectionKey,
+                          };
+                        },
+                      ),
+                    };
+                  },
+                );
 
                 return {
                   id: comboPkgId,
@@ -488,8 +556,14 @@ const GuestOrderForm = ({
               return {
                 id: serviceId,
                 serviceId,
-                serviceName: detail.serviceName || detail.name || `Service ${serviceIndex + 1}`,
-                name: detail.serviceName || detail.name || `Service ${serviceIndex + 1}`,
+                serviceName:
+                  detail.serviceName ||
+                  detail.name ||
+                  `Service ${serviceIndex + 1}`,
+                name:
+                  detail.serviceName ||
+                  detail.name ||
+                  `Service ${serviceIndex + 1}`,
                 serviceType: "catering",
                 type: "catering",
                 ...(minimumGuests ? { minimumGuests } : {}),
@@ -527,17 +601,20 @@ const GuestOrderForm = ({
 
   const guestBudget = orderInfo?.guestBudget || orderInfo?.budgetPerPerson;
 
-  const resolveCatalogItem = useCallback((itemId: string): InvitationServiceSummaryItem | undefined => {
-    if (itemCatalog[itemId]) return itemCatalog[itemId];
+  const resolveCatalogItem = useCallback(
+    (itemId: string): InvitationServiceSummaryItem | undefined => {
+      if (itemCatalog[itemId]) return itemCatalog[itemId];
 
-    const parts = itemId.split("_");
-    if (parts.length >= 3) {
-      const rawId = parts[parts.length - 1];
-      return itemCatalog[`combo_${rawId}`] || itemCatalog[rawId];
-    }
+      const parts = itemId.split("_");
+      if (parts.length >= 3) {
+        const rawId = parts[parts.length - 1];
+        return itemCatalog[`combo_${rawId}`] || itemCatalog[rawId];
+      }
 
-    return undefined;
-  }, [itemCatalog]);
+      return undefined;
+    },
+    [itemCatalog],
+  );
 
   // Calculate combo total from comboSelectionsList on services
   const comboTotal = useMemo(() => {
@@ -547,13 +624,22 @@ const GuestOrderForm = ({
       if (!Array.isArray(csl)) continue;
       for (const combo of csl) {
         const headcount = combo.headcount || 1;
-        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+        const basePrice =
+          parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
         let premiumTotal = 0;
         if (Array.isArray(combo.selections)) {
           for (const cat of combo.selections) {
             if (Array.isArray(cat.selectedItems)) {
               for (const item of cat.selectedItems) {
-                const upcharge = parseFloat(String(item.additionalCharge || item.additionalPrice || item.upcharge || 0)) || 0;
+                const upcharge =
+                  parseFloat(
+                    String(
+                      item.additionalCharge ||
+                        item.additionalPrice ||
+                        item.upcharge ||
+                        0,
+                    ),
+                  ) || 0;
                 if (upcharge > 0) premiumTotal += upcharge * headcount;
               }
             }
@@ -572,14 +658,20 @@ const GuestOrderForm = ({
       const item = resolveCatalogItem(itemId);
       if (!item) return prev;
 
-      const currentSubtotalExcludingItem = Object.entries(prev).reduce((sum, [id, qty]) => {
-        if (id === itemId || id.startsWith("meta_") || qty <= 0) return sum;
-        const catalogItem = resolveCatalogItem(id);
-        if (catalogItem?.comboId) return sum; // combo category items are in comboTotal
-        return sum + (catalogItem?.price || 0) * qty;
-      }, 0);
+      const currentSubtotalExcludingItem = Object.entries(prev).reduce(
+        (sum, [id, qty]) => {
+          if (id === itemId || id.startsWith("meta_") || qty <= 0) return sum;
+          const catalogItem = resolveCatalogItem(id);
+          if (catalogItem?.comboId) return sum; // combo category items are in comboTotal
+          return sum + (catalogItem?.price || 0) * qty;
+        },
+        0,
+      );
 
-      const totalWithCombo = currentSubtotalExcludingItem + comboTotal + item.price * normalizedQuantity;
+      const totalWithCombo =
+        currentSubtotalExcludingItem +
+        comboTotal +
+        item.price * normalizedQuantity;
       if (guestBudget && totalWithCombo > guestBudget) {
         toast.error("Selected items exceed guest budget.");
         return prev;
@@ -598,7 +690,8 @@ const GuestOrderForm = ({
 
   // Handle combo package selection (headcount, base price, category items)
   const handleComboSelection = useCallback((payload: any) => {
-    if (!payload || !("serviceId" in payload) || !("selections" in payload)) return;
+    if (!payload || !("serviceId" in payload) || !("selections" in payload))
+      return;
     const { serviceId, selections } = payload;
 
     setInvitationServices((prevServices) =>
@@ -693,14 +786,21 @@ const GuestOrderForm = ({
     const categoryItems = selectedItems
       .map((item) => {
         const catalogItem = resolveCatalogItem(item.id);
-        const canonicalId = catalogItem?.payloadItemId || toSimpleGuestItemId(item.id);
+        const canonicalId =
+          catalogItem?.payloadItemId || toSimpleGuestItemId(item.id);
         const unitPrice = Number(catalogItem?.price || item.price || 0);
         const isComboItem = !!catalogItem?.comboId;
         // For combo category items, use the headcount from the dropdown
-        const quantity = isComboItem && catalogItem?.comboId
-          ? (comboHeadcountMap[catalogItem.comboId] || Math.max(0, Math.floor(Number(item.quantity) || 0)))
-          : Math.max(0, Math.floor(Number(item.quantity) || 0));
-        const menuItemName = (catalogItem?.name || item.name || "Menu Item").trim();
+        const quantity =
+          isComboItem && catalogItem?.comboId
+            ? comboHeadcountMap[catalogItem.comboId] ||
+              Math.max(0, Math.floor(Number(item.quantity) || 0))
+            : Math.max(0, Math.floor(Number(item.quantity) || 0));
+        const menuItemName = (
+          catalogItem?.name ||
+          item.name ||
+          "Menu Item"
+        ).trim();
         const menuName = (catalogItem?.menuName || "Menu").trim();
         return {
           id: canonicalId,
@@ -732,7 +832,8 @@ const GuestOrderForm = ({
       for (const combo of csl) {
         if (!combo.comboItemId) continue;
         const headcount = combo.headcount || 1;
-        const basePrice = parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
+        const basePrice =
+          parseFloat(String(combo.basePrice || combo.pricePerPerson || 0)) || 0;
 
         // Calculate upcharges (same as comboTotal calculation)
         let totalUpcharges = 0;
@@ -740,7 +841,15 @@ const GuestOrderForm = ({
           for (const cat of combo.selections) {
             if (Array.isArray(cat.selectedItems)) {
               for (const item of cat.selectedItems) {
-                const upcharge = parseFloat(String(item.additionalCharge || item.additionalPrice || item.upcharge || 0)) || 0;
+                const upcharge =
+                  parseFloat(
+                    String(
+                      item.additionalCharge ||
+                        item.additionalPrice ||
+                        item.upcharge ||
+                        0,
+                    ),
+                  ) || 0;
                 if (upcharge > 0) totalUpcharges += upcharge * headcount;
               }
             }
@@ -751,7 +860,8 @@ const GuestOrderForm = ({
 
         // Find original combo for image/name
         const originalCombo = combos.find(
-          (c: any) => c.comboId === combo.comboItemId || c.id === combo.comboItemId,
+          (c: any) =>
+            c.comboId === combo.comboItemId || c.id === combo.comboItemId,
         );
 
         comboParentItems.push({
@@ -759,21 +869,31 @@ const GuestOrderForm = ({
           name: combo.comboName || originalCombo?.name || "Combo Package",
           quantity: headcount,
           menuName: combo.comboName || originalCombo?.name || "Combo Items",
-          menuItemName: combo.comboName || originalCombo?.name || "Combo Package",
+          menuItemName:
+            combo.comboName || originalCombo?.name || "Combo Package",
           price: basePrice,
           totalPrice: comboTotalPrice,
           cateringId: combo.comboItemId,
           serviceId: serviceId || undefined,
           isComboCategoryItem: false,
           comboId: undefined,
-          image: originalCombo?.imageUrl || originalCombo?.image || combo.image || undefined,
+          image:
+            originalCombo?.imageUrl ||
+            originalCombo?.image ||
+            combo.image ||
+            undefined,
           premiumCharge: undefined,
         });
       }
     }
 
     return [...comboParentItems, ...categoryItems];
-  }, [selectedItems, resolveCatalogItem, toSimpleGuestItemId, invitationServices]);
+  }, [
+    selectedItems,
+    resolveCatalogItem,
+    toSimpleGuestItemId,
+    invitationServices,
+  ]);
 
   // Calculate subtotal (regular menu items only, excluding combo category items)
   const menuItemsSubtotal = selectedItems.reduce((total, item) => {
@@ -783,7 +903,9 @@ const GuestOrderForm = ({
   }, 0);
   const subtotal = menuItemsSubtotal + comboTotal;
 
-  const remainingBudget = guestBudget ? Math.max(guestBudget - subtotal, 0) : null;
+  const remainingBudget = guestBudget
+    ? Math.max(guestBudget - subtotal, 0)
+    : null;
 
   useEffect(() => {
     if (!onSelectionChange) return;
@@ -805,21 +927,17 @@ const GuestOrderForm = ({
     try {
       if (token) {
         const payloadItems = buildGuestOrderPayloadItems();
-        console.log('[GuestOrderForm] Payload items:', payloadItems, 'Subtotal:', subtotal);
+        console.log(
+          "[GuestOrderForm] Payload items:",
+          payloadItems,
+          "Subtotal:",
+          subtotal,
+        );
         if (payloadItems.length === 0) {
           toast.error("Please select at least one item");
           setIsSubmitting(false);
           return;
         }
-
-        // Calculate per-service totals using the same function as EnhancedOrderSummaryCard
-        const serviceTotals = invitationServices
-          .map((service) => {
-            const serviceId = service.serviceId || service.id || "";
-            const total = calculateServiceTotal(service, selectedItemQuantities, 1);
-            return { serviceId, total: Math.round(total * 100) / 100 };
-          })
-          .filter((st) => st.serviceId && st.total > 0);
 
         // Submit real guest order
         await groupOrderService.submitGuestOrder(
@@ -830,8 +948,7 @@ const GuestOrderForm = ({
             phone: values.phone,
           },
           payloadItems,
-          subtotal,
-          serviceTotals
+          subtotal
         );
 
         setSubmitted(true);
@@ -850,7 +967,10 @@ const GuestOrderForm = ({
       }
     } catch (err: unknown) {
       console.error("Error submitting order:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to submit your order. Please try again.";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to submit your order. Please try again.";
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -864,24 +984,9 @@ const GuestOrderForm = ({
           <h2 className="text-2xl font-bold text-center">Thank You!</h2>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-center">Your order has been submitted successfully.</p>
-
-          <div className="border rounded-lg p-4 space-y-2">
-            <h3 className="font-semibold">Order Summary</h3>
-            {selectedItems.map((item) => (
-              <div key={item.id} className="flex justify-between">
-                <span>
-                  {item.quantity} x {item.name}
-                </span>
-                <span>{formatPrice(item.price * item.quantity)}</span>
-              </div>
-            ))}
-            <Separator className="my-2" />
-            <div className="flex justify-between font-semibold">
-              <span>Total</span>
-              <span>{formatPrice(subtotal)}</span>
-            </div>
-          </div>
+          <p className="text-center">
+            Your order has been submitted successfully.
+          </p>
         </CardContent>
       </Card>
     );
@@ -915,8 +1020,12 @@ const GuestOrderForm = ({
         <CardHeader className="px-5 sm:px-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold">Select Menu Items</h2>
-              <p className="text-gray-500 text-sm">Choose what you want within your budget</p>
+              <h2 className="text-lg sm:text-xl font-semibold">
+                Select Menu Items
+              </h2>
+              <p className="text-gray-500 text-sm">
+                Choose what you want within your budget
+              </p>
             </div>
             {guestBudget && (
               <div className="rounded-full bg-[#fff3e5] px-3 py-1 text-xs font-semibold text-[#b14c12]">
@@ -926,7 +1035,10 @@ const GuestOrderForm = ({
           </div>
           {guestBudget && (
             <p className="text-sm text-gray-600 mt-2">
-              Remaining: {remainingBudget !== null ? formatPrice(remainingBudget) : formatPrice(guestBudget)}
+              Remaining:{" "}
+              {remainingBudget !== null
+                ? formatPrice(remainingBudget)
+                : formatPrice(guestBudget)}
             </p>
           )}
         </CardHeader>
@@ -939,7 +1051,9 @@ const GuestOrderForm = ({
                   key={service.id || service.serviceId || serviceIndex}
                   vendorImage={getServiceMenuPhoto(service)}
                   vendorName={service.serviceName || service.name}
-                  vendorType={String(service.serviceType || service.type || "catering").replace(/_/g, " ")}
+                  vendorType={String(
+                    service.serviceType || service.type || "catering",
+                  ).replace(/_/g, " ")}
                   serviceDetails={service}
                   selectedItems={selectedItemQuantities}
                   onItemQuantityChange={handleUpdateQuantity}
@@ -957,7 +1071,9 @@ const GuestOrderForm = ({
 
           {showInlineSummary && (
             <div className="space-y-3">
-              <h3 className="font-semibold text-base sm:text-lg">Order Summary</h3>
+              <h3 className="font-semibold text-base sm:text-lg">
+                Order Summary
+              </h3>
               <EnhancedOrderSummaryCard
                 selectedServices={invitationServices}
                 selectedItems={selectedItemQuantities}
@@ -966,11 +1082,16 @@ const GuestOrderForm = ({
               {selectedItems.length > 0 && (
                 <div className="border border-black/10 rounded-xl p-3 sm:p-4 bg-[#fffaf5]">
                   {selectedItems.map((item) => (
-                    <div key={item.id} className="flex justify-between text-xs sm:text-sm py-1">
+                    <div
+                      key={item.id}
+                      className="flex justify-between text-xs sm:text-sm py-1"
+                    >
                       <span className="break-words flex-1 mr-2">
                         {item.quantity} x {item.name}
                       </span>
-                      <span className="flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
+                      <span className="flex-shrink-0">
+                        {formatPrice(item.price * item.quantity)}
+                      </span>
                     </div>
                   ))}
                   <Separator className="my-2" />
@@ -992,19 +1113,30 @@ const GuestOrderForm = ({
           {(() => {
             const infoSection = (
               <div className="border border-black/10 rounded-xl p-3 sm:p-4 bg-white">
-                <h3 className="font-semibold mb-4 text-base sm:text-lg">Your Information</h3>
+                <h3 className="font-semibold mb-4 text-base sm:text-lg">
+                  Your Information
+                </h3>
 
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-4"
+                  >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm sm:text-base">Name</FormLabel>
+                            <FormLabel className="text-sm sm:text-base">
+                              Name
+                            </FormLabel>
                             <FormControl>
-                              <Input placeholder="Your full name" {...field} className="text-sm sm:text-base" />
+                              <Input
+                                placeholder="Your full name"
+                                {...field}
+                                className="text-sm sm:text-base"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1016,7 +1148,9 @@ const GuestOrderForm = ({
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm sm:text-base">Email</FormLabel>
+                            <FormLabel className="text-sm sm:text-base">
+                              Email
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="Your email"
@@ -1037,7 +1171,9 @@ const GuestOrderForm = ({
                         name="phone"
                         render={({ field }) => (
                           <FormItem className="md:col-span-2">
-                            <FormLabel className="text-sm sm:text-base">Phone (Optional)</FormLabel>
+                            <FormLabel className="text-sm sm:text-base">
+                              Phone (Optional)
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 placeholder="Your phone number"

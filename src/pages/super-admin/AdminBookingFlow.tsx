@@ -848,6 +848,7 @@ function VendorBookingFlow() {
                   selectedServices={selectedServices}
                   selectedItems={selectedItems}
                   formData={formData}
+                  customAdjustments={customAdjustments}
                   onLoadDraft={handleLoadDraft}
                   className="mb-4"
                 />

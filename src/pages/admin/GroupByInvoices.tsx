@@ -360,7 +360,7 @@ const GroupByInvoices = () => {
         const mappedServices: ServiceSelection[] = apiServices.map(
           (service: any) => {
             const serviceId = service.id;
-            const serviceType = service.serviceType || "";
+            const serviceType = "catering";
 
             let serviceItems: any[] = [];
             let menuItems: any[] = [];
@@ -368,9 +368,16 @@ const GroupByInvoices = () => {
             let staffItems: any[] = [];
             let venueItems: any[] = [];
 
-            if (service.cateringItems && service.cateringItems.length > 0) {
-              serviceItems = service.cateringItems;
-              menuItems = service.cateringItems.map((item: any) => {
+            // Process all service types and their respective items
+            if (serviceType === "catering" || service.cateringItems) {
+              serviceItems = service.cateringItems || [];
+              
+              // If cateringItems is empty, check items array
+              if (serviceItems.length === 0 && service.items && service.items.length > 0) {
+                serviceItems = service.items.filter((item: any) => !item.isComboCategoryItem);
+              }
+              
+              menuItems = serviceItems.map((item: any) => {
                 const comboCategoryItems = apiServices.flatMap((s: any) =>
                   (s.comboCategoryItems || []).filter(
                     (comboItem: any) =>
@@ -397,7 +404,7 @@ const GroupByInvoices = () => {
                 };
               });
 
-              service.cateringItems.forEach((item: any) => {
+              serviceItems.forEach((item: any) => {
                 if (service.isGuestService) return;
                 const itemId = item.cateringId || item.id;
                 if (itemId) {
@@ -474,18 +481,18 @@ const GroupByInvoices = () => {
             }
 
             if (
-              service.partyRentalItems &&
-              service.partyRentalItems.length > 0
+              serviceType === "party_rentals" || serviceType === "party-rentals" || serviceType === "party-rental" ||
+              (service.partyRentalItems && service.partyRentalItems.length > 0)
             ) {
-              serviceItems = service.partyRentalItems;
-              rentalItems = service.partyRentalItems.map((item: any) => ({
+              serviceItems = service.partyRentalItems || [];
+              rentalItems = serviceItems.map((item: any) => ({
                 id: item.rentalId || item.id,
                 name: item.name,
                 price: parseFloat(item.eachPrice || item.price || 0),
                 priceType: "fixed",
               }));
 
-              service.partyRentalItems.forEach((item: any) => {
+              serviceItems.forEach((item: any) => {
                 const itemId = item.rentalId || item.id;
                 if (itemId) {
                   mappedSelectedItems[itemId] =
@@ -494,9 +501,12 @@ const GroupByInvoices = () => {
               });
             }
 
-            if (service.staffItems && service.staffItems.length > 0) {
-              serviceItems = service.staffItems;
-              staffItems = service.staffItems.map((item: any) => ({
+            if (
+              serviceType === "events_staff" || serviceType === "staff" ||
+              (service.staffItems && service.staffItems.length > 0)
+            ) {
+              serviceItems = service.staffItems || [];
+              staffItems = serviceItems.map((item: any) => ({
                 id: item.staffId || item.id,
                 name: item.name,
                 price: parseFloat(item.perHourPrice || item.price || 0),
@@ -504,7 +514,7 @@ const GroupByInvoices = () => {
                 perHourPrice: parseFloat(item.perHourPrice || item.price || 0),
               }));
 
-              service.staffItems.forEach((item: any) => {
+              serviceItems.forEach((item: any) => {
                 const itemId = item.staffId || item.id;
                 if (itemId) {
                   mappedSelectedItems[itemId] =
@@ -516,9 +526,12 @@ const GroupByInvoices = () => {
               });
             }
 
-            if (service.venueItems && service.venueItems.length > 0) {
-              serviceItems = service.venueItems;
-              venueItems = service.venueItems.map((item: any) => ({
+            if (
+              serviceType === "venues" || serviceType === "venue" ||
+              (service.venueItems && service.venueItems.length > 0)
+            ) {
+              serviceItems = service.venueItems || [];
+              venueItems = serviceItems.map((item: any) => ({
                 id: item.id,
                 name: item.name,
                 price: parseFloat(item.price || 0),
